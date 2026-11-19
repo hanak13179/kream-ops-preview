@@ -30,7 +30,7 @@ test('barcode-only product catalogs resolve the correct kinds',()=>{
 test('beverage kinds stay contiguous despite mixed saved ranks',()=>{
  const items=['레몬 에이드','딸기 청','말차 드링크 베이스','패션프루트 청','패션프루트 퓨레','타로 음료 베이스','오미자 시럽','청포도 에이드'].map((name_ko,i)=>({id:String(i),name_ko,category:'원재료·음료',subgroup:'음료 베이스'}));
  const layout={product_order:items.map(p=>p.id).reverse()};
- assert.deepEqual(sortCatalog(items,layout).map(p=>p.name_ko),['타로 음료 베이스','말차 드링크 베이스','패션프루트 청','딸기 청','패션프루트 퓨레','오미자 시럽','청포도 에이드','레몬 에이드']);
+ assert.deepEqual(sortCatalog(items,layout).map(p=>p.name_ko),['타로 음료 베이스','말차 드링크 베이스','오미자 시럽','청포도 에이드','레몬 에이드','패션프루트 청','딸기 청','패션프루트 퓨레']);
  const rows=items.map(p=>({product_id:p.id,quantity:2}));
  assert.deepEqual(sortProductRows(rows,items,layout).map(p=>p.product_id),sortCatalog(items,layout).map(p=>p.id));
 });
@@ -59,4 +59,11 @@ test('garnish herbs, fresh fruit and dried fruit precede other kinds without mut
  const before=JSON.stringify(rows);
  assert.deepEqual(sortProductRows(rows,items,layout).map(p=>p.product_id),sortCatalog(items,layout).map(p=>p.id));
  assert.equal(JSON.stringify(rows),before);
+});
+
+test('strawberry cheong, passionfruit cheong and puree are the final beverage items',()=>{
+ const items=[{id:'sheet-92f4924adb',name_ko:'패션프루트 퓨레'},{id:'sheet-30c6740e1f',name_ko:'패션프루트 청'},{id:'syrup',name_ko:'오미자 시럽'},{id:'sheet-5e9286882f',name_ko:'딸기 청'},{id:'ade',name_ko:'레몬 에이드'},{id:'base',name_ko:'말차 드링크 베이스'}].map(p=>({...p,category:'원재료·음료',subgroup:'음료 베이스'}));
+ for(const store of ['finch','downtown','midland','richmond-hill']){
+  assert.deepEqual(sortCatalog(items,{product_order:items.map(p=>p.id)}).map(p=>p.id),['base','syrup','ade','sheet-5e9286882f','sheet-30c6740e1f','sheet-92f4924adb']);
+ }
 });

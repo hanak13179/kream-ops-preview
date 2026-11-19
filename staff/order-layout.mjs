@@ -33,12 +33,14 @@ export function sortCatalog(catalog,layout={}){
    return name.startsWith('화채')?0:name.startsWith('리얼망고')?1:name.startsWith('곡물라떼')?2:3;
   }
   if(subgroup==='음료베이스'){
+   const last=['sheet-5e9286882f','sheet-30c6740e1f','sheet-92f4924adb'].indexOf(p.id);
+   if(last>=0)return 4+last;
    if(/베이스|base/i.test(label))return 0;
-   if(/청\s*$/.test(p.name_ko||'')||/cheong/i.test(p.name_en||''))return 1;
-   if(/퓨레|puree|purée/i.test(label))return 2;
-   if(/시럽|syrup/i.test(label))return 3;
-   if(/에이드|\bade\b/i.test(label))return 4;
-   return 5;
+   if(/시럽|syrup/i.test(label))return 1;
+   if(/에이드|\bade\b/i.test(label))return 2;
+   if(/청\s*$/.test(p.name_ko||'')||/cheong/i.test(p.name_en||''))return 4;
+   if(/퓨레|puree|purée/i.test(label))return 6;
+   return 3;
   }
   return /두바이쫀득|두쫀쿠|dubai.*(?:chewy|cookie)|chewy ball/i.test(label)?1:0;
  };

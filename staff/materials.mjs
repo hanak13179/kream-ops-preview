@@ -1,4 +1,4 @@
-import {sortCatalog} from './order-layout.mjs?v=20261119-retail-garnish';
+import {sortCatalog} from './order-layout.mjs?v=20261119-cheong-last';
 import {loadMaterialCosts,renderMaterialCost,costLabel} from './material-costs.mjs?v=20261104-costs';
 import {materialOrderLines,materialRecommendation,submitMaterialOrder} from './material-order.mjs?v=20261104-material-orders';
 import {workTime} from './work-records.mjs?v=20261102-drag';

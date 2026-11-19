@@ -1,4 +1,4 @@
-import {canArrange,sortCatalog,moved} from './order-layout.mjs?v=20261119-retail-garnish';
+import {canArrange,sortCatalog,moved} from './order-layout.mjs?v=20261119-cheong-last';
 let draft=null;
 export const hasProductOrderEdits=()=>!!draft?.changed;
 export function clearProductOrder(){draft=null;}
