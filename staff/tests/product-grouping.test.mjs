@@ -26,3 +26,20 @@ test('barcode-only product catalogs resolve the correct kinds',()=>{
  assert.deepEqual(result.map(p=>p.barcode),['unknown','cookie','cake']);
  assert.ok(result.every(p=>rows.includes(p)));
 });
+
+test('beverage kinds stay contiguous despite mixed saved ranks',()=>{
+ const items=['레몬 에이드','딸기 청','말차 드링크 베이스','패션프루트 청','패션프루트 퓨레','타로 음료 베이스','오미자 시럽','청포도 에이드'].map((name_ko,i)=>({id:String(i),name_ko,category:'원재료·음료',subgroup:'음료 베이스'}));
+ const layout={product_order:items.map(p=>p.id).reverse()};
+ assert.deepEqual(sortCatalog(items,layout).map(p=>p.name_ko),['타로 음료 베이스','말차 드링크 베이스','패션프루트 청','딸기 청','패션프루트 퓨레','오미자 시럽','청포도 에이드','레몬 에이드']);
+ const rows=items.map(p=>({product_id:p.id,quantity:2}));
+ assert.deepEqual(sortProductRows(rows,items,layout).map(p=>p.product_id),sortCatalog(items,layout).map(p=>p.id));
+});
+
+test('canned drinks start with hwachae, mango, then grain latte in every store layout',()=>{
+ const items=['녹차 캔','곡물라떼 캔','리얼 망고 프루티 캔','화채 캔','레몬밤 민트 캔'].map((name_ko,i)=>({id:String(i),name_ko,category:'원재료·음료',subgroup:'캔 음료'}));
+ for(const store of ['finch','wellesley','midland','richmond']){
+  const layout={product_order:store==='midland'?items.map(p=>p.id).reverse():items.map(p=>p.id)};
+  const result=sortCatalog(items,layout).map(p=>p.name_ko);
+  assert.deepEqual(result.slice(0,3),['화채 캔','리얼 망고 프루티 캔','곡물라떼 캔']);
+ }
+});
