@@ -1,8 +1,8 @@
 import {sortProductRows} from './order-layout.mjs?v=20261119-kind-order';
 import {confirmDispatchSummary} from './dispatch-confirmation.mjs?v=20261105-dispatch-submit';
-import {halfBoxCount,unitLabel,quantityLabel,boxAmount,displayQuantity,inputQuantity} from './packing.mjs?v=20261106-all-cheesecake-trays';
-import {renderExternalDispatch} from './external-dispatch.mjs?v=20261119-kind-order';
-import {unshippedItem,unshippedTools,bindUnshipped,hasUnshippedEdits,clearUnshippedState} from './unshipped.mjs?v=20261106-all-cheesecake-trays';
+import {halfBoxCount,unitLabel,quantityLabel,boxAmount,displayQuantity,inputQuantity} from './packing.mjs?v=20261119-memo-items';
+import {renderExternalDispatch} from './external-dispatch.mjs?v=20261119-memo-items';
+import {unshippedItem,unshippedTools,bindUnshipped,hasUnshippedEdits,clearUnshippedState} from './unshipped.mjs?v=20261119-memo-items';
 import {orderReference} from './presentation.mjs?v=20261103-clean-confirmation';
 import {workTime} from './work-records.mjs?v=20261102-drag';
 export function dispatchQuantityLabel(p,value,lang='ko'){const n=Number(value);return halfBoxCount(p)===32&&Number.isFinite(n)&&n%32===0?(lang==='en'?`${n/64} box (${n} pcs)`:`${n/64}박스(${n}개)`):quantityLabel(p,value);}

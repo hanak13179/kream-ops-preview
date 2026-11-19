@@ -1,4 +1,4 @@
-import {halfBoxCount,unitLabel,quantityLabel,displayQuantity} from './packing.mjs?v=20261106-all-cheesecake-trays';
+import {halfBoxCount,unitLabel,quantityLabel,displayQuantity} from './packing.mjs?v=20261119-memo-items';
 import {orderReference} from './presentation.mjs?v=20261103-clean-confirmation';
 
 export function receivingLayout(c,state){

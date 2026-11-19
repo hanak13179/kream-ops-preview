@@ -1,6 +1,6 @@
-import {halfBoxCount,unitLabel,quantityLabel,boxAmount} from './packing.mjs?v=20261106-all-cheesecake-trays';
-import {productionChoices,productionGroup} from './production-log.mjs?v=20261106-all-cheesecake-trays';
-import {teamLabels} from './production.mjs?v=20261106-all-cheesecake-trays';
+import {halfBoxCount,unitLabel,quantityLabel,boxAmount} from './packing.mjs?v=20261119-memo-items';
+import {productionChoices,productionGroup} from './production-log.mjs?v=20261119-memo-items';
+import {teamLabels} from './production.mjs?v=20261119-memo-items';
 import {workTime} from './work-records.mjs?v=20261102-drag';
 let group='',subgroup='',search='',drafts={},attempt=null,generation=0;
 export const hasFinishedEdits=()=>!!attempt||Object.keys(drafts).length>0;

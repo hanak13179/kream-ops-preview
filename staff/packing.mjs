@@ -1,5 +1,5 @@
 import {stockDisplayFactor} from './stock-units.mjs?v=20261118-midland-sheet';
-const ids=new Set(['chewy','sheet-70441a15e7','sheet-9ea75322e4','sheet-1f39626328']);
+const ids=new Set(['dubai-black-sesame','chewy','sheet-70441a15e7','sheet-9ea75322e4','sheet-1f39626328']);
 export function halfBoxCount(p){return ids.has(p?.id??p?.product_id)&&['ea','개','낱개'].includes(String(p.order_unit||'').toLowerCase())?32:1;}
 export function packingHint(p,lang='ko'){return halfBoxCount(p)===32?(lang==='en'?'Half box (32 pcs)':'반박스(32개)'):'';}
 
