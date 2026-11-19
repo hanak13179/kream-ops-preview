@@ -1,4 +1,4 @@
-import {sortProductRows} from './order-layout.mjs?v=20261119-cheong-last';
+import {sortProductRows} from './order-layout.mjs?v=20261119-garnish-sequence';
 import {recipientSettings,recipientProducts,dispatchValue} from './external-recipient-settings.mjs?v=20261119-memo-items';
 import {halfBoxCount,unitLabel,quantityLabel,boxAmount,displayQuantity,inputQuantity,packingHint} from './packing.mjs?v=20261119-memo-items';
 import {subcategoryStyle} from './category-colors.mjs?v=20261104-drag-only';

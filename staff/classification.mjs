@@ -1,4 +1,4 @@
-import {sortCatalog} from './order-layout.mjs?v=20261119-cheong-last';
+import {sortCatalog} from './order-layout.mjs?v=20261119-garnish-sequence';
 import {workTime} from './work-records.mjs?v=20261102-drag';
 export const classificationScopes=role=>role==='owner'||role==='manager_factory'?['store','production','materials']:['manager','general_manager'].includes(role)?['store']:role==='factory_manager'?['production','materials']:[];
 export const classificationBase=(p,scope)=>({category:scope==='production'?(p.production_team||'other'):p.category,subgroup:scope==='production'?(p.factory_subgroup??p.subgroup??''):(p.subgroup||'')});

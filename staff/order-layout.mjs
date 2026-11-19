@@ -16,17 +16,22 @@ export function sortCatalog(catalog,layout={}){
    return 4;
   }
   if(subgroup==='가니쉬'){
+   const afterFruit=['sheet-f6358a08e9','sheet-b217fc6e1e','sheet-ff7e15f65e','sheet-716b90db87','sheet-47c9884f8a','sheet-de21fc6109','sheet-167e9f0ca3','sheet-6ec70ea6a1'].indexOf(p.id);
+   if(afterFruit>=0)return 3+afterFruit;
    if(/로즈마리|타임|바질|민트|rosemary|thyme|basil|mint/i.test(label))return 0;
    if(/건조|dried/i.test(label))return 2;
    if(/레몬|바나나|오렌지|딸기|망고|라임|lemon|banana|orange|strawberry|mango|lime/i.test(label))return 1;
-   if(/다이제스티브|레이디핑거|포키|digestive|lady.?finger|pocky/i.test(label))return 3;
-   if(/초콜릿|chocolate/i.test(label))return 4;
-   if(/피스타치오|칩|pistachio|chip/i.test(label))return 5;
-   if(/설탕|슈가|sugar/i.test(label))return 6;
-   if(/소스|캔디|sauce|candy/i.test(label))return 7;
-   if(/크림치즈|cream cheese/i.test(label))return 8;
-   if(/티백|tea bag/i.test(label))return 9;
-   return 10;
+   if(/다이제스티브|레이디핑거|포키|digestive|lady.?finger|pocky/i.test(label))return 12;
+   if(/초콜릿|chocolate/i.test(label))return 13;
+   if(/피스타치오|칩|pistachio|chip/i.test(label))return 14;
+   if(/설탕|슈가|sugar/i.test(label))return 15;
+   if(/소스|캔디|sauce|candy/i.test(label))return 16;
+   if(/크림치즈|cream cheese/i.test(label))return 17;
+   if(/티백|tea bag/i.test(label))return 18;
+   return 19;
+  }
+  if(subgroup==='음료파우더'){
+   return p.id==='sheet-0e4a661b12'?1:p.id==='sheet-2b00fa5a43'?2:0;
   }
   if(subgroup==='캔음료'){
    const name=(p.name_ko||'').replace(/\s/g,'');
