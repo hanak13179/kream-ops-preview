@@ -1,3 +1,4 @@
+import {showSignupNotice} from './signup-notice.mjs?v=20261119-signup-notice';
 import {watchPendingAccess} from './access-resume.mjs?v=20261119-webapp-access';
 import {renderCosting} from './costing.mjs?v=20261106-costs';
 import {renderGalleriaWorkspace,canUseGalleria} from './galleria-workspace.mjs?v=20261119-garnish-sequence';
@@ -66,7 +67,7 @@ function renderAuth(){
  const email=String(form.get('email')||'').trim(),password=String(form.get('password')||'');authEmail=email;
  const redirect=location.origin+location.pathname;
  if(recovery){await result(db.auth.updateUser({password}));recovery=false;await loadIdentity();say(t('비밀번호를 변경했어요.','Password updated.'));}
- else if(mode==='signup'){signupWorkplaces=form.getAll('workplaces');if(!signupWorkplaces.length){say(t('근무지를 한 곳 이상 선택해 주세요.','Select at least one workplace.'),true);return;}await result(db.auth.signUp({email,password,options:{emailRedirectTo:redirect,data:{workplaces:signupWorkplaces,display_name:String(form.get('displayName')||'').trim()}}}));signupNoticeEmail=email;mode='login';await loadIdentity();say(t('가입 후 이메일 인증이 필요해요. 인증메일의 링크를 눌러 주세요.','Verify your email after signup by opening the confirmation link.'));}
+ else if(mode==='signup'){signupWorkplaces=form.getAll('workplaces');if(!signupWorkplaces.length){say(t('근무지를 한 곳 이상 선택해 주세요.','Select at least one workplace.'),true);return;}await result(db.auth.signUp({email,password,options:{emailRedirectTo:redirect,data:{workplaces:signupWorkplaces,display_name:String(form.get('displayName')||'').trim()}}}));signupNoticeEmail=email;mode='login';showSignupNotice(email,{t,esc});await loadIdentity();say(t('가입 후 이메일 인증이 필요해요. 인증메일의 링크를 눌러 주세요.','Verify your email after signup by opening the confirmation link.'));}
  else if(mode==='reset'){await result(db.auth.resetPasswordForEmail(email,{redirectTo:redirect}));say(t('이메일을 확인해 주세요. 비밀번호 설정 링크를 요청했어요.','Check your email for the password reset link.'));}
  else{await result(db.auth.signInWithPassword({email,password}));await loadIdentity();say(t('로그인했어요.','Signed in.'));}
  });};
