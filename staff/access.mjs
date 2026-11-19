@@ -6,7 +6,7 @@ export const previewRoles=[
  ['general_manager','총괄매니저 · 전 매장','General manager · all stores'],
  ['factory_staff','공장 직원','Factory employee'],
  ['factory_manager','공장 매니저','Factory manager'],
- ['midland_owner','미드랜드 점주','Midland owner']
+ ['midland_owner','미드랜드 최종관리자','Midland administrator']
 ];
 const shared=['sop','manual'];
 const store=['galleria','galleriaHistory','galleriaSop','manual','receiving','order','history','waste','sop','workplaces'];

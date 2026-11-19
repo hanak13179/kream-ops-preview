@@ -1,5 +1,5 @@
-import {stockDisplayFactor,stockDisplay,stockInput} from './stock-units.mjs?v=20261106-all-cheesecake-trays';
-import {halfBoxCount,unitLabel,quantityLabel,boxAmount} from './packing.mjs?v=20261106-all-cheesecake-trays';
+import {stockDisplayFactor,stockDisplay,stockInput} from './stock-units.mjs?v=20261118-midland-sheet';
+import {halfBoxCount,unitLabel,quantityLabel,boxAmount} from './packing.mjs?v=20261118-midland-sheet';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
 let edits={};
 export const hasStockEdits=()=>Object.keys(edits).length>0;
