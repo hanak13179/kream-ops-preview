@@ -1,5 +1,5 @@
 import {mergeCloverReports,readCloverPeriod} from './clover-sales.mjs?v=20261106-sales-stock';
-import {renderGalleriaDispatchOverview} from './galleria-workspace.mjs?v=20261105-galleria';
+import {renderGalleriaDispatchOverview} from './galleria-workspace.mjs?v=20261119-beverage-order';
 import {readPeriod,renderExternalSales} from './external-sales.mjs?v=20261104-all-sales';
 import {channels,labels,summary,money} from './sales-core.mjs?v=20261104-all-sales';
 import {renderSalesEditor} from './sales-editor.mjs?v=20261103-sales1';

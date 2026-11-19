@@ -1,4 +1,4 @@
-import {sortCatalog,sortProductRows} from './order-layout.mjs?v=20261119-kind-order';
+import {sortCatalog,sortProductRows} from './order-layout.mjs?v=20261119-beverage-order';
 import {todayToronto} from './waste.mjs?v=20261102-whole-quantity';
 let generation=0;
 const money=n=>n==null?'—':new Intl.NumberFormat('en-CA',{style:'currency',currency:'CAD'}).format(Number(n)/100);

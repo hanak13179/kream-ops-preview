@@ -1,4 +1,4 @@
-import {canArrange,sortCatalog,moved} from './order-layout.mjs?v=20261119-kind-order';
+import {canArrange,sortCatalog,moved} from './order-layout.mjs?v=20261119-beverage-order';
 let draft=null;
 export const hasProductOrderEdits=()=>!!draft?.changed;
 export function clearProductOrder(){draft=null;}

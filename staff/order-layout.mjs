@@ -5,7 +5,7 @@ export function sortCatalog(catalog,layout={}){
  const cats=ordered([...new Set(catalog.map(p=>p.category||''))].sort(),layout.category_order);
  const groups=ordered([...new Set(catalog.map(groupKey))],layout.subgroup_order);
  const products=new Map((layout.product_order||[]).map((v,i)=>[v,i]));
- const family=p=>/두바이쫀득|두쫀쿠|dubai.*(?:chewy|cookie)|chewy ball/i.test((p.name_ko||'')+' '+(p.name_en||''))?1:0;
+ const family=p=>p.subgroup==='음료 베이스'?(/시럽|syrup/i.test((p.name_ko||'')+' '+(p.name_en||''))?1:/에이드|\bade\b/i.test((p.name_ko||'')+' '+(p.name_en||''))?2:0):/두바이쫀득|두쫀쿠|dubai.*(?:chewy|cookie)|chewy ball/i.test((p.name_ko||'')+' '+(p.name_en||''))?1:0;
  return [...catalog].sort((a,b)=>cats.indexOf(a.category||'')-cats.indexOf(b.category||'')||groups.indexOf(groupKey(a))-groups.indexOf(groupKey(b))||family(a)-family(b)||(products.get(a.id)??1e9)-(products.get(b.id)??1e9));
 }
 export function sortProductRows(rows,catalog=[],layout={}){
