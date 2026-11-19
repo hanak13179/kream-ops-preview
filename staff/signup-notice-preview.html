@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>가입 안내 팝업 미리보기</title><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./install.css"><style>body{display:block;margin:0;background:#f8f5ef}header{position:static;display:flex;justify-content:space-between;padding:20px 28px}main{margin:0 auto;padding:32px 20px;max-width:680px}.preview-note{font-size:14px;color:#776a60}.preview-actions{display:flex;gap:12px;flex-wrap:wrap}.signup-notice{box-sizing:border-box}.signup-notice ol{padding-left:24px;line-height:1.7}.signup-notice li+li{margin-top:10px}</style></head>
+<body><header><a class="brand">kream <small>OPERATIONS</small></a><button id="language">English</button></header><main><p class="preview-note" id="note">가입 안내 미리보기 · 실제 가입이나 이메일 발송은 하지 않습니다.</p><section class="auth"><h1 id="heading">인증메일을 확인해 주세요</h1><p><strong>staff@example.com</strong></p><p id="description">이메일 인증과 관리자 승인·접속 허용이 완료되면 로그인할 수 있어요.</p><div class="preview-actions"><button class="primary" id="openNotice">가입 안내 팝업 다시 보기</button></div></section></main>
+<script type="module">
+import {showSignupNotice} from './signup-notice.mjs';
+let english=false;
+const t=(ko,en)=>english?en:ko;
+const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const open=()=>showSignupNotice('staff@example.com',{t,esc});
+document.querySelector('#openNotice').onclick=open;
+document.querySelector('#language').onclick=()=>{english=!english;document.documentElement.lang=english?'en':'ko';document.querySelector('#language').textContent=english?'한국어':'English';document.querySelector('#note').textContent=t('가입 안내 미리보기 · 실제 가입이나 이메일 발송은 하지 않습니다.','Preview only · no account is created and no email is sent.');document.querySelector('#heading').textContent=t('인증메일을 확인해 주세요','Check your confirmation email');document.querySelector('#description').textContent=t('이메일 인증과 관리자 승인·접속 허용이 완료되면 로그인할 수 있어요.','Sign in after email verification, administrator approval and access assignment.');document.querySelector('#openNotice').textContent=t('가입 안내 팝업 다시 보기','Show signup notice again');open();};
+open();
+</script></body></html>
