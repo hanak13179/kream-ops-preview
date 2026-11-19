@@ -8,6 +8,26 @@ export function sortCatalog(catalog,layout={}){
  const family=p=>{
   const label=(p.name_ko||'')+' '+(p.name_en||'');
   const subgroup=(p.subgroup||'').replace(/\s/g,'');
+  if(subgroup==='리테일'){
+   if(/커피|coffee/i.test(label))return 0;
+   if(/페이스트|paste/i.test(label))return 1;
+   if(/달고나|캔디|dalgona|candy/i.test(label))return 2;
+   if(/건조|바나나.*칩|dried|banana.*chip/i.test(label))return 3;
+   return 4;
+  }
+  if(subgroup==='가니쉬'){
+   if(/로즈마리|타임|바질|민트|rosemary|thyme|basil|mint/i.test(label))return 0;
+   if(/건조|dried/i.test(label))return 2;
+   if(/레몬|바나나|오렌지|딸기|망고|라임|lemon|banana|orange|strawberry|mango|lime/i.test(label))return 1;
+   if(/다이제스티브|레이디핑거|포키|digestive|lady.?finger|pocky/i.test(label))return 3;
+   if(/초콜릿|chocolate/i.test(label))return 4;
+   if(/피스타치오|칩|pistachio|chip/i.test(label))return 5;
+   if(/설탕|슈가|sugar/i.test(label))return 6;
+   if(/소스|캔디|sauce|candy/i.test(label))return 7;
+   if(/크림치즈|cream cheese/i.test(label))return 8;
+   if(/티백|tea bag/i.test(label))return 9;
+   return 10;
+  }
   if(subgroup==='캔음료'){
    const name=(p.name_ko||'').replace(/\s/g,'');
    return name.startsWith('화채')?0:name.startsWith('리얼망고')?1:name.startsWith('곡물라떼')?2:3;

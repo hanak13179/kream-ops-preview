@@ -43,3 +43,20 @@ test('canned drinks start with hwachae, mango, then grain latte in every store l
   assert.deepEqual(result.slice(0,3),['화채 캔','리얼 망고 프루티 캔','곡물라떼 캔']);
  }
 });
+
+test('retail coffee, paste, candy and dried fruit remain grouped across store layouts',()=>{
+ const items=['레몬 페이스트','제로 커피 powder','달고나 캔디 봉투','커피 빈','달고나 캔디 · 리테일','동결건조 바나나','흑임자 페이스트','바나나 칩 · 리테일'].map((name_ko,i)=>({id:String(i),name_ko,category:'원재료·음료',subgroup:'리테일'}));
+ for(const store of ['finch','downtown','midland','richmond-hill']){
+  const layout={product_order:items.map(p=>p.id)};
+  assert.deepEqual(sortCatalog(items,layout).map(p=>p.id),['1','3','0','6','2','4','5','7']);
+ }
+});
+test('garnish herbs, fresh fruit and dried fruit precede other kinds without mutating history',()=>{
+ const items=['레몬','로즈마리','초콜릿 청크','바나나','타임','동결건조 레몬','동결건조 딸기','오렌지','커피 초콜릿','슈가파우더'].map((name_ko,i)=>({id:String(i),name_ko,category:'원재료·음료',subgroup:'가니쉬'}));
+ const layout={product_order:items.map(p=>p.id)};
+ assert.deepEqual(sortCatalog(items,layout).map(p=>p.id),['1','4','0','3','7','5','6','2','8','9']);
+ const rows=items.map(p=>({product_id:p.id,name_ko:'saved name',quantity:7}));
+ const before=JSON.stringify(rows);
+ assert.deepEqual(sortProductRows(rows,items,layout).map(p=>p.product_id),sortCatalog(items,layout).map(p=>p.id));
+ assert.equal(JSON.stringify(rows),before);
+});
