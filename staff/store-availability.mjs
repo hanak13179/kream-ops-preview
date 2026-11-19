@@ -1,5 +1,6 @@
 // Ordering visibility only. Keep the full catalog for production and history.
 export function availableForStore(product, store) {
+  if(product.id==='cash-envelope'&&store==='midland')return false;
   if(product.id?.startsWith('midland-sheet-')&&store!=='midland'&&!['midland-sheet-tiramisu-matcha','midland-sheet-yogurt-blueberry','midland-sheet-yogurt-green-grape'].includes(product.id))return false;
   if(product.id==='pantry-cookie-set'&&store!=='finch')return false;
   if(product.category==='키친 발주'&&store!=='finch')return false;
