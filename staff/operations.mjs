@@ -1,24 +1,24 @@
 import {receivingLayout} from './receiving-layout.mjs?v=20261106-all-cheesecake-trays';
 import {halfBoxCount,unitLabel,quantityLabel,displayQuantity,boxAmount} from './packing.mjs?v=20261106-all-cheesecake-trays';
-import {hasExternalEdits,clearExternalState} from './external-dispatch.mjs?v=20261106-all-cheesecake-trays';
+import {hasExternalEdits,clearExternalState} from './external-dispatch.mjs?v=20261119-kind-order';
 import {hasFinishedEdits,clearFinishedState} from './finished-stock.mjs?v=20261106-all-cheesecake-trays';
-import {hasProductOrderEdits,clearProductOrder} from './product-drag.mjs?v=20261104-material-card-order';
-import {hasClassificationEdits,clearClassificationState} from './classification.mjs?v=20261103-classification-select';
+import {hasProductOrderEdits,clearProductOrder} from './product-drag.mjs?v=20261119-kind-order';
+import {hasClassificationEdits,clearClassificationState} from './classification.mjs?v=20261119-kind-order';
 import {orderReference} from './presentation.mjs?v=20261103-clean-confirmation';
 import {hasAccountEdits,clearAccountState} from './accounts.mjs?v=20261104-compact-live';
 import {quantityStep} from './quantity-step.mjs?v=20261102-whole-quantity';
-import {hasSubcategoryEdits,clearSubcategoryState} from './subcategory-drag.mjs?v=20261102-drag2';
+import {hasSubcategoryEdits,clearSubcategoryState} from './subcategory-drag.mjs?v=20261119-kind-order';
 import {renderReceiptReviews,hasReviewEdits,clearReviewState} from './receiving-review.mjs?v=20261102-drag';
 import {hasSettlementEdits,clearSettlementState} from './settlement.mjs?v=20261102-drag';
-import {hasMaterialEdits,clearMaterialState} from './materials.mjs?v=20261105-stock-visible';
+import {hasMaterialEdits,clearMaterialState} from './materials.mjs?v=20261119-kind-order';
 import {workTime} from './work-records.mjs?v=20261102-drag';
 import {hasCatalogEdits,clearCatalogState} from './catalog-editor.mjs?v=20261102-drag';
 import {hasDailyEdits,clearDailyState} from './daily-log.mjs?v=20261102-whole-quantity';
-import {hasLayoutEdits,clearLayoutState} from './order-layout.mjs?v=20261104-drag-only';
+import {sortProductRows,hasLayoutEdits,clearLayoutState} from './order-layout.mjs?v=20261119-kind-order';
 import {hasChecklistEdits,clearChecklistState} from './checklist.mjs?v=20261104-manual-compact';
 import {hasProductionEdits,clearProductionState} from './production-log.mjs?v=20261106-all-cheesecake-trays';
 import {hasStockEdits,clearStockEdits} from './store-stock.mjs?v=20261106-all-cheesecake-trays';
-import {hasDispatchEdits,clearDispatchState} from './dispatch.mjs?v=20261106-all-cheesecake-trays';
+import {hasDispatchEdits,clearDispatchState} from './dispatch.mjs?v=20261119-kind-order';
 import {hasWasteEdits,clearWasteState} from './waste.mjs?v=20261102-whole-quantity';
 export function outstanding(order,receipts,dispatches=[]){const sums=new Map();for(const r of receipts.filter(r=>r.order_id===order.id))for(const p of r.kream_receipt_items||[])sums.set(p.product_id,Math.round(((sums.get(p.product_id)||0)+Number(p.quantity))*1000)/1000);const ds=dispatches.filter(d=>d.order_id===order.id),sent=new Map();for(const d of ds)for(const i of d.kream_dispatch_items||[])sent.set(i.product_id,(sent.get(i.product_id)||0)+Number(i.quantity));return (order.kream_order_items||[]).map(p=>({...p,unshipped:order.dispatch_finalized_at?Math.max(0,Number(p.quantity)-(sent.get(p.product_id)||0)):0,received:sums.get(p.product_id)||0,remaining:Math.max(0,Math.round((Number(p.quantity)-(sums.get(p.product_id)||0))*1000)/1000),receivable:Math.max(0,Math.round(((order.dispatch_finalized_at?(sent.get(p.product_id)||0):0)-(sums.get(p.product_id)||0))*1000)/1000)}));}
 export function receiptPayload(order,receipts,values,dispatches=[]){const rows=outstanding(order,receipts,dispatches);const items=Object.entries(values).filter(([,q])=>q!==''&&Number(q)!==0).map(([id,q])=>{const row=rows.find(p=>p.product_id===id),n=Number(q);if(!row||!Number.isFinite(n)||n<=0||n>row.receivable||Math.abs(n*1000-Math.round(n*1000))>1e-7)throw new Error('RECEIPT_INVALID');return {product_id:id,quantity:n};});if(!items.length)throw new Error('RECEIPT_EMPTY');return items;}
@@ -32,7 +32,7 @@ export function clearModuleState(){clearExternalState();clearFinishedState();cle
 export function renderReceiving(host,c){
  const {orders,receipts,profile,stores,store,t,esc,act,db,reload,say}=c;
  const list=orders.filter(o=>o.status!=='cancelled'&&o.dispatch_finalized_at);if(!list.some(o=>o.id===receiptOrder)){receiptOrder=list[0]?.id||'';receiptValues={};receiptNote='';}
- const order=list.find(o=>o.id===receiptOrder),rows=order?outstanding(order,receipts,c.dispatches||[]):[],writable=profile.role!=='factory',waiting=!!receiptAttempt;
+ const order=list.find(o=>o.id===receiptOrder),rows=order?sortProductRows(outstanding(order,receipts,c.dispatches||[]),c.catalog):[],writable=profile.role!=='factory',waiting=!!receiptAttempt;
  host.innerHTML=receivingLayout(c,{list,order,rows,writable,waiting,values:receiptValues,note:receiptNote,expanded:expandedReceiptStores,completed:receiptCompleted,outstanding});
  host.querySelectorAll('[data-reorder-receipt]').forEach(button=>button.onclick=()=>act(async()=>{if(hasModuleEdits()){say(t('작성 중인 입고 내용을 먼저 저장해 주세요.','Save receiving edits first.'),true);return;}const target=list.find(o=>o.id===button.dataset.reorderReceipt);if(!target)return;await c.reorderMissing(target.store_id,outstanding(target,receipts,c.dispatches||[]).filter(p=>p.unshipped>0).map(p=>({...p,remaining:p.unshipped})));}));
  const reviewPanel=document.createElement('details');reviewPanel.className='panel receiving-reviews';const reviewSummary=document.createElement('summary');reviewSummary.textContent=t('입고 차이 · 본사 확인 요망','Receiving differences · head office review');reviewPanel.append(reviewSummary);const reviewHost=document.createElement('section');reviewPanel.append(reviewHost);host.append(reviewPanel);renderReceiptReviews(reviewHost,c);

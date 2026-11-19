@@ -1,6 +1,17 @@
 export function ordered(values,preferred=[]){const ranks=new Map(preferred.map((v,i)=>[v,i]));return [...values].sort((a,b)=>(ranks.get(a)??1e9)-(ranks.get(b)??1e9));}
 export function groupKey(p){return JSON.stringify([p.category,p.subgroup||'']);}
-export function sortCatalog(catalog,layout={}){const cats=ordered([...new Set(catalog.map(p=>p.category))].sort(),layout.category_order),groups=ordered([...new Set(catalog.map(groupKey))],layout.subgroup_order),products=new Map((layout.product_order||[]).map((v,i)=>[v,i]));return [...catalog].sort((a,b)=>cats.indexOf(a.category)-cats.indexOf(b.category)||(products.get(a.id)??1e9)-(products.get(b.id)??1e9)||groups.indexOf(groupKey(a))-groups.indexOf(groupKey(b)));}
+// Keep product kinds together; manual item ranks apply within each kind.
+export function sortCatalog(catalog,layout={}){
+ const cats=ordered([...new Set(catalog.map(p=>p.category||''))].sort(),layout.category_order);
+ const groups=ordered([...new Set(catalog.map(groupKey))],layout.subgroup_order);
+ const products=new Map((layout.product_order||[]).map((v,i)=>[v,i]));
+ const family=p=>/두바이쫀득|두쫀쿠|dubai.*(?:chewy|cookie)|chewy ball/i.test((p.name_ko||'')+' '+(p.name_en||''))?1:0;
+ return [...catalog].sort((a,b)=>cats.indexOf(a.category||'')-cats.indexOf(b.category||'')||groups.indexOf(groupKey(a))-groups.indexOf(groupKey(b))||family(a)-family(b)||(products.get(a.id)??1e9)-(products.get(b.id)??1e9));
+}
+export function sortProductRows(rows,catalog=[],layout={}){
+ const byId=new Map(catalog.map(p=>[p.id??p.barcode,p]));
+ return sortCatalog(rows.map(row=>{const id=row.product_id??row.id??row.barcode,p=id==null?null:byId.get(id);return {...row,id,category:p?.category??row.category??'',subgroup:p?.subgroup??row.subgroup??'',name_ko:p?.name_ko??row.name_ko,name_en:p?.name_en??row.name_en,_row:row};}),layout).map(p=>p._row);
+}
 export const canArrange=profile=>['owner','manager','midland_owner'].includes(profile?.role);
 export function moved(list,id,position){const next=list.filter(v=>v!==id);next.splice(Math.max(0,Math.min(next.length,position)),0,id);return next;}
 let editing=null,changed=false,editingCategory='';

@@ -1,3 +1,4 @@
+import {sortCatalog,sortProductRows} from './order-layout.mjs?v=20261119-kind-order';
 import {todayToronto} from './waste.mjs?v=20261102-whole-quantity';
 let generation=0;
 const money=n=>n==null?'—':new Intl.NumberFormat('en-CA',{style:'currency',currency:'CAD'}).format(Number(n)/100);
@@ -16,6 +17,7 @@ export async function renderGalleriaWorkspace(host,c){
  const manage=!c.preview&&(profile.role==='owner'||profile.role==='factory'&&profile.factory_manager||profile.general_manager||profile.role==='manager');
  try{[products,history]=await Promise.all([read(db.from('kream_galleria_products').select('*').eq('active',true).order('category').order('subgroup').order('name_ko')),read(db.from('kream_galleria_shipments').select('id,store_id,dispatch_date,note,items,recorded_name,created_at').order('created_at',{ascending:false}).limit(100))]);}catch{host.innerHTML=`<p class="error">${t('갤러리아 자료를 불러오지 못했어요. 다시 불러와 주세요.','Could not load Galleria. Please reload.')}</p>`;return;}
  if(token!==generation||!host.isConnected)return;
+ products=sortCatalog(products);history=history.map(r=>({...r,items:sortProductRows(r.items,products)}));
  function title(p){return c.lang==='en'&&p.name_en?p.name_en:p.name_ko;}
  function selected(){return products.filter(p=>quantities[p.barcode]>0);}
  function draw(){
