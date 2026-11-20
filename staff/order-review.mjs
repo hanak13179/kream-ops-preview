@@ -77,7 +77,9 @@ export function openOrderRevision(order,c){
   c.act(async()=>{try{
    const r=await c.db.rpc('kream_revise_midland_order',{target_order:order.id,expected_revision:order.order_revision||1,new_items:items,new_note:dialog.querySelector('#revisionNote').value,new_date:dialog.querySelector('#revisionDate').value});
    if(r.error)throw r.error;
-   clearOrderRevision();await c.reload();c.say(t('발주 수정 내용을 저장했어요. 같은 입고일 합계에도 반영됐어요.','Order updated. Combined receipt-date totals are refreshed.'));
+   clearOrderRevision();
+   try{await c.reload();}catch{c.say(t('발주 수정은 저장됐어요. 최신 목록을 불러오지 못했으니 새로고침해서 확인해 주세요.','Your changes were saved. Reload the page to view the updated order list.'));return;}
+   c.say(t('발주 수정 내용을 저장했어요. 같은 입고일 합계에도 반영됐어요.','Order updated. Combined receipt-date totals are refreshed.'));
   }catch(error){const box=dialog.querySelector('#revisionError');box.textContent=workflowError(error,t)||t('저장하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.','Could not save. Check your connection and retry.');box.focus();}});
  };
 }

@@ -1,4 +1,4 @@
-import {canFinalizeMidland,midlandReviewStatus,workflowError,requestMidlandReview,renderGroupedOrderHistory} from './order-review.mjs?v=20261120-midland-review';
+import {canFinalizeMidland,midlandReviewStatus,workflowError,requestMidlandReview,renderGroupedOrderHistory} from './order-review.mjs?v=20261120-midland-review2';
 import {showSignupNotice} from './signup-notice.mjs?v=20261119-signup-notice';
 import {watchPendingAccess} from './access-resume.mjs?v=20261119-webapp-access';
 import {renderCosting} from './costing.mjs?v=20261106-costs';
@@ -32,7 +32,7 @@ import {renderDispatch} from './dispatch.mjs?v=20261119-garnish-sequence';
 import {renderProduction} from './production.mjs?v=20261119-memo-items';
 import {renderWaste,todayToronto} from './waste.mjs?v=20261102-whole-quantity';
 import {navigationGroups,orderedPages,previewRoles,visiblePages,canPreview,isFactoryRole,scopePreview} from './access.mjs?v=20261118-midland-sheet';
-import {renderReceiving,renderGuides,hasModuleEdits,clearModuleState} from './operations.mjs?v=20261120-midland-review';
+import {renderReceiving,renderGuides,hasModuleEdits,clearModuleState} from './operations.mjs?v=20261120-midland-review2';
 import {artwork,deliveryLabel,filterProducts,needsOrder,frequentIds,favoriteIds,orderReference} from './presentation.mjs?v=20261106-below-minimum';
 import {tomorrowToronto,validItems,sameBasketItems,saveSharedBasket as saveDraft,submitSharedBasket as submitDraft,aggregate} from './core.mjs?v=20261103-submit-fix';
 const $=s=>document.querySelector(s), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
