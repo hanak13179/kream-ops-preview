@@ -1,3 +1,4 @@
+import {hasOrderRevisionEdits,clearOrderRevision} from './order-review.mjs?v=20261120-midland-review';
 import {receivingLayout} from './receiving-layout.mjs?v=20261119-memo-items';
 import {halfBoxCount,unitLabel,quantityLabel,displayQuantity,boxAmount} from './packing.mjs?v=20261119-memo-items';
 import {hasExternalEdits,clearExternalState} from './external-dispatch.mjs?v=20261119-garnish-sequence';
@@ -27,8 +28,8 @@ export function canEditGuide(profile,guide){return profile?.role==='owner'||prof
 let receiptOrder='',receiptValues={},receiptNote='',receiptAttempt=null,receiptCompleted=null;
 const expandedReceiptStores=new Set();
 let editing=null,guideDirty=false,guideSearch='';
-export function hasModuleEdits(){return hasExternalEdits()||hasFinishedEdits()||hasProductOrderEdits()||hasClassificationEdits()||hasAccountEdits()||hasSubcategoryEdits()||hasReviewEdits()||hasSettlementEdits()||hasMaterialEdits()||hasCatalogEdits()||hasDailyEdits()||hasLayoutEdits()||hasChecklistEdits()||hasProductionEdits()||hasStockEdits()||hasDispatchEdits()||hasWasteEdits()||guideDirty||!!receiptAttempt||Object.keys(receiptValues).length>0||!!receiptNote;}
-export function clearModuleState(){clearExternalState();clearFinishedState();clearProductOrder();clearClassificationState();clearAccountState();clearSubcategoryState();clearReviewState();clearSettlementState();clearMaterialState();clearCatalogState();clearDailyState();clearLayoutState();clearChecklistState();clearProductionState();clearStockEdits();clearDispatchState();clearWasteState();receiptOrder='';receiptValues={};receiptNote='';receiptAttempt=null;receiptCompleted=null;expandedReceiptStores.clear();editing=null;guideDirty=false;guideSearch='';}
+export function hasModuleEdits(){return hasOrderRevisionEdits()||hasExternalEdits()||hasFinishedEdits()||hasProductOrderEdits()||hasClassificationEdits()||hasAccountEdits()||hasSubcategoryEdits()||hasReviewEdits()||hasSettlementEdits()||hasMaterialEdits()||hasCatalogEdits()||hasDailyEdits()||hasLayoutEdits()||hasChecklistEdits()||hasProductionEdits()||hasStockEdits()||hasDispatchEdits()||hasWasteEdits()||guideDirty||!!receiptAttempt||Object.keys(receiptValues).length>0||!!receiptNote;}
+export function clearModuleState(){clearOrderRevision();clearExternalState();clearFinishedState();clearProductOrder();clearClassificationState();clearAccountState();clearSubcategoryState();clearReviewState();clearSettlementState();clearMaterialState();clearCatalogState();clearDailyState();clearLayoutState();clearChecklistState();clearProductionState();clearStockEdits();clearDispatchState();clearWasteState();receiptOrder='';receiptValues={};receiptNote='';receiptAttempt=null;receiptCompleted=null;expandedReceiptStores.clear();editing=null;guideDirty=false;guideSearch='';}
 export function renderReceiving(host,c){
  const {orders,receipts,profile,stores,store,t,esc,act,db,reload,say}=c;
  const list=orders.filter(o=>o.status!=='cancelled'&&o.dispatch_finalized_at);if(!list.some(o=>o.id===receiptOrder)){receiptOrder=list[0]?.id||'';receiptValues={};receiptNote='';}
