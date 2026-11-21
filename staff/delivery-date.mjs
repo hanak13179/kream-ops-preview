@@ -8,3 +8,9 @@ export function confirmDeliveryDate(value,{lang='ko',doc=document}={}){
  const actions=doc.createElement('div');actions.className='actions';const yes=doc.createElement('button'),change=doc.createElement('button');yes.className='primary';yes.type=change.type='button';yes.textContent=text('확인','Confirm');change.textContent=text('날짜 바꾸기','Change date');actions.append(yes,change);dialog.append(title,date,actions);doc.body.append(dialog);
  return new Promise(resolve=>{let accepted=false;yes.onclick=()=>{accepted=true;dialog.close();};change.onclick=()=>dialog.close();dialog.onclose=()=>{dialog.remove();resolve(accepted);};dialog.showModal();change.focus();});
 }
+
+export function defaultReceiptDate(now=new Date()){
+ const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/Toronto',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).formatToParts(now).map(p=>[p.type,p.value]));
+ return new Date(Date.UTC(+p.year,+p.month-1,+p.day+(+p.hour<3?0:1))).toISOString().slice(0,10);
+}
+export function receiptRequestLabel(value,lang='ko'){return fullDeliveryDate(value,lang)+(lang==='en'?' — requested receipt date':' 입고 요청입니다.');}
