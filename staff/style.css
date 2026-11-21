@@ -231,3 +231,22 @@ body,.signed-in aside,.signed-in header{background:#f8f5ef;color:#352e29}
 /* 재고 세기 게임 시작 버튼 */
 .count-game-start{display:block;width:100%;margin:10px 0 12px;padding:16px;border:0;border-radius:16px;background:linear-gradient(135deg,#3e4b33,#6d8a57);color:#fff;font-size:18px;font-weight:800;box-shadow:0 3px 10px #3e4b3333}
 .count-game-start:disabled{opacity:.45}
+
+/* 한 개씩 보기: 위쪽을 줄여서 재고 세는 카드가 위에 보이게 */
+body.steps-mode.signed-in header{min-height:0;padding:10px 32px}
+body.steps-mode .section-title{padding-top:10px}
+body.steps-mode .section-title small{display:none}
+body.steps-mode .section-title h1{font-size:20px;margin:4px 0 2px}
+body.steps-mode .section-title .live{padding:5px 10px;font-size:11px}
+body.steps-mode #portal>p.muted{display:none}
+body.steps-mode .order-controls{padding:8px 12px;gap:10px;border-radius:14px;margin-top:8px}
+body.steps-mode .order-controls label{font-size:12px}
+body.steps-mode .order-controls select,body.steps-mode .order-controls input,body.steps-mode .order-controls .date-wrap{min-height:38px}
+body.steps-mode .order-controls .date-wrap{padding:6px 12px}
+body.steps-mode .order-controls button{min-height:38px;padding:6px 12px}
+body.steps-mode .search-field{margin:8px 0;font-size:12px}
+body.steps-mode .search-field input{height:38px}
+body.steps-mode .order-quick-actions{display:none}
+body.steps-mode .chips.categories{margin:6px 0}
+body.steps-mode .chips.categories button{padding:7px 14px}
+@media(max-width:700px){body.steps-mode.signed-in header{padding:6px 12px}body.steps-mode .order-controls{padding:8px}body.steps-mode .order-controls button{min-width:0;flex:0 1 auto}}
