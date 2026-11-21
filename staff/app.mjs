@@ -232,7 +232,7 @@ function renderSteps(list){const host=$('#products'),layout=currentLayout(),shif
 function canSetMinimum(){return store!=='midland'&&['owner','manager','midland_owner'].includes(screenProfile()?.role);}
 function minimumOf(p){const r=stockRules.find(x=>x.product_id===p.id&&x.store_id===store);const v=r?.weekday_base??r?.weekend_base;return v==null?null:stockDisplay(p,v);}
 function renderMinimums(list){if(!minState||minState.store!==store){minState=createMinimumState();minState.store=store;}const items=list.filter(p=>p.unit_confirmed&&p.category!=='키친 발주'&&!String(p.category||'').includes('포장'));
- renderMinimumEditor($('#products'),{state:minState,items,t,esc,name,unitLabel:p=>stockDisplayFactor(p)>1?t('조각 단위','pieces'):unitLabel(p),current:minimumOf,preview:isPreview(),
+ renderMinimumEditor($('#products'),{state:minState,items,t,esc,name,unitLabel:p=>stockDisplayFactor(p)>1?t('조각 단위','pieces'):unitLabel(p),current:minimumOf,preview:true /* Hana 미리보기: 저장 안 함 */,
   save:async changes=>{const targetStore=store;let failed=null;for(const {p,value} of changes){try{const base=stockInput(p,value);const old=stock.find(x=>x.product_id===p.id),rule=stockRules.find(x=>x.product_id===p.id&&x.store_id===targetStore);const minimum=old?.minimum!=null&&old.minimum>base?base:(old?.minimum??null);
    const r=await db.rpc('kream_save_stock_plan',{target_store:targetStore,target_product:p.id,new_on_hand:old?.on_hand??null,new_minimum:minimum,weekday_base:base,weekend_base:base,weekend_days:rule?.weekend_days||[5,6,0],expected_stock_revision:old?.revision||0,expected_rule_revision:rule?.revision||0});if(r.error)throw r.error;delete minState.edits[p.id];}catch(e){failed=e;break;}}
    await loadOrders();await loadModules();if(failed)throw failed;}});}
