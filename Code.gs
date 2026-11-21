@@ -1017,6 +1017,8 @@ function kreamStockLogRows(ss) {
 // 공통: 카테고리 묶음 표 그리기 (원래 매장별 발주처럼 색깔 상자).
 // headerColors: 열 머리 색, softColors: 열 몸통 연한 색. cellFor(item, colIndex) → [값, 오늘이면 true]
 function kreamDrawStockTable(sh, title, subtitle, headers, headerColors, groups, cellFor, extraTop, softColors) {
+  sh.setFrozenRows(0); sh.setFrozenColumns(0);
+  if (sh.getMaxRows() && sh.getMaxColumns()) sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
   sh.clear();
   sh.setHiddenGridlines(true);
   var width = headers.length, top = 3 + (extraTop || 0);
@@ -1073,8 +1075,7 @@ function kreamDrawStockTable(sh, title, subtitle, headers, headerColors, groups,
       if (col && i >= 2) sh.getRange(top, i + 1, grid.length + 1, 1).setBorder(true, true, true, true, null, null, col, SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
     });
   }
-  sh.setFrozenRows(top);
-  sh.setFrozenColumns(1);
+  sh.setFrozenRows(top);   // 첫 열은 고정 안 함 (카테고리 띠가 가로로 합쳐져 있어서)
   sh.setColumnWidth(1, 220); sh.setColumnWidth(2, 80);
   for (var w = 3; w <= width; w++) sh.setColumnWidth(w, width > 8 ? 64 : 140);
 }
