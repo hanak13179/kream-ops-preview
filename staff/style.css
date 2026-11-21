@@ -227,3 +227,7 @@ body,.signed-in aside,.signed-in header{background:#f8f5ef;color:#352e29}
 .order-controls .date-wrap input{min-width:0;width:100%;height:100%}
 .order-controls #refresh{height:50px;min-height:50px;min-width:0;margin:0}
 @media(max-width:700px){.toolbar.controls.order-controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.order-controls #refresh{grid-column:1/-1;width:100%}}
+
+.workplace-badge{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:14px;background:var(--c);font:700 17px system-ui,sans-serif;color:#2f3129}
+      .workplace-badge.dark{color:#fff}.workplace-badge span small{display:block;font:500 11px system-ui,sans-serif;opacity:.75}
+      .workplace-badge button{font:600 13px system-ui,sans-serif;border:0;border-radius:20px;padding:6px 12px;background:#fff9;color:inherit;cursor:pointer;min-height:auto}
