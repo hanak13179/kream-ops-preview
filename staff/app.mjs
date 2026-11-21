@@ -1,3 +1,4 @@
+import {chooseEntry,entryChoice,entryStore} from './entry-chooser.mjs';
 import {guardPreview} from './preview-guard.mjs';
 import {canFinalizeMidland,midlandReviewStatus,workflowError,requestMidlandReview,renderGroupedOrderHistory} from './order-review.mjs?v=20261120-midland-review2';
 import {showSignupNotice} from './signup-notice.mjs?v=20261119-signup-notice';
@@ -106,8 +107,8 @@ async function loadIdentity(){
  if(!profile?.active){stores=[];catalog=[];orders=[];return;}
  if(profile.store_manager){const memberships=await result(db.from('kream_memberships').select('store_id').eq('user_id',user.id));profile.store_ids=memberships.map(m=>m.store_id);}
  const s=await result(db.from('kream_stores').select('id,name').eq('active',true).order('name'));await loadCatalog();
- if(epoch!==generation)return;stores=s.sort((a,b)=>storeRank(a)-storeRank(b));const assigned=screenStores();store=assigned.some(s=>s.id===store)?store:(assigned[0]?.id||'');
- if(stores.length&&stores.every(s=>s.id.startsWith('galleria-')))page='galleria';else if(profile.role==='factory'&&!profile.store_manager)page='production';await loadOrders();await loadModules();if((profile.role!=='factory'||profile.store_manager)&&store)await loadDraft();
+ if(epoch!==generation)return;stores=s.sort((a,b)=>storeRank(a)-storeRank(b));const assigned=screenStores();const entry=entryChoice(),entryAt=entryStore(stores);if(entryAt&&assigned.some(s=>s.id===entryAt.id))store=entryAt.id;else if(entryAt||(entry&&entry.key!=='factory'))setTimeout(()=>say(t(entry.label+'에 접근 권한이 없어서 기본 매장으로 열었어요.','No access to '+entry.label+'; opened your default store.'),true),0);store=assigned.some(s=>s.id===store)?store:(assigned[0]?.id||'');
+ if(stores.length&&stores.every(s=>s.id.startsWith('galleria-')))page='galleria';else if(profile.role==='factory'&&!profile.store_manager)page='production';if(entry?.key==='factory'&&(profile.role==='factory'||profile.factory_manager||profile.role==='manager'))page='production';await loadOrders();await loadModules();if((profile.role!=='factory'||profile.store_manager)&&store)await loadDraft();
 }
 function groupedOrder(o){return {...o,kream_order_items:sortProductRows(o.kream_order_items||[],catalogAll)};}
 async function loadCatalog(){catalogAll=await result(db.from('kream_catalog').select('id,name_ko,name_en,category,subgroup,order_unit,unit_confirmed,active,archived,photo_path,production_team,factory_subgroup,revision').order('name_ko').limit(1000));catalogAll=sortCatalog(catalogAll);catalog=catalogAll.filter(p=>p.active&&!p.archived);photoURLs=await signedPhotos(db,catalog);if(category&&!(store==='finch'&&category==='키친 발주')&&!catalog.some(p=>p.category===category)){category='';subgroup='';}}
@@ -241,24 +242,4 @@ setInterval(async()=>{
  if(JSON.stringify(r.data)!==JSON.stringify(stock)){stock=r.data;renderOrderArea();}
  }catch{}
 },60000);
-boot();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+chooseEntry().then(boot);
