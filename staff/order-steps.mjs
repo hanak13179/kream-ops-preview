@@ -143,7 +143,7 @@ export function renderOrderSteps(host, c) {
     doneCount = items.filter(p => s.done.has(p.id)).length;
     const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
     const sc = c.shiftCounts || {};
-    const shiftBar = c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">☀️ ${t('오전 할 일', 'Morning')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🌙 ${t('마감 할 일', 'Closing')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
+    const shiftBar = c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">🧚 ${t('오전 요정', 'Morning fairy')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🧚‍♀️ ${t('마감 요정', 'Closing fairy')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
     return shiftBar + `<div class="os-head"><span class="os-count">${Math.min(s.index + 1, items.length)} / ${items.length}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${doneCount === items.length && items.length ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
     <div class="os-tools"><button data-os="one" aria-pressed="${s.view === 'one'}">${t('한 개씩', 'One by one')}</button><button data-os="list" aria-pressed="${s.view === 'list'}">✎ ${t('목록', 'List')}</button><button data-os="grid">▦ ${t('전체 보기', 'Grid')}</button></div>`;
   }
@@ -182,7 +182,7 @@ export function renderOrderSteps(host, c) {
     const secs = s.finishedIn || 0, per = s.counts ? secs / s.counts : Infinity;
     const tier = SPEED.find(x => per <= x[0]);
     wrap(head() + `<div class="os-win"><div class="big">${allDone ? '🏆' : tier[1]}</div>
-      <h3>${allDone ? (c.shift === 'morning' ? t('오전 할 일 전부 끝! ☀️', 'Morning tasks done! ☀️') : c.shift === 'closing' ? t('마감 재고 전부 끝! 🌙', 'Closing count done! 🌙') : t('오늘 재고 전부 끝!', 'All stock counted!')) : `${esc(c.title)} ${t('완료!', 'done!')}`}</h3>
+      <h3>${allDone ? (c.shift === 'morning' ? t('오전 요정 임무 완료! 🧚', 'Morning fairy: mission complete! 🧚') : c.shift === 'closing' ? t('마감 요정 임무 완료! 🧚‍♀️', 'Closing fairy: mission complete! 🧚‍♀️') : t('오늘 재고 전부 끝!', 'All stock counted!')) : `${esc(c.title)} ${t('완료!', 'done!')}`}</h3>
       <p class="praise">${esc(t(tier[2], tier[3]))}</p>
       <p class="time">${s.counts ? `${s.counts}${t('개', ' items')} · ${timeText(secs, t)}` : `${doneCount} / ${items.length} ${t('품목', 'items')}`}</p>
       ${s.failed.size ? `<p class="os-warn">${t(`${s.failed.size}개 재고가 저장되지 않았어요. 목록에서 다시 확인해 주세요.`, `${s.failed.size} counts did not save. Check them in the list.`)}</p>` : ''}
@@ -193,8 +193,8 @@ export function renderOrderSteps(host, c) {
 
   function drawOne() {
     if (!items.length) {
-      const other = c.shift === 'morning' ? t('마감 할 일', 'closing tasks') : t('오전 할 일', 'morning tasks');
-      wrap(head() + (c.otherShiftHere ? `<div class="os-win"><div class="big">${c.shift === 'morning' ? '🌙' : '☀️'}</div><h3>${t(`여기는 ${other}이에요`, `These are ${other}`)}</h3><p>${t('위에서 근무 시간을 바꾸거나 다른 카테고리를 골라 주세요.', 'Switch the shift above or pick another category.')}</p></div>` : `<p class="empty">${t('해당 품목이 없어요.', 'No items here.')}</p>`));
+      const other = c.shift === 'morning' ? t('마감 요정', 'the closing fairy') : t('오전 요정', 'the morning fairy');
+      wrap(head() + (c.otherShiftHere ? `<div class="os-win"><div class="big">${c.shift === 'morning' ? '🌙' : '☀️'}</div><h3>${t(`여기는 ${other} 담당이에요`, `This is for ${other}`)}</h3><p>${t('위에서 근무 시간을 바꾸거나 다른 카테고리를 골라 주세요.', 'Switch the shift above or pick another category.')}</p></div>` : `<p class="empty">${t('해당 품목이 없어요.', 'No items here.')}</p>`));
       return;
     }
     if (s.index >= items.length) return drawWin();
