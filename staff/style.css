@@ -232,9 +232,9 @@ body,.signed-in aside,.signed-in header{background:#f8f5ef;color:#352e29}
       .workplace-badge.dark{color:#fff}.workplace-badge span small{display:block;font:500 11px system-ui,sans-serif;opacity:.75}
       .workplace-badge button{font:600 13px system-ui,sans-serif;border:0;border-radius:20px;padding:6px 12px;background:#fff9;color:inherit;cursor:pointer;min-height:auto}
 
-/* Compact three-column square navigation. */
+/* Compact three-column rectangular navigation. */
 #navigation nav.nav-tiles,#navigation .nav-tiles>.nav-group{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
-#navigation .nav-tiles .nav-tile{aspect-ratio:1/1;min-height:0;height:auto;padding:6px 4px;grid-template-columns:minmax(0,1fr);grid-template-rows:24px auto;gap:5px;border-radius:12px}
+#navigation .nav-tiles .nav-tile{aspect-ratio:3/1;min-height:48px;height:auto;padding:4px;grid-template-columns:minmax(0,1fr);grid-template-rows:20px auto;gap:2px;border-radius:12px}
 #navigation .nav-tile .nav-emoji{font-size:22px;line-height:1}
-#navigation .nav-tile .nav-emoji svg{display:block;width:24px;height:24px}
+#navigation .nav-tile .nav-emoji svg{display:block;width:20px;height:20px}
 #navigation .nav-tile .nav-label{font-size:11px;line-height:1.25;word-break:keep-all;overflow-wrap:anywhere}
