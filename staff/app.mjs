@@ -24,7 +24,7 @@ import {renderDailyLog} from './daily-log.mjs?v=20261102-whole-quantity';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
 import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261121-steps9';
 import {queueSheetStock} from './sheet-sync.mjs?v=20261121-sheet';
-import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261121-minimum';
+import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261121-minimum2';
 import {renderProductionLog} from './production-log.mjs?v=20261119-memo-items';
 import {renderChecklist} from './checklist.mjs?v=20261104-manual-compact';
 import {sortCatalog,sortProductRows,ordered,groupKey} from './order-layout.mjs?v=20261119-garnish-sequence';
@@ -228,11 +228,11 @@ function renderSteps(list){const host=$('#products'),layout=currentLayout(),shif
   openBasket:()=>{cartOpen=true;renderCart();},showGrid:()=>setOrderView('grid'),yesNo:p=>String(p.category||'').includes('포장'),allIds:countable.filter(p=>inShift(p,shift)).map(p=>p.id),shift,shiftCounts:{morning:countable.filter(morningTask).length,closing:countable.filter(p=>!morningTask(p)).length},setShift:v=>{try{sessionStorage.setItem('kream-order-shift',v);}catch{}renderProducts();},otherShiftHere:list.some(p=>p.unit_confirmed&&!inShift(p,shift))});}
 // 최소수량 탭: 매니저만 (Sora 앱에서 기준재고를 고칠 수 있는 권한과 같음). 2호점 Midland는 원래 그대로라 안 보여요.
 function canSetMinimum(){return store!=='midland'&&['owner','manager','midland_owner'].includes(screenProfile()?.role);}
-function minimumOf(p){const r=stockRules.find(x=>x.product_id===p.id&&x.store_id===store);const v=r?.weekday_base??r?.weekend_base;return v==null?null:stockDisplay(p,v);}
+function minimumOf(p){const r=stockRules.find(x=>x.product_id===p.id&&x.store_id===store);return {wd:r?.weekday_base==null?null:stockDisplay(p,r.weekday_base),we:r?.weekend_base==null?null:stockDisplay(p,r.weekend_base)};}
 function renderMinimums(list){if(!minState||minState.store!==store){minState=createMinimumState();minState.store=store;}const items=list.filter(p=>p.unit_confirmed&&p.category!=='키친 발주'&&!String(p.category||'').includes('포장'));
  renderMinimumEditor($('#products'),{state:minState,items,t,esc,name,unitLabel:p=>stockDisplayFactor(p)>1?t('조각 단위','pieces'):unitLabel(p),current:minimumOf,preview:isPreview(),
-  save:async changes=>{const targetStore=store;let failed=null;for(const {p,value} of changes){try{const base=stockInput(p,value);const old=stock.find(x=>x.product_id===p.id),rule=stockRules.find(x=>x.product_id===p.id&&x.store_id===targetStore);const minimum=old?.minimum!=null&&old.minimum>base?base:(old?.minimum??null);
-   const r=await db.rpc('kream_save_stock_plan',{target_store:targetStore,target_product:p.id,new_on_hand:old?.on_hand??null,new_minimum:minimum,weekday_base:base,weekend_base:base,weekend_days:rule?.weekend_days||[5,6,0],expected_stock_revision:old?.revision||0,expected_rule_revision:rule?.revision||0});if(r.error)throw r.error;delete minState.edits[p.id];}catch(e){failed=e;break;}}
+  save:async changes=>{const targetStore=store;let failed=null;for(const {p,weekday,weekend} of changes){try{const wd=weekday==null?null:stockInput(p,weekday),we=weekend==null?null:stockInput(p,weekend);const old=stock.find(x=>x.product_id===p.id),rule=stockRules.find(x=>x.product_id===p.id&&x.store_id===targetStore);const bases=[wd,we].filter(v=>v!=null),lowest=bases.length?Math.min(...bases):null;const minimum=old?.minimum!=null&&lowest!=null&&old.minimum>lowest?lowest:(old?.minimum??null);
+   const r=await db.rpc('kream_save_stock_plan',{target_store:targetStore,target_product:p.id,new_on_hand:old?.on_hand??null,new_minimum:minimum,weekday_base:wd,weekend_base:we,weekend_days:rule?.weekend_days||[5,6,0],expected_stock_revision:old?.revision||0,expected_rule_revision:rule?.revision||0});if(r.error)throw r.error;delete minState.edits[p.id];}catch(e){failed=e;break;}}
    await loadOrders();await loadModules();if(failed)throw failed;}});}
 function currentLayout(){return layoutRows.find(l=>l.store_id===store)||{};}
 function scrollOrderSelection(){requestAnimationFrame(()=>document.querySelector('#categories')?.scrollIntoView({block:'start',behavior:'instant'}));}
