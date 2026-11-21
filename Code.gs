@@ -494,6 +494,7 @@ function doPost(e) {
     lock.waitLock(20000);
     try {
       if (req.action === 'recordStock') return kreamRecordStock(req);   // 직원 앱 재고 기록 (stock-sync.js)
+      if (req.action === 'syncItems') return kreamSyncStockItems(req);  // 직원 앱 품목 목록 맞추기
       var out = kreamHandle(kreamSheetDb(), req, kreamCtx());
       if (['submitCount', 'setOrderStatus', 'saveTargets'].indexOf(req.action) >= 0) {
         try { kreamRefreshSummary(); } catch (err) { console.error('summary refresh failed: ' + err); }
@@ -937,6 +938,18 @@ function kreamRecordStock(req) {
   return {saved: values.length};
 }
 
+// 앱의 품목 목록(이름·카테고리·순서)을 재고 품목 탭에 맞춰요. 기록은 안 남겨요.
+function kreamSyncStockItems(req) {
+  var settings = kreamSettingMap();
+  if (req.key !== (settings.sync_key || KREAM_STOCK_DEFAULT_KEY)) throw kreamError('BAD_SYNC_KEY');
+  var rows = (req.items || []).filter(function (r) { return r && r.item_id; }).slice(0, 2000);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  kreamStockTabs(ss);
+  kreamUpsertStockItems(ss, rows);
+  PropertiesService.getScriptProperties().setProperty('stock_dirty', '1');
+  return {items: rows.length};
+}
+
 function kreamSettingMap() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Settings');
   var map = {};
@@ -1001,50 +1014,76 @@ function kreamStockLogRows(ss) {
   return out;   // 시간 순서 (아래로 쌓임)
 }
 
-// 공통: 카테고리 묶음 표 그리기. cellFor(item, colIndex) → [값, 오늘이면 true]
-function kreamDrawStockTable(sh, title, subtitle, headers, headerColors, groups, cellFor, extraTop) {
+// 공통: 카테고리 묶음 표 그리기 (원래 매장별 발주처럼 색깔 상자).
+// headerColors: 열 머리 색, softColors: 열 몸통 연한 색. cellFor(item, colIndex) → [값, 오늘이면 true]
+function kreamDrawStockTable(sh, title, subtitle, headers, headerColors, groups, cellFor, extraTop, softColors) {
   sh.clear();
   sh.setHiddenGridlines(true);
   var width = headers.length, top = 3 + (extraTop || 0);
-  var grid = [], cats = [], fresh = [];
+  var grid = [], kinds = [], fresh = [];
   groups.forEach(function (g, gi) {
-    cats.push({row: top + 1 + grid.length, color: KREAM_CATEGORY_COLORS[gi % KREAM_CATEGORY_COLORS.length]});
-    var head = [g.category + '  (' + g.items.length + ')']; while (head.length < width) head.push('');
-    grid.push(head); fresh.push(null);
-    g.items.forEach(function (it) {
+    var head = [g.category + '  ·  ' + g.items.length + '개']; while (head.length < width) head.push('');
+    grid.push(head); kinds.push({cat: gi}); fresh.push(null);
+    g.items.forEach(function (it, ii) {
       var row = [it.item, it.unit], marks = [false, false];
       for (var c = 2; c < width; c++) { var x = cellFor(it, c - 2); row.push(x[0]); marks.push(x[1]); }
-      grid.push(row); fresh.push(marks);
+      grid.push(row); kinds.push({odd: ii % 2 === 1}); fresh.push(marks);
     });
   });
+  var all = sh.getRange(1, 1, top + Math.max(grid.length, 1), width);
+  all.setFontFamily(KREAM_FONT).setFontSize(11).setFontColor('#3a3c34').setVerticalAlignment('middle').setBackground('#fffdf8');
   sh.getRange(1, 1).setValue(title).setFontSize(16).setFontWeight('bold').setFontColor('#ed522e');
   sh.getRange(1, width).setValue(subtitle).setFontSize(9).setFontColor('#9a9c90').setHorizontalAlignment('right');
-  sh.getRange(top, 1, 1, width).setValues([headers]).setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center').setBackground('#eeeee3');
+  sh.setRowHeight(1, 38);
+  // 머리 줄: 매장 색 띠
+  var hdr = sh.getRange(top, 1, 1, width);
+  hdr.setValues([headers]).setFontWeight('bold').setFontSize(11).setHorizontalAlignment('center').setBackground('#e9e6da').setFontColor('#2f3129');
   headerColors.forEach(function (col, i) { if (col) sh.getRange(top, i + 1).setBackground(col); });
   sh.getRange(top, 1).setHorizontalAlignment('left');
+  sh.setRowHeight(top, 34);
   if (grid.length) {
     var body = sh.getRange(top + 1, 1, grid.length, width);
-    body.setValues(grid).setFontSize(11).setFontColor('#3a3c34').setVerticalAlignment('middle')
-      .setBorder(true, true, true, true, true, true, '#e7e3d8', SpreadsheetApp.BorderStyle.SOLID);
-    sh.getRange(top + 1, 3, grid.length, width - 2).setHorizontalAlignment('center').setNumberFormat('0.###');
-    sh.getRange(top + 1, 2, grid.length, 1).setFontColor('#8a8676').setFontSize(9);
-    // 오늘 숫자 = 진하게, 예전 숫자 = 회색
-    var colors = [], weights = [];
-    fresh.forEach(function (m) {
-      var cr = [], wr = [];
-      for (var c = 2; c < width; c++) { cr.push(m && !m[c] ? '#a8a496' : '#2f3129'); wr.push(m && m[c] ? 'bold' : 'normal'); }
-      colors.push(cr); weights.push(wr);
+    body.setValues(grid);
+    // 배경: 카테고리 띠 / 줄무늬 / 매장 열은 연한 매장 색
+    var bg = [], colors = [], weights = [];
+    kinds.forEach(function (k, r) {
+      var b = [], cr = [], wr = [];
+      for (var c = 0; c < width; c++) {
+        if (k.cat != null) { b.push(KREAM_CATEGORY_COLORS[k.cat % KREAM_CATEGORY_COLORS.length]); cr.push('#2f3129'); wr.push('bold'); continue; }
+        var soft = c >= 2 && softColors && softColors[c] ? softColors[c] : null;
+        b.push(soft ? (k.odd ? kreamShade(soft) : soft) : (k.odd ? '#f6f4ec' : '#ffffff'));
+        var m = fresh[r];
+        cr.push(c < 2 ? (c === 1 ? '#8a8676' : '#2f3129') : (m && !m[c] ? '#a8a496' : '#2f3129'));
+        wr.push(c === 0 ? 'bold' : c >= 2 && m && m[c] ? 'bold' : 'normal');
+      }
+      bg.push(b); colors.push(cr); weights.push(wr);
     });
-    sh.getRange(top + 1, 3, grid.length, width - 2).setFontColors(colors).setFontWeights(weights);
-    cats.forEach(function (c) {
-      sh.getRange(c.row, 1, 1, width).merge().setBackground(c.color).setFontWeight('bold').setFontSize(12).setFontColor('#2f3129').setHorizontalAlignment('left');
+    body.setBackgrounds(bg).setFontColors(colors).setFontWeights(weights)
+      .setBorder(true, true, true, true, true, true, '#e2dfd3', SpreadsheetApp.BorderStyle.SOLID);
+    sh.getRange(top + 1, 3, grid.length, width - 2).setHorizontalAlignment('center').setNumberFormat('0.###').setFontSize(12);
+    sh.getRange(top + 1, 2, grid.length, 1).setFontSize(9).setHorizontalAlignment('center');
+    kinds.forEach(function (k, r) {
+      if (k.cat != null) sh.getRange(top + 1 + r, 1, 1, width).merge().setFontSize(12).setHorizontalAlignment('left');
+    });
+    sh.setRowHeights(top + 1, grid.length, 26);
+    kinds.forEach(function (k, r) { if (k.cat != null) sh.setRowHeight(top + 1 + r, 30); });
+    // 상자 테두리: 전체 + 매장 열마다 매장 색
+    sh.getRange(top, 1, grid.length + 1, width).setBorder(true, true, true, true, null, null, '#8f927f', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    headerColors.forEach(function (col, i) {
+      if (col && i >= 2) sh.getRange(top, i + 1, grid.length + 1, 1).setBorder(true, true, true, true, null, null, col, SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
     });
   }
   sh.setFrozenRows(top);
   sh.setFrozenColumns(1);
-  sh.getRange(1, 1, Math.max(top + grid.length, top), width).setFontFamily(KREAM_FONT);
-  sh.setColumnWidth(1, 210); sh.setColumnWidth(2, 70);
-  for (var w = 3; w <= width; w++) sh.setColumnWidth(w, width > 8 ? 62 : 130);
+  sh.setColumnWidth(1, 220); sh.setColumnWidth(2, 80);
+  for (var w = 3; w <= width; w++) sh.setColumnWidth(w, width > 8 ? 64 : 140);
+}
+
+// 연한 색을 조금 더 진하게 (줄무늬용)
+function kreamShade(hex) {
+  var n = parseInt(hex.slice(1), 16), f = 0.94;
+  var r = Math.round(((n >> 16) & 255) * f), g = Math.round(((n >> 8) & 255) * f), b = Math.round((n & 255) * f);
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
 // 재고 현황: 매장별 가장 최근 숫자
@@ -1060,7 +1099,7 @@ function kreamRefreshStockNow(ss, logRows, groups) {
       var r = latest[KREAM_STOCK_STORES[i].id + '|' + it.id];
       if (!r) return ['', false];
       return [kreamStockShow(it, r.count), r.date === today || r.date === kAddDays(today, -1) && Number(Utilities.formatDate(new Date(), KREAM_TZ, 'H')) < 4];
-    });
+    }, 0, [null, null].concat(KREAM_STOCK_STORES.map(function (s) { return s.soft; })));
   sh.getRange(2, 1).setValue('진한 숫자 = 오늘 센 재고 · 회색 숫자 = 예전에 센 재고 · 빈칸 = 아직 안 셈').setFontSize(9).setFontColor('#8a8676').setFontFamily(KREAM_FONT);
 }
 
@@ -1076,7 +1115,8 @@ function kreamRefreshStockDays(ss, logRows, groups) {
   kreamDrawStockTable(sh, '날짜별 재고 · ' + store.label, '최근 14일 (그날 마지막으로 센 숫자)',
     ['제품', '단위'].concat(days.map(function (x) { return x.slice(5).replace('-', '/'); })),
     [null, null].concat(days.map(function (x, i) { return i === 0 ? store.color : null; })), groups,
-    function (it, i) { var v = byDay[days[i] + '|' + it.id]; return [v == null ? '' : kreamStockShow(it, v), true]; });
+    function (it, i) { var v = byDay[days[i] + '|' + it.id]; return [v == null ? '' : kreamStockShow(it, v), true]; },
+    0, [null, null].concat(days.map(function () { return store.soft; })));
   sh.getRange(2, 1).setValue('매장 고르기 ▸').setFontWeight('bold').setFontFamily(KREAM_FONT);
   sh.getRange(2, 2, 1, 3).merge().setValue(store.label).setBackground(store.soft).setFontWeight('bold').setFontFamily(KREAM_FONT)
     .setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(KREAM_STOCK_STORES.map(function (s) { return s.label; }), true).build());
