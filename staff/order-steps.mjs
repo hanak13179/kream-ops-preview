@@ -7,6 +7,11 @@ const STYLE_ID = 'order-steps-style';
 const CSS = `
 .os{grid-column:1/-1;max-width:520px;width:100%;margin:0 auto;touch-action:manipulation}
 .os *{box-sizing:border-box}
+.os-shift{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.os-shift button{border:0;border-radius:14px;padding:12px 8px;font-size:16px;font-weight:800;background:#fff;box-shadow:0 1px 4px #0001;color:#3b382f}
+.os-shift button small{display:block;font-size:11px;font-weight:600;color:#6b6555;margin-top:2px}
+.os-shift button[aria-pressed=true]{background:#3e4b33;color:#fff}
+.os-shift button[aria-pressed=true] small{color:#dfe6d6}
 .os-head{display:flex;align-items:center;gap:8px;margin:2px 0 6px}
 .os-count{font-weight:800;font-size:15px;min-width:64px}
 .os-bar{flex:1;height:10px;border-radius:99px;background:#e4ddcc;overflow:hidden}
@@ -124,7 +129,7 @@ export function createStepState(store, today) {
  * c: {state, items, key, title, t, esc, name, unitLabel, picture, lastStock(p), parse(p,text),
  *     suggest(p, stored|null) → 주문수량|null, getQty(p), setQty(p,q), qtyStep(p), qtyDisplay(p,q),
  *     saveStock(p, stored) → Promise, locked, preview, nextCategory → 이름|null, goNextCategory(), openBasket(),
- *     showGrid(), yesNo(p) → true면 '한 박스 있다/없다' 버튼 (포장·소모품), allIds: 이 매장 전체 품목 id (모두 끝나면 🏆)}
+ *     showGrid(), shift/shiftCounts/setShift/otherShiftHere: 오전·마감 나누기, yesNo(p) → true면 '한 박스 있다/없다' 버튼 (포장·소모품), allIds: 이 매장 전체 품목 id (모두 끝나면 🏆)}
  */
 export function renderOrderSteps(host, c) {
   ensureStyle();
@@ -137,7 +142,9 @@ export function renderOrderSteps(host, c) {
   function head() {
     doneCount = items.filter(p => s.done.has(p.id)).length;
     const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
-    return `<div class="os-head"><span class="os-count">${Math.min(s.index + 1, items.length)} / ${items.length}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${doneCount === items.length && items.length ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
+    const sc = c.shiftCounts || {};
+    const shiftBar = c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">☀️ ${t('오전 할 일', 'Morning')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🌙 ${t('마감 할 일', 'Closing')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
+    return shiftBar + `<div class="os-head"><span class="os-count">${Math.min(s.index + 1, items.length)} / ${items.length}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${doneCount === items.length && items.length ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
     <div class="os-tools"><button data-os="one" aria-pressed="${s.view === 'one'}">${t('한 개씩', 'One by one')}</button><button data-os="list" aria-pressed="${s.view === 'list'}">✎ ${t('목록', 'List')}</button><button data-os="grid">▦ ${t('전체 보기', 'Grid')}</button></div>`;
   }
 
@@ -175,7 +182,7 @@ export function renderOrderSteps(host, c) {
     const secs = s.finishedIn || 0, per = s.counts ? secs / s.counts : Infinity;
     const tier = SPEED.find(x => per <= x[0]);
     wrap(head() + `<div class="os-win"><div class="big">${allDone ? '🏆' : tier[1]}</div>
-      <h3>${allDone ? t('오늘 재고 전부 끝!', 'All stock counted!') : `${esc(c.title)} ${t('완료!', 'done!')}`}</h3>
+      <h3>${allDone ? (c.shift === 'morning' ? t('오전 할 일 전부 끝! ☀️', 'Morning tasks done! ☀️') : c.shift === 'closing' ? t('마감 재고 전부 끝! 🌙', 'Closing count done! 🌙') : t('오늘 재고 전부 끝!', 'All stock counted!')) : `${esc(c.title)} ${t('완료!', 'done!')}`}</h3>
       <p class="praise">${esc(t(tier[2], tier[3]))}</p>
       <p class="time">${s.counts ? `${s.counts}${t('개', ' items')} · ${timeText(secs, t)}` : `${doneCount} / ${items.length} ${t('품목', 'items')}`}</p>
       ${s.failed.size ? `<p class="os-warn">${t(`${s.failed.size}개 재고가 저장되지 않았어요. 목록에서 다시 확인해 주세요.`, `${s.failed.size} counts did not save. Check them in the list.`)}</p>` : ''}
@@ -185,7 +192,11 @@ export function renderOrderSteps(host, c) {
   }
 
   function drawOne() {
-    if (!items.length) { wrap(head() + `<p class="empty">${t('해당 품목이 없어요.', 'No items here.')}</p>`); return; }
+    if (!items.length) {
+      const other = c.shift === 'morning' ? t('마감 할 일', 'closing tasks') : t('오전 할 일', 'morning tasks');
+      wrap(head() + (c.otherShiftHere ? `<div class="os-win"><div class="big">${c.shift === 'morning' ? '🌙' : '☀️'}</div><h3>${t(`여기는 ${other}이에요`, `These are ${other}`)}</h3><p>${t('위에서 근무 시간을 바꾸거나 다른 카테고리를 골라 주세요.', 'Switch the shift above or pick another category.')}</p></div>` : `<p class="empty">${t('해당 품목이 없어요.', 'No items here.')}</p>`));
+      return;
+    }
     if (s.index >= items.length) return drawWin();
     const p = items[s.index], st = stockText(p), last = c.lastStock(p);
     const animate = s.lastShown !== p.id; s.lastShown = p.id;
@@ -271,6 +282,7 @@ export function renderOrderSteps(host, c) {
   host.onclick = e => {
     const b = e.target.closest('button'); if (!b || !host.contains(b)) return;
     if (b.dataset.key) return press(b.dataset.key);
+    if (b.dataset.shift) return c.setShift?.(b.dataset.shift);
     if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.typed[it.id] = b.dataset.yn; b.classList.add('on'); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
     if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = 'one'; return draw(); }
     const p = items[s.index];
