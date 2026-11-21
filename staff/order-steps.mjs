@@ -29,7 +29,7 @@ const CSS = `
 .os-unit,.os-last{font-size:13px;color:#6b6555}
 .os-label{font-size:13px;font-weight:700;color:#6b6555;margin-top:12px}
 .os-num{display:flex;align-items:center;justify-content:center;gap:12px;margin:2px 0}
-.os-num output{min-width:110px;font-size:42px;font-weight:800;border-bottom:3px solid #3e4b33;line-height:1.15}
+.os-num output{display:block;min-width:110px;height:auto;min-height:0;padding:0;margin:0;background:none;border:0;border-radius:0;border-bottom:3px solid #3e4b33;font-size:42px;font-weight:800;line-height:1.15;text-align:center}
 .os-num output.empty{color:#c9c1ae}
 .os-num button,.os-order button{width:48px;height:48px;border-radius:50%;border:0;background:#efe9db;font-size:24px}
 .os-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}
@@ -70,6 +70,7 @@ const CSS = `
 .os-yn .yes{background:#e3efd9;color:#2f4a22}
 .os-yn .no{background:#fbe1d8;color:#8a2f12}
 .os-yn button.on{outline:4px solid #3e4b33}
+@media(min-width:900px){.os{max-width:760px}.os-card{display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;align-items:center;text-align:center}.os-card .os-top{grid-column:1}.os-card .os-label{grid-column:1}.os-card .os-num{grid-column:1}.os-card .os-pad,.os-card .os-yn{grid-column:2;grid-row:1 / span 3;margin-top:0}.os-card .os-warn,.os-card .os-nav{grid-column:1 / -1}}
 .os-pop{position:fixed;left:50%;top:40%;font-size:42px;pointer-events:none;animation:os-pop .7s ease forwards;z-index:3000}
 @keyframes os-pop{0%{opacity:0;transform:translate(-50%,-30%) scale(.6)}30%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}100%{opacity:0;transform:translate(-50%,-90%)}}
 `;
