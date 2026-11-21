@@ -1,5 +1,5 @@
 // 매장 발주 · 한 개씩 보기
-// 카테고리 안에서 품목을 하나씩 보여주고, 재고 숫자를 넣으면 자동 주문수량이 계산되고,
+// 카테고리 안에서 품목을 하나씩 보여주고, 재고 숫자만 넣으면 자동 주문수량이 발주함에 들어가고 (화면에는 안 보임),
 // "다음"을 누르면 저장하고 다음 품목으로 넘어가요. 이전으로 가거나 목록에서 골라 고칠 수 있어요.
 // 상태(state)는 app.mjs가 들고 있어서, 화면이 다시 그려져도 보던 품목이 유지돼요.
 
@@ -42,7 +42,7 @@ const CSS = `
 .os-nav button:disabled{opacity:.4}
 .os-warn{font-size:12px;color:#a0522d;min-height:16px;margin-top:6px}
 .os-list{background:#fff;border-radius:18px;box-shadow:0 3px 10px #0001;overflow:hidden}
-.os-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;width:100%;border:0;border-bottom:1px solid #f0ebe0;background:none;padding:12px 14px;text-align:left;font-size:15px}
+.os-row{display:grid;grid-template-columns:1fr auto 44px;gap:10px;align-items:center;width:100%;border:0;border-bottom:1px solid #f0ebe0;background:none;padding:12px 14px;text-align:left;font-size:15px}
 .os-row:last-child{border-bottom:0}
 .os-row.on{background:#f3f7ee}
 .os-row small{color:#6b6555;font-size:12px;white-space:nowrap}
@@ -126,8 +126,8 @@ export function renderOrderSteps(host, c) {
 
   function drawList() {
     wrap(head + `<div class="os-list">${items.map((p, i) => {
-      const st = stockText(p), last = c.lastStock(p), o = orderFor(p);
-      return `<button class="os-row ${i === s.index ? 'on' : ''}" data-go="${i}"><span>${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</span><small>${t('재고', 'Stock')} ${esc(st !== '' ? st : last ?? '—')}</small><em>${t('주문', 'Order')} ${esc(c.qtyDisplay(p, o.q))}</em></button>`;
+      const st = stockText(p), last = c.lastStock(p);
+      return `<button class="os-row ${i === s.index ? 'on' : ''}" data-go="${i}"><span>${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</span><em>${esc(st !== '' ? st : last ?? '—')}</em><small>${st !== '' ? t('오늘', 'today') : t('지난번', 'last')}</small></button>`;
     }).join('')}</div>`);
   }
 
@@ -143,7 +143,7 @@ export function renderOrderSteps(host, c) {
   function drawOne() {
     if (!items.length) { wrap(head + `<p class="empty">${t('해당 품목이 없어요.', 'No items here.')}</p>`); return; }
     if (s.index >= items.length) return drawWin();
-    const p = items[s.index], st = stockText(p), last = c.lastStock(p), o = orderFor(p);
+    const p = items[s.index], st = stockText(p), last = c.lastStock(p);
     const animate = s.lastShown !== p.id; s.lastShown = p.id;
     const dis = c.locked ? 'disabled' : '';
     wrap(head + `<div class="os-card ${animate ? 'in' : ''}">
@@ -151,7 +151,6 @@ export function renderOrderSteps(host, c) {
       <div class="os-label">${t('지금 재고', 'Stock now')}</div>
       <div class="os-num"><button data-os="minus" ${dis} aria-label="${t('하나 빼기', 'minus one')}">−</button><output class="${st === '' ? 'empty' : ''}">${st === '' ? '?' : esc(st)}</output><button data-os="plus" ${dis} aria-label="${t('하나 더하기', 'plus one')}">＋</button></div>
       <div class="os-pad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k => `<button data-key="${k}" ${dis} aria-label="${k === '⌫' ? t('지우기', 'delete') : k}">${k}</button>`).join('')}</div>
-      <div class="os-order"><b>${t('자동 주문수량', 'Auto order')}<small>${o.auto ? t('재고 기준 자동 계산', 'From stock count') : o.keep ? t('발주함에 담긴 수량', 'In basket now') : t('직접 바꿈', 'Changed by you')}</small></b><div class="qty"><button data-os="qminus" ${dis} aria-label="${t('주문 줄이기', 'order less')}">−</button><span>${esc(c.qtyDisplay(p, o.q))}</span><button data-os="qplus" ${dis} aria-label="${t('주문 늘리기', 'order more')}">＋</button></div></div>
       <div class="os-warn" id="osWarn">${c.preview ? t('미리보기: 저장되지 않아요.', 'Preview: nothing is saved.') : s.failed.has(p.id) ? t('이 품목 재고가 저장되지 않았어요. 다시 넣어 주세요.', 'This count did not save. Please re-enter.') : ''}</div>
       <div class="os-nav"><button class="os-prev" data-os="prev" ${s.index === 0 ? 'disabled' : ''}>← ${t('이전', 'Back')}</button><button class="os-next" data-os="next" ${dis}>${s.index + 1 === items.length ? t('완료 ✓', 'Done ✓') : t('다음 →', 'Next →')}</button></div>
     </div>`);
