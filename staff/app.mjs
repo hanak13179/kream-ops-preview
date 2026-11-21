@@ -210,7 +210,7 @@ function startCountGame(){
   picture:p=>p.photo_path&&photoURLs[p.photo_path]?`<img src="${esc(photoURLs[p.photo_path])}" alt="">`:`<span style="background:${art(p).color||'#e6e8dc'};width:100%;height:100%;display:grid;place-items:center">${esc(art(p).art||name(p).slice(0,5))}</span>`,
   display:(p,v)=>stockDisplay(p,v),
   parse:(p,text)=>{const v=stockInput(p,text);stockNumbers(v,null);return v;},
-  preview:isPreview(),
+  preview:true, // Hana 미리보기 사이트: 저장 안 함
   save:async(p,onHand)=>{if(store!==targetStore)throw new Error('STORE_CHANGED');const old=stock.find(s=>s.product_id===p.id),rule=stockRules.find(r=>r.product_id===p.id&&r.store_id===targetStore);const r=await db.rpc('kream_save_stock_plan',{target_store:targetStore,target_product:p.id,new_on_hand:onHand,new_minimum:old?.minimum??null,weekday_base:rule?.weekday_base??null,weekend_base:rule?.weekend_base??null,weekend_days:rule?.weekend_days||[5,6,0],expected_stock_revision:old?.revision||0,expected_rule_revision:rule?.revision||0});if(r.error)throw r.error;},
   onClose:async ids=>{if(!ids.length||isPreview()||store!==targetStore)return;await run(async()=>{await loadOrders();await loadModules();for(const id of ids)applyStockRecommendation(id,true);renderOrderArea();say(t('재고를 저장하고 추천수량을 발주함에 담았어요. 확인 후 발주완료를 눌러 주세요.','Stock saved and suggested quantities added to the basket. Review it, then submit your order.'));});}});
 }
