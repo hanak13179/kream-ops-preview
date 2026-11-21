@@ -902,7 +902,12 @@ var KREAM_STOCK_STORES = [
 var KREAM_STOCK_OLD_TABS = ['매장별 발주', '기본 수량', 'Stores', 'Items', 'Counts', 'Movements', 'FactoryOrders'];
 var KREAM_STOCK_DEFAULT_KEY = 'kream-stock-sync';
 // 포장·소모품처럼 '있다/없다'로 세는 품목은 숫자 대신 ✅ / ❌
-function kreamStockShow(it, v) { return /있음/.test(it.unit || '') && v !== '' && v != null ? (Number(v) > 0 ? '✅ 있음' : '❌ 없음') : v; }
+function kreamStockShow(it, v) {
+  if (v === '' || v == null) return v;
+  if (/반봉지/.test(it.unit || '')) return Number(v) >= 1 ? '🫖 1봉지+' : Number(v) > 0 ? '🍵 반봉지' : '❌ 없음';   // 티백
+  if (/있음/.test(it.unit || '')) return Number(v) > 0 ? '✅ 있음' : '❌ 없음';   // 포장·소모품
+  return v;
+}
 
 var KREAM_CATEGORY_COLORS = ['#f6d7cf', '#dfe9d2', '#d6e2f2', '#e7dcf0', '#f6ebc4', '#d9ece8', '#f1dbe6', '#e6e1d6'];
 
@@ -1131,7 +1136,7 @@ function kreamRefreshStockNow(ss, logRows, groups) {
         var r = latest[st.id + '|' + it.id]; if (!r) return '-';
         sum += Number(r.count) || 0; return kreamStockShow(it, r.count);
       });
-      return [it.item, it.unit, /있음/.test(it.unit || '') ? '' : sum].concat(vals);
+      return [it.item, it.unit, /있음|반봉지/.test(it.unit || '') ? '' : sum].concat(vals);
     });
   // 2) 매장별 상자
   KREAM_STOCK_STORES.forEach(function (st) {
@@ -1141,7 +1146,7 @@ function kreamRefreshStockNow(ss, logRows, groups) {
         var t = byDay[st.id + '|' + today + '|' + it.id], y = byDay[st.id + '|' + yest + '|' + it.id], r = latest[st.id + '|' + it.id];
         var diff = t != null && y != null && !/있음/.test(it.unit || '') ? Number(t) - Number(y) : '';
         return [it.item, it.unit, t == null ? '' : kreamStockShow(it, t), y == null ? '' : kreamStockShow(it, y),
-          diff === '' ? '' : (diff > 0 ? '+' + diff : diff), r ? short(r.date) : ''];
+          diff === '' || /반봉지/.test(it.unit || '') ? '' : (diff > 0 ? '+' + diff : diff), r ? short(r.date) : ''];
       });
   });
   titles.push(rows.length);
