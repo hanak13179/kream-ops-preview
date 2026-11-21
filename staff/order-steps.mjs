@@ -58,6 +58,13 @@ const CSS = `
 .os-win .praise{font-size:17px;font-weight:700;color:#3e4b33;margin:6px 0 2px}
 .os-win .time{font-size:14px;color:#6b6555}
 .os-win button.done{background:linear-gradient(135deg,#ed522e,#f08a4b);color:#fff;font-size:20px;padding:18px}
+.os-yn{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.os-yn button{height:120px;border:0;border-radius:20px;font-size:20px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 6px #0001}
+.os-yn button i{font-style:normal;font-size:38px}
+.os-yn small{font-size:12px;font-weight:600;opacity:.8}
+.os-yn .yes{background:#e3efd9;color:#2f4a22}
+.os-yn .no{background:#fbe1d8;color:#8a2f12}
+.os-yn button.on{outline:4px solid #3e4b33}
 .os-pop{position:fixed;left:50%;top:40%;font-size:42px;pointer-events:none;animation:os-pop .7s ease forwards;z-index:3000}
 @keyframes os-pop{0%{opacity:0;transform:translate(-50%,-30%) scale(.6)}30%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}100%{opacity:0;transform:translate(-50%,-90%)}}
 `;
@@ -117,7 +124,7 @@ export function createStepState(store, today) {
  * c: {state, items, key, title, t, esc, name, unitLabel, picture, lastStock(p), parse(p,text),
  *     suggest(p, stored|null) → 주문수량|null, getQty(p), setQty(p,q), qtyStep(p), qtyDisplay(p,q),
  *     saveStock(p, stored) → Promise, locked, preview, nextCategory → 이름|null, goNextCategory(), openBasket(),
- *     showGrid(), allIds: 이 매장 전체 품목 id (모두 끝나면 🏆)}
+ *     showGrid(), yesNo(p) → true면 '한 박스 있다/없다' 버튼 (포장·소모품), allIds: 이 매장 전체 품목 id (모두 끝나면 🏆)}
  */
 export function renderOrderSteps(host, c) {
   ensureStyle();
@@ -136,6 +143,8 @@ export function renderOrderSteps(host, c) {
 
   const wrap = html => { host.innerHTML = `<div class="os">${html}</div>`; };
 
+  const ynText = (p, v) => c.yesNo?.(p) && v !== '' && v != null ? (Number(v) > 0 ? t('있음', 'yes') : t('없음', 'no')) : v;
+
   function stockText(p) {
     if (s.typed[p.id] != null) return s.typed[p.id];
     return '';
@@ -148,6 +157,7 @@ export function renderOrderSteps(host, c) {
   function orderFor(p) {
     if (s.order[p.id] != null) return {q: s.order[p.id], auto: false};
     const v = stored(p);
+    if (c.yesNo?.(p) && v != null && v !== undefined) return {q: Number(v) > 0 ? 0 : c.qtyStep(p), auto: true};   // 없으면 1박스 주문
     const sug = v == null || v === undefined ? null : c.suggest(p, v);
     if (sug != null) return {q: sug, auto: true};
     return {q: c.getQty(p) || 0, auto: false, keep: true};
@@ -156,7 +166,7 @@ export function renderOrderSteps(host, c) {
   function drawList() {
     wrap(head() + `<div class="os-list">${items.map((p, i) => {
       const st = stockText(p), last = c.lastStock(p);
-      return `<button class="os-row ${i === s.index ? 'on' : ''}" data-go="${i}"><span>${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</span><em>${esc(st !== '' ? st : last ?? '—')}</em><small>${st !== '' ? t('오늘', 'today') : t('지난번', 'last')}</small></button>`;
+      return `<button class="os-row ${i === s.index ? 'on' : ''}" data-go="${i}"><span>${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</span><em>${esc(ynText(p, st !== '' ? st : last ?? '—'))}</em><small>${st !== '' ? t('오늘', 'today') : t('지난번', 'last')}</small></button>`;
     }).join('')}</div>`);
   }
 
@@ -181,10 +191,11 @@ export function renderOrderSteps(host, c) {
     const animate = s.lastShown !== p.id; s.lastShown = p.id;
     const dis = c.locked ? 'disabled' : '';
     wrap(head() + `<div class="os-card ${animate ? 'in' : ''}">
-      <div class="os-top"><div class="os-pic">${c.picture(p)}</div><div><div class="os-name">${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</div><div class="os-unit">${esc(c.unitLabel(p))}</div><div class="os-last">${last == null || last === '' ? t('지난 재고 기록 없음', 'No previous count') : `${t('지난번 재고', 'Last count')}: ${esc(last)}`}</div></div></div>
-      <div class="os-label">${t('지금 재고', 'Stock now')}</div>
+      <div class="os-top"><div class="os-pic">${c.picture(p)}</div><div><div class="os-name">${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</div><div class="os-unit">${esc(c.unitLabel(p))}</div><div class="os-last">${last == null || last === '' ? t('지난 재고 기록 없음', 'No previous count') : `${t('지난번 재고', 'Last count')}: ${esc(ynText(p, last))}`}</div></div></div>
+      ${c.yesNo?.(p) ? `<div class="os-label">${t('한 박스 이상 있나요?', 'At least one full box?')}</div>
+      <div class="os-yn"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>📦</i>${t('있어요', 'Yes')}<small>${t('한 박스 이상', '1+ box')}</small></button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${t('없어요', 'No')}<small>${t('자동으로 1박스 주문', 'Orders 1 box')}</small></button></div>` : `<div class="os-label">${t('지금 재고', 'Stock now')}</div>
       <div class="os-num"><button data-os="minus" ${dis} aria-label="${t('하나 빼기', 'minus one')}">−</button><output class="${st === '' ? 'empty' : ''}">${st === '' ? '?' : esc(st)}</output><button data-os="plus" ${dis} aria-label="${t('하나 더하기', 'plus one')}">＋</button></div>
-      <div class="os-pad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k => `<button data-key="${k}" ${dis} aria-label="${k === '⌫' ? t('지우기', 'delete') : k}">${k}</button>`).join('')}</div>
+      <div class="os-pad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k => `<button data-key="${k}" ${dis} aria-label="${k === '⌫' ? t('지우기', 'delete') : k}">${k}</button>`).join('')}</div>`}
       <div class="os-warn" id="osWarn">${c.preview ? t('미리보기: 저장되지 않아요.', 'Preview: nothing is saved.') : s.failed.has(p.id) ? t('이 품목 재고가 저장되지 않았어요. 다시 넣어 주세요.', 'This count did not save. Please re-enter.') : ''}</div>
       <div class="os-nav"><button class="os-prev" data-os="prev" ${s.index === 0 ? 'disabled' : ''}>← ${t('이전', 'Back')}</button><button class="os-next" data-os="next" ${dis}>${s.index + 1 === items.length ? t('다 했어요! 🙌', 'All done! 🙌') : t('다음 →', 'Next →')}</button></div>
     </div>`);
@@ -260,6 +271,7 @@ export function renderOrderSteps(host, c) {
   host.onclick = e => {
     const b = e.target.closest('button'); if (!b || !host.contains(b)) return;
     if (b.dataset.key) return press(b.dataset.key);
+    if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.typed[it.id] = b.dataset.yn; b.classList.add('on'); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
     if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = 'one'; return draw(); }
     const p = items[s.index];
     switch (b.dataset.os) {
