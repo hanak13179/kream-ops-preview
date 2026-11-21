@@ -255,3 +255,9 @@ body.steps-mode .order-controls label{font-size:0;gap:0}
 body.steps-mode .order-controls select,body.steps-mode .order-controls .date-wrap,body.steps-mode .order-controls .date-wrap span{font-size:14px}
 body.steps-mode .order-controls button{font-size:13px}
 body.steps-mode .section-title{border-top:0;padding-top:0}
+
+/* 매장 발주: 재고 세기 / 최소수량(매니저) 탭 */
+.order-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.order-tabs button{border:0;border-radius:14px;padding:11px 8px;font-size:15px;font-weight:800;background:#fff;color:#3b382f;box-shadow:0 1px 4px #0001}
+.order-tabs button small{font-size:11px;font-weight:600;opacity:.7}
+.order-tabs button[aria-pressed=true]{background:#ed522e;color:#fff}
