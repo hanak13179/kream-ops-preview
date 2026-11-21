@@ -67,6 +67,10 @@ const CSS = `
 .os-yn button{height:120px;border:0;border-radius:20px;font-size:20px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 6px #0001}
 .os-yn button i{font-style:normal;font-size:38px}
 .os-yn small{font-size:12px;font-weight:600;opacity:.8}
+.os-yn.three{grid-template-columns:repeat(3,1fr)}
+.os-yn.three button{height:110px;font-size:17px}
+.os-yn .half{background:#fbefc9;color:#7a5a12}
+.os-way{margin-top:10px;padding:10px 12px;border-radius:14px;background:#e9f0fb;color:#2c4a73;font-size:14px;font-weight:700}
 .os-yn .yes{background:#e3efd9;color:#2f4a22}
 .os-yn .no{background:#fbe1d8;color:#8a2f12}
 .os-yn button.on{outline:4px solid #3e4b33}
@@ -130,7 +134,7 @@ export function createStepState(store, today) {
  * c: {state, items, key, title, t, esc, name, unitLabel, picture, lastStock(p), parse(p,text),
  *     suggest(p, stored|null) → 주문수량|null, getQty(p), setQty(p,q), qtyStep(p), qtyDisplay(p,q),
  *     saveStock(p, stored) → Promise, locked, preview, nextCategory → 이름|null, goNextCategory(), openBasket(),
- *     showGrid(), shift/shiftCounts/setShift/otherShiftHere: 오전·마감 나누기, yesNo(p) → true면 '한 박스 있다/없다' 버튼 (포장·소모품), allIds: 이 매장 전체 품목 id (모두 끝나면 🏆)}
+ *     showGrid(), shift/shiftCounts/setShift/otherShiftHere: 낮·마감 나누기, bagMode(p) 티백 1봉지/반봉지/없음, onTheWay(p) → {date}|null 이미 주문해서 오는 중, yesNo(p) → true면 '한 박스 있다/없다' 버튼 (포장·소모품), allIds: 이 매장 전체 품목 id (모두 끝나면 🏆)}
  */
 export function renderOrderSteps(host, c) {
   ensureStyle();
@@ -151,7 +155,12 @@ export function renderOrderSteps(host, c) {
 
   const wrap = html => { host.innerHTML = `<div class="os">${html}</div>`; };
 
-  const ynText = (p, v) => c.yesNo?.(p) && v !== '' && v != null ? (Number(v) > 0 ? t('있음', 'yes') : t('없음', 'no')) : v;
+  const ynText = (p, v) => {
+    if (v === '' || v == null || v === '—') return v;
+    if (c.bagMode?.(p)) return Number(v) >= 1 ? t('1봉지 이상', '1+ bag') : Number(v) > 0 ? t('반봉지', 'half bag') : t('없음', 'none');
+    if (c.yesNo?.(p)) return Number(v) > 0 ? t('있음', 'yes') : t('없음', 'no');
+    return v;
+  };
 
   function stockText(p) {
     if (s.typed[p.id] != null) return s.typed[p.id];
@@ -165,7 +174,14 @@ export function renderOrderSteps(host, c) {
   function orderFor(p) {
     if (s.order[p.id] != null) return {q: s.order[p.id], auto: false};
     const v = stored(p);
-    if (c.yesNo?.(p) && v != null && v !== undefined) return {q: Number(v) > 0 ? 0 : c.qtyStep(p), auto: true};   // 없으면 1박스 주문
+    // 포장·소모품(있다/없다)과 티백(1봉지/반봉지/없음): 모자라면 1개(박스·봉지) 주문.
+    // 단, 이미 주문해서 오는 중(입고확인 전)이면 또 주문하지 않아요.
+    if ((c.yesNo?.(p) || c.bagMode?.(p)) && v != null && v !== undefined) {
+      const enough = c.bagMode?.(p) ? Number(v) >= 1 : Number(v) > 0;
+      if (enough) return {q: 0, auto: true};
+      if (c.onTheWay?.(p)) return {q: 0, auto: true, way: true};
+      return {q: c.qtyStep(p), auto: true};
+    }
     const sug = v == null || v === undefined ? null : c.suggest(p, v);
     if (sug != null) return {q: sug, auto: true};
     return {q: c.getQty(p) || 0, auto: false, keep: true};
@@ -204,7 +220,8 @@ export function renderOrderSteps(host, c) {
     const dis = c.locked ? 'disabled' : '';
     wrap(head() + `<div class="os-card ${animate ? 'in' : ''}">
       <div class="os-top"><div class="os-pic">${c.picture(p)}</div><div><div class="os-name">${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</div><div class="os-unit">${esc(c.unitLabel(p))}</div><div class="os-last">${last == null || last === '' ? t('지난 재고 기록 없음', 'No previous count') : `${t('지난번 재고', 'Last count')}: ${esc(ynText(p, last))}`}</div></div></div>
-      ${c.yesNo?.(p) ? `<div class="os-label">${t('한 박스 이상 있나요?', 'At least one full box?')}</div>
+      ${c.bagMode?.(p) ? `<div class="os-label">${t('얼마나 남았나요?', 'How much is left?')}</div>
+      <div class="os-yn three"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>🫖</i>${t('1봉지 이상', '1+ bag')}</button><button class="half ${st === '0.5' ? 'on' : ''}" data-yn="0.5" ${dis}><i>🍵</i>${t('반봉지', 'Half')}</button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${t('없음', 'None')}</button></div>${(() => { const w = c.onTheWay?.(p); return w && (c.yesNo?.(p) || c.bagMode?.(p)) ? `<div class="os-way">📦 ${t(`이미 주문했어요${w.date ? ` (${w.date} 도착 예정)` : ''} · 받을 때까지 또 주문 안 해요`, `Already ordered${w.date ? ` (arrives ${w.date})` : ''} · won't reorder until received`)}</div>` : ''; })()}` : c.yesNo?.(p) ? `${(() => { const w = c.onTheWay?.(p); return w && (c.yesNo?.(p) || c.bagMode?.(p)) ? `<div class="os-way">📦 ${t(`이미 주문했어요${w.date ? ` (${w.date} 도착 예정)` : ''} · 받을 때까지 또 주문 안 해요`, `Already ordered${w.date ? ` (arrives ${w.date})` : ''} · won't reorder until received`)}</div>` : ''; })()}<div class="os-label">${t('한 박스 이상 있나요?', 'At least one full box?')}</div>
       <div class="os-yn"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>📦</i>${t('있어요', 'Yes')}<small>${t('한 박스 이상', '1+ box')}</small></button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${t('없어요', 'No')}<small>${t('자동으로 1박스 주문', 'Orders 1 box')}</small></button></div>` : `<div class="os-label">${t('지금 재고', 'Stock now')}</div>
       <div class="os-num"><button data-os="minus" ${dis} aria-label="${t('하나 빼기', 'minus one')}">−</button><output class="${st === '' ? 'empty' : ''}">${st === '' ? '?' : esc(st)}</output><button data-os="plus" ${dis} aria-label="${t('하나 더하기', 'plus one')}">＋</button></div>
       <div class="os-pad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k => `<button data-key="${k}" ${dis} aria-label="${k === '⌫' ? t('지우기', 'delete') : k}">${k}</button>`).join('')}</div>`}
