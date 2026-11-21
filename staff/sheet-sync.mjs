@@ -1,10 +1,10 @@
 // 재고 숫자를 Hana의 Google 시트(Kream Inventory)에도 기록해요.
 // 앱의 저장(Supabase)이 끝난 뒤에 보내는 복사본이라, 시트가 늦거나 실패해도 앱에는 영향이 없어요.
-// 몇 개씩 모아서 보내고, 앱을 닫을 때 남은 것도 보내요.
+// 몇 개씩 모아서 보내고, 앱을 닫을 때 남은 것도 보내요. 2호점 Midland는 보내지 않아요 (원래 방식 그대로).
 
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwjnrGRDkR_qX7AmNq2S3oDVveSR1QbjED0FFga11Au1NcHWNNlPLQlZNwL7EpIlu6x/exec';
 const SYNC_KEY = 'kream-stock-sync';
-const STORE_LABELS = {downtown: '1호점 Wellesley', midland: '2호점 Midland', 'richmond-hill': '3호점 Richmond Hill', finch: '4호점 Finch'};
+const STORE_LABELS = {downtown: '1호점 Wellesley', 'richmond-hill': '3호점 Richmond Hill', finch: '4호점 Finch'};
 
 let pending = [], timer = null;
 
