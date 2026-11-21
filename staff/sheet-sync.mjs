@@ -4,7 +4,7 @@
 
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwjnrGRDkR_qX7AmNq2S3oDVveSR1QbjED0FFga11Au1NcHWNNlPLQlZNwL7EpIlu6x/exec';
 const SYNC_KEY = 'kream-stock-sync';
-const STORE_LABELS = {wellesley: '1호점 Wellesley', midland: '2호점 Midland', richmond: '3호점 Richmond Hill', finch: '4호점 Finch'};
+const STORE_LABELS = {downtown: '1호점 Wellesley', midland: '2호점 Midland', 'richmond-hill': '3호점 Richmond Hill', finch: '4호점 Finch'};
 
 let pending = [], timer = null;
 
