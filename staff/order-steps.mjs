@@ -5,10 +5,10 @@
 
 const STYLE_ID = 'order-steps-style';
 const CSS = `
-.os{grid-column:1/-1;max-width:520px;width:100%;margin:0 auto;touch-action:manipulation}
+.os{grid-column:1/-1;max-width:520px;width:100%;margin:0 auto 96px;touch-action:manipulation}
 .os *{box-sizing:border-box}
 .os-shift{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
-.os-shift button{border:0;border-radius:14px;padding:12px 8px;font-size:16px;font-weight:800;background:#fff;box-shadow:0 1px 4px #0001;color:#3b382f}
+.os-shift button{border:0;border-radius:14px;padding:8px 6px;font-size:15px;font-weight:800;background:#fff;box-shadow:0 1px 4px #0001;color:#3b382f}
 .os-shift button small{display:block;font-size:11px;font-weight:600;color:#6b6555;margin-top:2px}
 .os-shift button[aria-pressed=true]{background:#3e4b33;color:#fff}
 .os-shift button[aria-pressed=true] small{color:#dfe6d6}
@@ -17,7 +17,7 @@ const CSS = `
 .os-bar{flex:1;height:10px;border-radius:99px;background:#e4ddcc;overflow:hidden}
 .os-bar i{display:block;height:100%;background:linear-gradient(90deg,#9fc48a,#3e4b33);border-radius:99px;transition:width .3s}
 .os-tools{display:flex;gap:8px;margin-bottom:8px}
-.os-tools button{flex:1;border:0;border-radius:12px;padding:10px;background:#efe9db;font-size:15px;font-weight:600}
+.os-tools button{flex:1;border:0;border-radius:12px;padding:7px;background:#efe9db;font-size:15px;font-weight:600}
 .os-tools button[aria-pressed=true]{background:#3e4b33;color:#fff}
 .os-card{background:#fff;border-radius:22px;padding:14px;box-shadow:0 3px 10px #0001;text-align:center}
 .os-card.in{animation:os-in .22s ease}

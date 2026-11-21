@@ -250,3 +250,8 @@ body.steps-mode .order-quick-actions{display:none}
 body.steps-mode .chips.categories{margin:6px 0}
 body.steps-mode .chips.categories button{padding:7px 14px}
 @media(max-width:700px){body.steps-mode.signed-in header{padding:6px 12px}body.steps-mode .order-controls{padding:8px}body.steps-mode .order-controls button{min-width:0;flex:0 1 auto}}
+body.steps-mode .search-field{display:none}
+body.steps-mode .order-controls label{font-size:0;gap:0}
+body.steps-mode .order-controls select,body.steps-mode .order-controls .date-wrap,body.steps-mode .order-controls .date-wrap span{font-size:14px}
+body.steps-mode .order-controls button{font-size:13px}
+body.steps-mode .section-title{border-top:0;padding-top:0}
