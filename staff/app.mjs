@@ -4,7 +4,7 @@ import {canFinalizeMidland,midlandReviewStatus,workflowError,requestMidlandRevie
 import {showSignupNotice} from './signup-notice.mjs?v=20261119-signup-notice';
 import {watchPendingAccess} from './access-resume.mjs?v=20261119-webapp-access';
 import {renderCosting} from './costing.mjs?v=20261106-costs';
-import {renderGalleriaWorkspace,canUseGalleria} from './galleria-workspace.mjs?v=20261119-garnish-sequence';
+import {renderGalleriaWorkspace,canUseGalleria} from './galleria-workspace.mjs?v=20261121-tea-total';
 import {validDeliveryDate,defaultReceiptDate,receiptRequestLabel,fullDeliveryDate} from './delivery-date.mjs?v=20261121-cutoff';
 import {subcategoryStyle} from './category-colors.mjs?v=20261104-drag-only';
 import {renderExternalDispatch} from './external-dispatch.mjs?v=20261119-garnish-sequence';
