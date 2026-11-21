@@ -900,6 +900,9 @@ var KREAM_STOCK_STORES = [
 ];
 var KREAM_STOCK_OLD_TABS = ['매장별 발주', '기본 수량', 'Stores', 'Items', 'Counts', 'Movements', 'FactoryOrders'];
 var KREAM_STOCK_DEFAULT_KEY = 'kream-stock-sync';
+// 포장·소모품처럼 '있다/없다'로 세는 품목은 숫자 대신 ✅ / ❌
+function kreamStockShow(it, v) { return /있음/.test(it.unit || '') && v !== '' && v != null ? (Number(v) > 0 ? '✅ 있음' : '❌ 없음') : v; }
+
 var KREAM_CATEGORY_COLORS = ['#f6d7cf', '#dfe9d2', '#d6e2f2', '#e7dcf0', '#f6ebc4', '#d9ece8', '#f1dbe6', '#e6e1d6'];
 
 // 앱에서 보낸 재고 줄들을 저장해요. 화면 새로고침은 나중에 (5분 트리거).
@@ -1056,7 +1059,7 @@ function kreamRefreshStockNow(ss, logRows, groups) {
     function (it, i) {
       var r = latest[KREAM_STOCK_STORES[i].id + '|' + it.id];
       if (!r) return ['', false];
-      return [r.count, r.date === today || r.date === kAddDays(today, -1) && Number(Utilities.formatDate(new Date(), KREAM_TZ, 'H')) < 4];
+      return [kreamStockShow(it, r.count), r.date === today || r.date === kAddDays(today, -1) && Number(Utilities.formatDate(new Date(), KREAM_TZ, 'H')) < 4];
     });
   sh.getRange(2, 1).setValue('진한 숫자 = 오늘 센 재고 · 회색 숫자 = 예전에 센 재고 · 빈칸 = 아직 안 셈').setFontSize(9).setFontColor('#8a8676').setFontFamily(KREAM_FONT);
 }
@@ -1073,7 +1076,7 @@ function kreamRefreshStockDays(ss, logRows, groups) {
   kreamDrawStockTable(sh, '날짜별 재고 · ' + store.label, '최근 14일 (그날 마지막으로 센 숫자)',
     ['제품', '단위'].concat(days.map(function (x) { return x.slice(5).replace('-', '/'); })),
     [null, null].concat(days.map(function (x, i) { return i === 0 ? store.color : null; })), groups,
-    function (it, i) { var v = byDay[days[i] + '|' + it.id]; return [v == null ? '' : v, true]; });
+    function (it, i) { var v = byDay[days[i] + '|' + it.id]; return [v == null ? '' : kreamStockShow(it, v), true]; });
   sh.getRange(2, 1).setValue('매장 고르기 ▸').setFontWeight('bold').setFontFamily(KREAM_FONT);
   sh.getRange(2, 2, 1, 3).merge().setValue(store.label).setBackground(store.soft).setFontWeight('bold').setFontFamily(KREAM_FONT)
     .setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(KREAM_STOCK_STORES.map(function (s) { return s.label; }), true).build());
