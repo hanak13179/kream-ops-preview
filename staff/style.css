@@ -242,3 +242,34 @@ body,.signed-in aside,.signed-in header{background:#f8f5ef;color:#352e29}
 /* Keep delivery date and refresh together on all screens. */
 .toolbar.controls.order-controls{grid-template-columns:minmax(0,1fr) minmax(100px,160px)}
 .order-controls #refresh{grid-column:auto;width:100%;min-width:0}
+
+/* Compact phone header and ordering controls. */
+@media(max-width:700px){
+ .signed-in aside{padding:6px 10px}
+ .workplace-badge{padding:6px 10px;margin-bottom:6px;font-size:14px;border-radius:10px}
+ .workplace-badge span small{font-size:10px}
+ .mobile-page-picker{gap:6px;font-size:11px}
+ .mobile-page-picker select{min-height:34px;height:34px;padding:4px 8px;font-size:13px}
+ #navigation nav.nav-tiles{margin-top:6px;gap:5px;max-height:18svh;overflow-y:auto;overscroll-behavior:contain}
+ #navigation .nav-tiles>.nav-group{gap:5px}
+ #navigation .nav-tiles .nav-tile{aspect-ratio:auto;height:40px;min-height:40px;padding:4px;grid-template-columns:18px minmax(0,1fr);grid-template-rows:auto;gap:4px;align-items:center}
+ #navigation .nav-tile .nav-emoji svg{width:18px;height:18px}
+ #navigation .nav-tile .nav-label{font-size:10px;line-height:1.15}
+ #navigation .nav-group h2{margin:3px 0;font-size:11px}
+ .signed-in header{padding:4px 10px;gap:5px}
+ .signed-in header button{min-height:32px;padding:5px 9px;font-size:12px}
+ .signed-in header>.brand{font-size:12px}
+ .section-title{padding-top:7px}
+ .section-title small{font-size:10px}
+ .section-title h1{font-size:21px;margin:4px 0}
+ #portal>.muted{margin:3px 0;font-size:11px}
+ .toolbar.controls.order-controls{padding:7px 9px;margin:7px 0;gap:8px;grid-template-columns:minmax(0,1fr) minmax(90px,120px)}
+ .order-controls>label{gap:3px;grid-template-rows:auto 40px;font-size:11px}
+ .order-controls .date-wrap,.order-controls #refresh{height:40px;min-height:40px;max-height:40px;padding:5px 9px;font-size:13px}
+ .order-controls .date-wrap input{height:100%;min-height:0}
+ .role-preview{padding:7px 9px;margin:4px 0 7px;max-height:90px;overflow:auto}
+ .preview-fields{gap:5px}
+ .preview-fields>label{min-width:100px;font-size:10px}
+ .preview-fields select,.preview-fields>button{min-height:32px;padding:4px;font-size:11px}
+ .role-preview p{margin:4px 0 0;font-size:10px}
+}
