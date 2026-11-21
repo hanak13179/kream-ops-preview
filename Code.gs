@@ -895,7 +895,7 @@ var KREAM_STOCK_LOG_COLS = ['count_date', 'recorded_at', 'store_id', 'store', 'c
 var KREAM_STOCK_ITEM_COLS = ['item_id', 'item', 'category', 'subgroup', 'unit', 'sort', 'updated_at'];
 var KREAM_STOCK_STORES = [
   {id: 'downtown', label: '1호점 Wellesley', color: '#eeb4ae', soft: '#fbeeec'},
-  {id: 'midland', label: '2호점 Midland', color: '#b3cd9f', soft: '#eef5e9'},
+  // 2호점 Midland는 원래 방식 그대로 (이 시트에 기록 안 함)
   {id: 'richmond-hill', label: '3호점 Richmond Hill', color: '#a9c1e3', soft: '#edf2fa'},
   {id: 'finch', label: '4호점 Finch', color: '#ccb6e2', soft: '#f4eefa'}
 ];
