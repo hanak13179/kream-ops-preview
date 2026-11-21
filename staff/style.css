@@ -273,3 +273,15 @@ body,.signed-in aside,.signed-in header{background:#f8f5ef;color:#352e29}
  .preview-fields select,.preview-fields>button{min-height:32px;padding:4px;font-size:11px}
  .role-preview p{margin:4px 0 0;font-size:10px}
 }
+
+/* Explicit mobile grid placement avoids inherited one-column tile rules. */
+@media(max-width:700px){
+ #navigation nav.nav-tiles{grid-auto-rows:max-content;align-content:start}
+ #navigation .nav-tiles>.nav-group{padding-top:5px;margin-top:0;align-content:start}
+ #navigation .nav-tiles .nav-tile{grid-template-rows:1fr;align-content:center;justify-items:stretch;overflow:hidden}
+ #navigation .nav-tile .nav-emoji{grid-column:1;grid-row:1;width:18px;justify-self:center;align-self:center}
+ #navigation .nav-tile .nav-label{grid-column:2;grid-row:1;width:100%;min-width:0;align-self:center;text-align:center}
+ .toolbar.controls.order-controls{align-items:end}
+ .order-controls>label{min-width:0}
+ .order-controls #refresh{align-self:end}
+}
