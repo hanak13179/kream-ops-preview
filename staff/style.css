@@ -227,3 +227,7 @@ body,.signed-in aside,.signed-in header{background:#f8f5ef;color:#352e29}
 .order-controls .date-wrap input{min-width:0;width:100%;height:100%}
 .order-controls #refresh{height:50px;min-height:50px;min-width:0;margin:0}
 @media(max-width:700px){.toolbar.controls.order-controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.order-controls #refresh{grid-column:1/-1;width:100%}}
+
+/* 재고 세기 게임 시작 버튼 */
+.count-game-start{display:block;width:100%;margin:10px 0 12px;padding:16px;border:0;border-radius:16px;background:linear-gradient(135deg,#3e4b33,#6d8a57);color:#fff;font-size:18px;font-weight:800;box-shadow:0 3px 10px #3e4b3333}
+.count-game-start:disabled{opacity:.45}
