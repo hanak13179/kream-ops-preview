@@ -229,7 +229,7 @@ function renderSteps(list){const host=$('#products'),layout=currentLayout(),shif
   nextCategory:next,goNextCategory:()=>{category=next;subgroup='';filter='all';renderOrderArea();scrollOrderSelection();},
   openBasket:()=>{cartOpen=true;renderCart();},showGrid:()=>setOrderView('grid'),yesNo:p=>String(p.category||'').includes('포장'),allIds:countable.filter(p=>inShift(p,shift)).map(p=>p.id),shift,shiftCounts:{morning:countable.filter(morningTask).length,closing:countable.filter(p=>!morningTask(p)).length},setShift:v=>{try{sessionStorage.setItem('kream-order-shift',v);}catch{}renderProducts();},otherShiftHere:list.some(p=>p.unit_confirmed&&!inShift(p,shift))});}
 // 최소수량 탭: 매니저만 (Sora 앱에서 기준재고를 고칠 수 있는 권한과 같음). 2호점 Midland는 원래 그대로라 안 보여요.
-function canSetMinimum(){return store!=='midland'&&['owner','manager','midland_owner'].includes(screenProfile()?.role);}
+function canSetMinimum(){return store!=='midland'; /* Hana 미리보기 전용: 보여주려고 모두에게 보임. 실제 버전은 매니저만 */}
 function minimumOf(p){const r=stockRules.find(x=>x.product_id===p.id&&x.store_id===store);const v=r?.weekday_base??r?.weekend_base;return v==null?null:stockDisplay(p,v);}
 function renderMinimums(list){if(!minState||minState.store!==store){minState=createMinimumState();minState.store=store;}const items=list.filter(p=>p.unit_confirmed&&p.category!=='키친 발주'&&!String(p.category||'').includes('포장'));
  renderMinimumEditor($('#products'),{state:minState,items,t,esc,name,unitLabel:p=>stockDisplayFactor(p)>1?t('조각 단위','pieces'):unitLabel(p),current:minimumOf,preview:true /* Hana 미리보기: 저장 안 함 */,
