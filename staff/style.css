@@ -306,3 +306,10 @@ body,.signed-in aside,.signed-in header{background:#f8f5ef;color:#352e29}
 @media(max-width:700px){
  .chips.order-quick-actions>button,.chips.order-quick-actions #applyRecommendations{height:36px;min-height:36px;padding:6px 10px;font-size:12px;line-height:20px}
 }
+
+/* Center the icon and label together inside each menu button. */
+@media(max-width:700px){
+ #navigation .nav-tiles .nav-tile{display:flex;flex-direction:row;justify-content:center;align-items:center;gap:6px}
+ #navigation .nav-tile .nav-emoji{flex:0 0 18px;width:18px;align-self:center}
+ #navigation .nav-tile .nav-label{flex:0 1 auto;width:auto;max-width:calc(100% - 24px);text-align:center;align-self:center}
+}
