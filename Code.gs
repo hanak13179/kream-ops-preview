@@ -894,9 +894,9 @@ var KREAM_STOCK_DAYS = '날짜별 재고';
 var KREAM_STOCK_LOG_COLS = ['count_date', 'recorded_at', 'store_id', 'store', 'category', 'subgroup', 'item_id', 'item', 'unit', 'count', 'staff'];
 var KREAM_STOCK_ITEM_COLS = ['item_id', 'item', 'category', 'subgroup', 'unit', 'sort', 'updated_at'];
 var KREAM_STOCK_STORES = [
-  {id: 'wellesley', label: '1호점 Wellesley', color: '#eeb4ae', soft: '#fbeeec'},
+  {id: 'downtown', label: '1호점 Wellesley', color: '#eeb4ae', soft: '#fbeeec'},
   {id: 'midland', label: '2호점 Midland', color: '#b3cd9f', soft: '#eef5e9'},
-  {id: 'richmond', label: '3호점 Richmond Hill', color: '#a9c1e3', soft: '#edf2fa'},
+  {id: 'richmond-hill', label: '3호점 Richmond Hill', color: '#a9c1e3', soft: '#edf2fa'},
   {id: 'finch', label: '4호점 Finch', color: '#ccb6e2', soft: '#f4eefa'}
 ];
 var KREAM_STOCK_OLD_TABS = ['매장별 발주', '기본 수량', 'Stores', 'Items', 'Counts', 'Movements', 'FactoryOrders'];
