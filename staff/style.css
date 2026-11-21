@@ -238,3 +238,7 @@ body,.signed-in aside,.signed-in header{background:#f8f5ef;color:#352e29}
 #navigation .nav-tile .nav-emoji{font-size:22px;line-height:1}
 #navigation .nav-tile .nav-emoji svg{display:block;width:20px;height:20px}
 #navigation .nav-tile .nav-label{font-size:11px;line-height:1.25;word-break:keep-all;overflow-wrap:anywhere}
+
+/* Keep delivery date and refresh together on all screens. */
+.toolbar.controls.order-controls{grid-template-columns:minmax(0,1fr) minmax(100px,160px)}
+.order-controls #refresh{grid-column:auto;width:100%;min-width:0}
