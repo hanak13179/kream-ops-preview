@@ -1,3 +1,4 @@
+import {guardPreview} from './preview-guard.mjs';
 import {canFinalizeMidland,midlandReviewStatus,workflowError,requestMidlandReview,renderGroupedOrderHistory} from './order-review.mjs?v=20261120-midland-review2';
 import {showSignupNotice} from './signup-notice.mjs?v=20261119-signup-notice';
 import {watchPendingAccess} from './access-resume.mjs?v=20261119-webapp-access';
@@ -223,7 +224,7 @@ window.addEventListener('beforeunload',e=>{if(ownerView?.dirty||ownerView?.uncer
 async function boot(){
  render();say(t('연결 중…','Connecting…'));try{
  const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.78.0/+esm');
- db=createClient('https://imkhosgnkgwchoyrqczw.supabase.co','sb_publishable_ISqCCHUBASP2sKEqEM04Lg_Jnft4D-y',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'kream-staff-auth-v1'}});
+ db=guardPreview(createClient('https://imkhosgnkgwchoyrqczw.supabase.co','sb_publishable_ISqCCHUBASP2sKEqEM04Lg_Jnft4D-y',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'kream-staff-auth-v1'}}));
  db.auth.onAuthStateChange(event=>{if(event==='PASSWORD_RECOVERY'){recovery=true;setTimeout(render,0);}if(event==='SIGNED_OUT'){++generation;previewRole='';ownerView=null;clearModuleState();receipts=[];guides=[];receiptOrders=[],waste=[],dispatches=[],layoutRows=[],stockRules=[];user=null;profile=null;catalog=[];stores=[];orders=[];draft=null;quantities={};dirty=false;uncertain=false;setTimeout(render,0);}});
  watchPendingAccess({window,document,shouldRefresh:()=>!!(db&&user&&!profile?.active&&!recovery&&!busy&&!dirty&&!uncertain&&!isPreview()&&!hasModuleEdits()&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)),refresh:()=>run(async()=>{await loadIdentity();if(profile?.active)say(t('승인이 확인됐어요. 업무 화면을 열었어요.','Access confirmed. Your workspace is ready.'));})});
  await loadIdentity();say('');render();
