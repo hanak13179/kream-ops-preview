@@ -24,7 +24,7 @@ import {renderMaterials} from './materials.mjs?v=20261119-garnish-sequence';
 import {renderCatalogTools,openProduct,signedPhotos,canManageProducts} from './catalog-editor.mjs?v=20261104-drag-only';
 import {renderDailyLog} from './daily-log.mjs?v=20261102-whole-quantity';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
-import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261121-steps2';
+import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261121-steps3';
 import {queueSheetStock} from './sheet-sync.mjs?v=20261121-sheet';
 import {renderProductionLog} from './production-log.mjs?v=20261119-memo-items';
 import {renderChecklist} from './checklist.mjs?v=20261104-manual-compact';
@@ -219,7 +219,7 @@ function renderSteps(list){const host=$('#products'),layout=currentLayout(),item
   suggest:stepSuggest,getQty:p=>Number(quantities[p.id])||0,setQty:stepSetQty,qtyStep:p=>halfBoxCount(p),qtyDisplay:(p,q)=>displayQuantity(p,q),
   saveStock:stepSaveStock,locked:!!draft?.submitted_order_id||uncertain,preview:true /* Hana 미리보기: 저장 안 함 */,
   nextCategory:next,goNextCategory:()=>{category=next;subgroup='';filter='all';renderOrderArea();scrollOrderSelection();},
-  openBasket:()=>{cartOpen=true;renderCart();},showGrid:()=>setOrderView('grid')});}
+  openBasket:()=>{cartOpen=true;renderCart();},showGrid:()=>setOrderView('grid'),allIds:orderCatalog().filter(p=>p.unit_confirmed&&p.category!=='키친 발주').map(p=>p.id)});}
 function currentLayout(){return layoutRows.find(l=>l.store_id===store)||{};}
 function scrollOrderSelection(){requestAnimationFrame(()=>document.querySelector('#categories')?.scrollIntoView({block:'start',behavior:'instant'}));}
 function renderCategories(){const host=$('#categories'),catalog=orderCatalog();if(subgroup&&!(category==='키친 발주'&&['빵재료','디저트재료','식사재료'].includes(subgroup))&&!catalog.some(p=>p.subgroup===subgroup&&(!category||p.category===category)))subgroup='';const context={catalog,layout:currentLayout(),profile:screenProfile(),store,category,subgroup,t,esc,db,act:run,say,preview:isPreview(),redraw:()=>{renderCategories();renderProducts();},reload:loadModules};host.innerHTML=filter==='need'?'':`<div class="chips categories"><button data-cat="" class="${!category?'active':''}">${t('전체','All')}</button>${ordered([...new Set([...catalog.map(p=>p.category),...(store==='finch'?['키친 발주']:[])])].sort(),currentLayout().category_order).map(c=>`<button data-cat="${esc(c)}" class="${category===c?'active':''}">${esc(c)}</button>`).join('')}</div>${subcategoryMarkup(context)}`;host.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{category=b.dataset.cat;subgroup='';filter='all';renderOrderArea();scrollOrderSelection();});host.querySelectorAll('[data-group]').forEach(b=>b.onclick=()=>{subgroup=b.dataset.group;filter='all';renderOrderArea();scrollOrderSelection();});const bottom=$('#orderLayoutTools'),tools=host.querySelector('.subcategory-tools');if(bottom&&typeof bottom.replaceChildren==='function'){bottom.replaceChildren();if(tools)bottom.appendChild(tools);}bindSubcategoryDrag($('#orderArea'),context);}

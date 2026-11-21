@@ -53,6 +53,11 @@ const CSS = `
 .os-win p{color:#6b6555;margin:4px 0 12px}
 .os-win button{width:100%;margin-top:8px;border:0;border-radius:16px;padding:15px;font-size:17px;font-weight:700;background:#e4ddcc}
 .os-win button.primary{background:#3e4b33;color:#fff}
+.os-toast{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);background:#3e4b33;color:#fff;font-weight:800;font-size:17px;padding:12px 18px;border-radius:999px;box-shadow:0 6px 18px #0003;z-index:3000;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;animation:os-toast 1.4s ease forwards;pointer-events:none}
+@keyframes os-toast{0%{opacity:0;transform:translate(-50%,10px) scale(.9)}12%{opacity:1;transform:translate(-50%,0) scale(1.04)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-14px)}}
+.os-win .praise{font-size:17px;font-weight:700;color:#3e4b33;margin:6px 0 2px}
+.os-win .time{font-size:14px;color:#6b6555}
+.os-win button.done{background:linear-gradient(135deg,#ed522e,#f08a4b);color:#fff;font-size:20px;padding:18px}
 .os-pop{position:fixed;left:50%;top:40%;font-size:42px;pointer-events:none;animation:os-pop .7s ease forwards;z-index:3000}
 @keyframes os-pop{0%{opacity:0;transform:translate(-50%,-30%) scale(.6)}30%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}100%{opacity:0;transform:translate(-50%,-90%)}}
 `;
@@ -64,6 +69,25 @@ function ensureStyle() {
   el.textContent = CSS;
   document.head.appendChild(el);
 }
+
+
+// 칭찬 문구 (한국어, English)
+const PRAISE = [
+  ['좋아요! 👍', 'Nice! 👍'], ['숫자 요정 등장 ✨', 'Number fairy! ✨'], ['계산기보다 빠름 🧮', 'Faster than a calculator 🧮'],
+  ['오, 프로의 냄새 👃', 'Smells like a pro 👃'], ['재고가 떨고 있어요 😆', 'The stock is shaking 😆'], ['정확도 100% (아마도) 🎯', '100% accurate (probably) 🎯'],
+  ['이 구역 재고왕 👑', 'Stock royalty 👑'], ['크림 사장님이 좋아합니다 🍰', 'The boss approves 🍰'], ['다음 거 덤벼 🥊', 'Bring on the next one 🥊'],
+  ['손가락 워밍업 완료 💪', 'Fingers warmed up 💪'], ['눈썰미 무엇? 👀', 'Eagle eyes 👀'], ['오늘도 한 건 해결 ✅', 'Another one done ✅']
+];
+const FAST = [['⚡ 번개 손!', '⚡ Lightning hands!'], ['손가락에 모터 달았어요? 🏎️', 'Motor in those fingers? 🏎️'], ['눈 깜빡할 새 끝 😳', 'Done in a blink 😳']];
+const STREAK = {5: ['🔥 5연속! 멈출 수 없다', '🔥 5 in a row!'], 10: ['🔥🔥 10연속! 전설의 시작', '🔥🔥 10 in a row! Legendary'], 20: ['🔥🔥🔥 20연속! 기네스에 연락할까요?', '🔥🔥🔥 20 in a row! Calling Guinness']};
+const SPEED = [
+  [3, '🚀', '전설의 손가락! 이 속도면 재고가 알아서 줄 서요', 'Legendary! The stock lines up by itself'],
+  [6, '⚡', '번개처럼 끝! 오늘 커피는 사장님이… 아마도?', 'Lightning fast! Coffee is on the boss… maybe?'],
+  [12, '😎', '깔끔하게 끝! 재고 장인 인정합니다', 'Clean finish! Certified stock master'],
+  [Infinity, '🐢', '천천히, 정확하게! 거북이가 이긴 거 아시죠?', 'Slow and steady wins the race!']
+];
+const pick = list => list[Math.floor(Math.random() * list.length)];
+function timeText(secs, t) { return secs >= 60 ? `${Math.floor(secs / 60)}${t('분', 'm')} ${secs % 60}${t('초', 's')}` : `${secs}${t('초', 's')}`; }
 
 /** app.mjs가 한 번 만들어서 계속 들고 있는 상태 */
 export function createStepState(store, today) {
@@ -81,6 +105,9 @@ export function createStepState(store, today) {
     failed: new Set(),
     lastShown: '',      // 애니메이션용
     streak: 0,
+    startedAt: 0,      // 이 카테고리 첫 입력 시간
+    lastNext: 0,       // 마지막 '다음' 누른 시간
+    counts: 0,         // 이 카테고리에서 센 개수
     queue: Promise.resolve(),
   };
 }
@@ -90,20 +117,22 @@ export function createStepState(store, today) {
  * c: {state, items, key, title, t, esc, name, unitLabel, picture, lastStock(p), parse(p,text),
  *     suggest(p, stored|null) → 주문수량|null, getQty(p), setQty(p,q), qtyStep(p), qtyDisplay(p,q),
  *     saveStock(p, stored) → Promise, locked, preview, nextCategory → 이름|null, goNextCategory(), openBasket(),
- *     showGrid()}
+ *     showGrid(), allIds: 이 매장 전체 품목 id (모두 끝나면 🏆)}
  */
 export function renderOrderSteps(host, c) {
   ensureStyle();
   const {state: s, items, t, esc} = c;
-  if (s.key !== c.key) { s.key = c.key; s.index = firstUndone(); s.view = 'one'; s.streak = 0; }
+  if (s.key !== c.key) { s.key = c.key; s.index = firstUndone(); s.view = 'one'; s.streak = 0; s.startedAt = 0; s.counts = 0; s.finishedIn = 0; }
   if (s.index > items.length) s.index = items.length;
 
   function firstUndone() { const i = items.findIndex(p => !s.done.has(p.id)); return i < 0 ? 0 : i; }
-  const doneCount = items.filter(p => s.done.has(p.id)).length;
-  const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
-
-  const head = `<div class="os-head"><span class="os-count">${Math.min(s.index + 1, items.length)} / ${items.length}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${doneCount === items.length && items.length ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
+  let doneCount = 0;
+  function head() {
+    doneCount = items.filter(p => s.done.has(p.id)).length;
+    const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
+    return `<div class="os-head"><span class="os-count">${Math.min(s.index + 1, items.length)} / ${items.length}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${doneCount === items.length && items.length ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
     <div class="os-tools"><button data-os="one" aria-pressed="${s.view === 'one'}">${t('한 개씩', 'One by one')}</button><button data-os="list" aria-pressed="${s.view === 'list'}">✎ ${t('목록', 'List')}</button><button data-os="grid">▦ ${t('전체 보기', 'Grid')}</button></div>`;
+  }
 
   const wrap = html => { host.innerHTML = `<div class="os">${html}</div>`; };
 
@@ -125,34 +154,39 @@ export function renderOrderSteps(host, c) {
   }
 
   function drawList() {
-    wrap(head + `<div class="os-list">${items.map((p, i) => {
+    wrap(head() + `<div class="os-list">${items.map((p, i) => {
       const st = stockText(p), last = c.lastStock(p);
       return `<button class="os-row ${i === s.index ? 'on' : ''}" data-go="${i}"><span>${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</span><em>${esc(st !== '' ? st : last ?? '—')}</em><small>${st !== '' ? t('오늘', 'today') : t('지난번', 'last')}</small></button>`;
     }).join('')}</div>`);
   }
 
   function drawWin() {
-    const next = c.nextCategory;
-    wrap(head + `<div class="os-win"><div class="big">${next ? '🎉' : '🏆'}</div><h3>${esc(c.title)} ${t('완료!', 'done!')}</h3><p>${doneCount} / ${items.length} ${t('품목 재고 입력', 'items counted')}</p>
+    const next = c.nextCategory, allDone = (c.allIds || []).length > 0 && c.allIds.every(id => s.done.has(id));
+    const secs = s.finishedIn || 0, per = s.counts ? secs / s.counts : Infinity;
+    const tier = SPEED.find(x => per <= x[0]);
+    wrap(head() + `<div class="os-win"><div class="big">${allDone ? '🏆' : tier[1]}</div>
+      <h3>${allDone ? t('오늘 재고 전부 끝!', 'All stock counted!') : `${esc(c.title)} ${t('완료!', 'done!')}`}</h3>
+      <p class="praise">${esc(t(tier[2], tier[3]))}</p>
+      <p class="time">${s.counts ? `${s.counts}${t('개', ' items')} · ${timeText(secs, t)}` : `${doneCount} / ${items.length} ${t('품목', 'items')}`}</p>
       ${s.failed.size ? `<p class="os-warn">${t(`${s.failed.size}개 재고가 저장되지 않았어요. 목록에서 다시 확인해 주세요.`, `${s.failed.size} counts did not save. Check them in the list.`)}</p>` : ''}
-      ${next ? `<button class="primary" data-os="nextcat">${t(`다음: ${next} →`, `Next: ${next} →`)}</button>` : ''}
-      <button class="${next ? '' : 'primary'}" data-os="basket">${t('발주함 확인 →', 'Review basket →')}</button>
+      ${next && !allDone ? `<button class="primary" data-os="nextcat">${t(`다음: ${next} →`, `Next: ${next} →`)}</button>` : ''}
+      <button class="done" data-os="basket">${t('다 했어요! 🙌', 'All done! 🙌')}</button>
       <button data-os="list">✎ ${t('목록에서 고치기', 'Fix from list')}</button></div>`);
   }
 
   function drawOne() {
-    if (!items.length) { wrap(head + `<p class="empty">${t('해당 품목이 없어요.', 'No items here.')}</p>`); return; }
+    if (!items.length) { wrap(head() + `<p class="empty">${t('해당 품목이 없어요.', 'No items here.')}</p>`); return; }
     if (s.index >= items.length) return drawWin();
     const p = items[s.index], st = stockText(p), last = c.lastStock(p);
     const animate = s.lastShown !== p.id; s.lastShown = p.id;
     const dis = c.locked ? 'disabled' : '';
-    wrap(head + `<div class="os-card ${animate ? 'in' : ''}">
+    wrap(head() + `<div class="os-card ${animate ? 'in' : ''}">
       <div class="os-top"><div class="os-pic">${c.picture(p)}</div><div><div class="os-name">${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</div><div class="os-unit">${esc(c.unitLabel(p))}</div><div class="os-last">${last == null || last === '' ? t('지난 재고 기록 없음', 'No previous count') : `${t('지난번 재고', 'Last count')}: ${esc(last)}`}</div></div></div>
       <div class="os-label">${t('지금 재고', 'Stock now')}</div>
       <div class="os-num"><button data-os="minus" ${dis} aria-label="${t('하나 빼기', 'minus one')}">−</button><output class="${st === '' ? 'empty' : ''}">${st === '' ? '?' : esc(st)}</output><button data-os="plus" ${dis} aria-label="${t('하나 더하기', 'plus one')}">＋</button></div>
       <div class="os-pad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k => `<button data-key="${k}" ${dis} aria-label="${k === '⌫' ? t('지우기', 'delete') : k}">${k}</button>`).join('')}</div>
       <div class="os-warn" id="osWarn">${c.preview ? t('미리보기: 저장되지 않아요.', 'Preview: nothing is saved.') : s.failed.has(p.id) ? t('이 품목 재고가 저장되지 않았어요. 다시 넣어 주세요.', 'This count did not save. Please re-enter.') : ''}</div>
-      <div class="os-nav"><button class="os-prev" data-os="prev" ${s.index === 0 ? 'disabled' : ''}>← ${t('이전', 'Back')}</button><button class="os-next" data-os="next" ${dis}>${s.index + 1 === items.length ? t('완료 ✓', 'Done ✓') : t('다음 →', 'Next →')}</button></div>
+      <div class="os-nav"><button class="os-prev" data-os="prev" ${s.index === 0 ? 'disabled' : ''}>← ${t('이전', 'Back')}</button><button class="os-next" data-os="next" ${dis}>${s.index + 1 === items.length ? t('다 했어요! 🙌', 'All done! 🙌') : t('다음 →', 'Next →')}</button></div>
     </div>`);
   }
 
@@ -208,6 +242,14 @@ export function renderOrderSteps(host, c) {
     return true;
   }
 
+  function toast(pair) {
+    document.querySelectorAll('.os-toast').forEach(x => x.remove());
+    const el = document.createElement('div');
+    el.className = 'os-toast'; el.textContent = t(pair[0], pair[1]);
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1450);
+  }
+
   function pop(emoji) {
     const el = document.createElement('div');
     el.className = 'os-pop'; el.textContent = emoji;
@@ -231,8 +273,18 @@ export function renderOrderSteps(host, c) {
       case 'prev': if (p && !commit(p)) return; s.index = Math.max(0, s.index - 1); s.streak = 0; return draw();
       case 'next': {
         if (!p || !commit(p)) return;
-        if (stored(p) != null) { s.streak += 1; pop(s.streak % 5 === 0 ? '🔥' : ['⭐', '✨', '👍', '💪'][s.streak % 4]); }
-        s.index += 1; return draw();
+        const now = Date.now();
+        if (stored(p) != null) {
+          if (!s.startedAt) s.startedAt = now;
+          s.streak += 1; s.counts += 1;
+          const fast = s.lastNext && now - s.lastNext < 3000;
+          toast(STREAK[s.streak] || (fast ? pick(FAST) : pick(PRAISE)));
+          pop(s.streak % 5 === 0 ? '🔥' : fast ? '⚡' : ['⭐', '✨', '👍', '💪'][s.streak % 4]);
+        }
+        s.lastNext = now;
+        s.index += 1;
+        if (s.index >= items.length) s.finishedIn = s.startedAt ? Math.max(1, Math.round((now - s.startedAt) / 1000)) : 0;
+        return draw();
       }
       case 'nextcat': return c.goNextCategory();
       case 'basket': return c.openBasket();
