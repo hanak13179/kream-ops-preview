@@ -1087,21 +1087,110 @@ function kreamShade(hex) {
   return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
-// 재고 현황: 매장별 가장 최근 숫자
+// 재고 현황: 예전 "매장별 발주"처럼 색깔 상자로.
+//  1) 전 매장 재고 합계  2) 매장별 상자 (오늘·어제 재고)  3) 매장별 최근 7일
+// 매장 상자에는 그 매장이 한 번이라도 센 품목만 나와요.
 function kreamRefreshStockNow(ss, logRows, groups) {
   var sh = ss.getSheetByName(KREAM_STOCK_NOW);
-  var today = kreamCtx().date, latest = {};
-  logRows.forEach(function (r) { latest[r.store_id + '|' + r.item_id] = r; });   // 뒤에 있을수록 최신
-  var stamp = Utilities.formatDate(new Date(), KREAM_TZ, 'MM/dd HH:mm') + ' 업데이트';
-  kreamDrawStockTable(sh, '재고 현황 · 매장별 최근 재고', stamp,
-    ['제품', '단위'].concat(KREAM_STOCK_STORES.map(function (s) { return s.label; })),
-    [null, null].concat(KREAM_STOCK_STORES.map(function (s) { return s.color; })), groups,
-    function (it, i) {
-      var r = latest[KREAM_STOCK_STORES[i].id + '|' + it.id];
-      if (!r) return ['', false];
-      return [kreamStockShow(it, r.count), r.date === today || r.date === kAddDays(today, -1) && Number(Utilities.formatDate(new Date(), KREAM_TZ, 'H')) < 4];
-    }, 0, [null, null].concat(KREAM_STOCK_STORES.map(function (s) { return s.soft; })));
-  sh.getRange(2, 1).setValue('진한 숫자 = 오늘 센 재고 · 회색 숫자 = 예전에 센 재고 · 빈칸 = 아직 안 셈').setFontSize(9).setFontColor('#8a8676').setFontFamily(KREAM_FONT);
+  var ctx = kreamCtx(), cutoff = Number(kreamSettingMap().day_cutoff_hour || 4);
+  var today = ctx.hour < cutoff ? kAddDays(ctx.date, -1) : ctx.date, yest = kAddDays(today, -1), W = 8;   // 새벽 4시 전에는 어젯밤 재고가 '오늘'
+  var latest = {}, byDay = {}, countedBy = {};
+  logRows.forEach(function (r) {
+    latest[r.store_id + '|' + r.item_id] = r;
+    byDay[r.store_id + '|' + r.date + '|' + r.item_id] = r.count;
+    countedBy[r.store_id + '|' + r.item_id] = true; countedBy['*|' + r.item_id] = true;
+  });
+  var days = []; for (var d = 6; d >= 0; d--) days.push(kAddDays(today, -d));
+  var rows = [], blocks = [], cats = [], titles = [];
+  function pad(r) { r = r.slice(); while (r.length < W) r.push(''); return r; }
+  function short(dd) { return dd.slice(5).replace('-', '/'); }
+  function block(title, color, soft, header, filterFn, rowFn) {
+    var start = rows.length, width = header.length;
+    rows.push(pad([title])); rows.push(pad(header));
+    var any = false;
+    groups.forEach(function (g, gi) {
+      var items = g.items.filter(filterFn);
+      if (!items.length) return;
+      any = true;
+      cats.push({row: rows.length, width: width, color: KREAM_CATEGORY_COLORS[gi % KREAM_CATEGORY_COLORS.length]});
+      rows.push(pad([g.category + '  ·  ' + items.length + '개']));
+      items.forEach(function (it) { rows.push(pad(rowFn(it))); });
+    });
+    if (!any) rows.push(pad(['아직 센 재고가 없어요']));
+    blocks.push({start: start, end: rows.length - 1, width: width, color: color, soft: soft});
+    rows.push(pad([]));
+  }
+  rows.push(pad(['재고 현황 · ' + today])); rows[0][W - 1] = '마지막 업데이트 ' + Utilities.formatDate(new Date(), KREAM_TZ, 'MM/dd HH:mm');
+  rows.push(pad([]));
+  // 1) 전 매장 합계 (가장 최근 숫자)
+  block('전 매장 재고 합계 (최근에 센 숫자)', '#3e4b33', '#e9e6da',
+    ['제품', '단위', '합계'].concat(KREAM_STOCK_STORES.map(function (s) { return s.label.split(' ')[0]; })),
+    function (it) { return countedBy['*|' + it.id]; },
+    function (it) {
+      var sum = 0, vals = KREAM_STOCK_STORES.map(function (st) {
+        var r = latest[st.id + '|' + it.id]; if (!r) return '-';
+        sum += Number(r.count) || 0; return kreamStockShow(it, r.count);
+      });
+      return [it.item, it.unit, /있음/.test(it.unit || '') ? '' : sum].concat(vals);
+    });
+  // 2) 매장별 상자
+  KREAM_STOCK_STORES.forEach(function (st) {
+    block(st.label, st.color, st.soft, ['제품', '단위', '오늘 재고', '어제 재고', '변화', '마지막으로 센 날'],
+      function (it) { return countedBy[st.id + '|' + it.id]; },
+      function (it) {
+        var t = byDay[st.id + '|' + today + '|' + it.id], y = byDay[st.id + '|' + yest + '|' + it.id], r = latest[st.id + '|' + it.id];
+        var diff = t != null && y != null && !/있음/.test(it.unit || '') ? Number(t) - Number(y) : '';
+        return [it.item, it.unit, t == null ? '' : kreamStockShow(it, t), y == null ? '' : kreamStockShow(it, y),
+          diff === '' ? '' : (diff > 0 ? '+' + diff : diff), r ? short(r.date) : ''];
+      });
+  });
+  titles.push(rows.length);
+  rows.push(pad(['최근 7일 재고 (그날 마지막으로 센 숫자)']));
+  // 3) 매장별 최근 7일
+  KREAM_STOCK_STORES.forEach(function (st) {
+    block(st.label, st.color, st.soft, ['제품'].concat(days.map(short)),
+      function (it) { return countedBy[st.id + '|' + it.id]; },
+      function (it) { return [it.item].concat(days.map(function (dd) { var v = byDay[st.id + '|' + dd + '|' + it.id]; return v == null ? '' : kreamStockShow(it, v); })); });
+  });
+
+  // 그리기
+  sh.setFrozenRows(0); sh.setFrozenColumns(0);
+  sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
+  sh.clear();
+  sh.setHiddenGridlines(true);
+  if (sh.getMaxRows() < rows.length) sh.insertRowsAfter(sh.getMaxRows(), rows.length - sh.getMaxRows());
+  var bg = rows.map(function () { var x = []; for (var c = 0; c < W; c++) x.push('#fffdf8'); return x; });
+  var fw = rows.map(function () { var x = []; for (var c = 0; c < W; c++) x.push('normal'); return x; });
+  var fc = rows.map(function () { var x = []; for (var c = 0; c < W; c++) x.push('#3a3c34'); return x; });
+  blocks.forEach(function (b) {
+    for (var c = 0; c < b.width; c++) { bg[b.start][c] = b.color; fw[b.start][c] = 'bold'; fc[b.start][c] = b.color === '#3e4b33' ? '#ffffff' : '#2f3129';
+      bg[b.start + 1][c] = b.soft; fw[b.start + 1][c] = 'bold'; fc[b.start + 1][c] = '#4a4c43'; }
+    for (var r = b.start + 2; r <= b.end; r++) fw[r][0] = 'bold';
+  });
+  // 줄무늬: 홀수 줄 흰색, 짝수 줄 연한 매장 색
+  blocks.forEach(function (b) { var n = 0; for (var r = b.start + 2; r <= b.end; r++) { n++; for (var c = 0; c < b.width; c++) bg[r][c] = n % 2 ? '#ffffff' : b.soft; } });
+  cats.forEach(function (k) { for (var c = 0; c < k.width; c++) { bg[k.row][c] = k.color; fw[k.row][c] = 'bold'; fc[k.row][c] = '#2f3129'; } });
+  var all = sh.getRange(1, 1, rows.length, W);
+  all.setValues(rows).setBackgrounds(bg).setFontWeights(fw).setFontColors(fc)
+    .setFontFamily(KREAM_FONT).setFontSize(11).setVerticalAlignment('middle');
+  sh.getRange(1, 2, rows.length, W - 1).setHorizontalAlignment('center');
+  sh.getRange(1, 1).setFontSize(16).setFontWeight('bold').setFontColor('#ed522e');
+  sh.getRange(1, W).setFontSize(9).setFontColor('#9a9c90').setHorizontalAlignment('right');
+  sh.setRowHeight(1, 38);
+  titles.forEach(function (r) { sh.getRange(r + 1, 1).setFontWeight('bold').setFontSize(13); });
+  blocks.forEach(function (b) {
+    var n = b.end - b.start + 1, box = sh.getRange(b.start + 1, 1, n, b.width);
+    box.setBorder(true, true, true, true, true, true, '#e2dfd3', SpreadsheetApp.BorderStyle.SOLID);
+    box.setBorder(true, true, true, true, null, null, b.color, SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    sh.getRange(b.start + 1, 1, 1, b.width).merge().setFontSize(13).setHorizontalAlignment('left');
+    sh.setRowHeight(b.start + 1, 32);
+    sh.getRange(b.start + 2, 1, 1, b.width).setFontSize(10);
+    sh.getRange(b.start + 2, 1).setHorizontalAlignment('left');
+  });
+  cats.forEach(function (k) { sh.getRange(k.row + 1, 1, 1, k.width).merge().setHorizontalAlignment('left').setFontSize(11); });
+  sh.setColumnWidth(1, 210);
+  for (var c = 2; c <= W; c++) sh.setColumnWidth(c, 96);
+  sh.setFrozenRows(1);
 }
 
 // 날짜별 재고: B2에서 고른 매장의 최근 14일
