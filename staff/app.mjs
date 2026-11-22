@@ -221,21 +221,24 @@ function inShift(p,shift){return shift==='morning'?morningTask(p):!morningTask(p
 // 이미 주문해서 오는 중인지: 이 매장 주문 중 입고확인이 안 된 것에 이 품목이 있으면 (도착일이 2일 넘게 지난 건 제외)
 function onTheWay(p){const received=new Set((receipts||[]).map(r=>r.order_id));const oldest=addDaysISO(todayToronto(),-2);const o=(orders||[]).find(o=>o.store_id===store&&!/cancel|void/i.test(String(o.status||''))&&!received.has(o.id)&&(!o.delivery_date||o.delivery_date>=oldest)&&(o.kream_order_items||[]).some(i=>i.product_id===p.id&&Number(i.quantity)>0));return o?{date:o.delivery_date?o.delivery_date.slice(5).replace('-','/'):''}:null;}
 function addDaysISO(d,n){const x=new Date(d+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10);}
-// 한 개씩 세기 · 최소수량 화면 전용: 20개입 봉지 쿠키는 낱개로 세고 봉지로 주문 (치즈케이크 10조각과 같은 방식).
+// 한 개씩 세기 · 최소수량 화면 전용: 20개입 봉지 쿠키·10개입 휘낭시에는 낱개로 세고 봉지로 주문 (치즈케이크 10조각과 같은 방식).
 // 앱 공용 계산(stock-units)은 그대로 둬서 Midland·공장 화면은 바뀌지 않아요.
 const COOKIE_BAGS=new Set(['cookie','sheet-c4bd38d984','sheet-4c1b6660cd']);
 function cookieBag(p){return store!=='midland'&&(COOKIE_BAGS.has(p.id)||/20\s*개\s*\/\s*봉/.test(String(p.order_unit||'')));}
-function countFactor(p){return cookieBag(p)?20:stockDisplayFactor(p);}
-function countUnitLabel(p){return cookieBag(p)?'Bag · 20개/봉':unitLabel(p);}
-function countDisplay(p,v){if(v==null||v==='')return v;return cookieBag(p)?Math.round(Number(v)*20*1000)/1000:stockDisplay(p,v);}
-function countInput(p,text){if(!cookieBag(p))return stockInput(p,text);if(text==null||text==='')return '';const n=Number(text);if(!Number.isInteger(n)||n<0)throw Error('STOCK_PIECES_REQUIRED');return n/20;}
+// 휘낭시에: 한 봉지 10개 (휘낭시에 세트 제외)
+function financierBag(p){return store!=='midland'&&String(p.subgroup||'')==='휘낭시에'&&/^bag$/i.test(String(p.order_unit||'').trim());}
+function bagSize(p){return cookieBag(p)?20:financierBag(p)?10:0;}
+function countFactor(p){return bagSize(p)||stockDisplayFactor(p);}
+function countUnitLabel(p){return bagSize(p)?`Bag · ${bagSize(p)}개/봉`:unitLabel(p);}
+function countDisplay(p,v){if(v==null||v==='')return v;const b=bagSize(p);return b?Math.round(Number(v)*b*1000)/1000:stockDisplay(p,v);}
+function countInput(p,text){const b=bagSize(p);if(!b)return stockInput(p,text);if(text==null||text==='')return '';const n=Number(text);if(!Number.isInteger(n)||n<0)throw Error('STOCK_PIECES_REQUIRED');return n/b;}
 // 재고를 안 세는 품목: 사워도우(자동 발주), 소세지빵
 function skipCount(p){return String(p.subgroup||'')==='사워도우'||String(p.name_ko||'').trim()==='소세지빵';}
 // 다이제스티브: 1박스 이상 있다/없다. 없으면 1박스, 3호점(빙수·티라미수·바나나푸딩에 많이 씀)은 2박스
 function digestive(p){return String(p.name_ko||'').trim()==='다이제스티브';}
 function digestiveBoxes(){return store==='richmond-hill'?2:1;}
 // 품목별 질문 글자 (숫자로 세는 품목)
-function countPrompt(p){const n=String(p.name_ko||'').trim();if(n==='레몬')return t('레몬 몇 개 있나요?','How many lemons?');if(['카라멜 소스','딸기 네스퀵','리얼 레몬 주스'].includes(n))return t('몇 병 있나요?','How many bottles?');if(n==='그래놀라')return t('몇 팩 있나요?','How many packs?');if(coffeeBeans(p))return t('몇 백 있나요? (1백 = 2kg, 반 백은 0.5)','How many bags? (1 bag = 2kg, half = 0.5)');return '';}
+function countPrompt(p){const n=String(p.name_ko||'').trim();if(n==='레몬')return t('레몬 몇 개 있나요?','How many lemons?');if(['카라멜 소스','딸기 네스퀵','리얼 레몬 주스'].includes(n))return t('몇 병 있나요?','How many bottles?');if(n==='그래놀라')return t('몇 팩 있나요?','How many packs?');if(n==='망고퓨레 소스')return t('몇 통 있나요? (1통 = 2kg, 반 통은 0.5)','How many tubs? (1 tub = 2kg, half = 0.5)');if(n==='갈린 얼음')return t('몇 통 있나요? (1통 ≈ 5kg, 반 통은 0.5)','How many tubs? (1 tub ≈ 5kg, half = 0.5)');if(coffeeBeans(p))return t('몇 백 있나요? (1백 = 2kg, 반 백은 0.5)','How many bags? (1 bag = 2kg, half = 0.5)');return '';}
 // 로즈마리·타임: 싱싱한 게 반 통 이상 있다/없다
 // 냉동 망고: 냉동팩 1개 이상 있다/없다 (주문은 1케이스)
 function frozenMango(p){return p.id==='sheet-30551159e9'||String(p.name_ko||'').trim()==='냉동 망고';}
