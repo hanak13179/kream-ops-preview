@@ -217,9 +217,9 @@ async function stepSaveStock(p,onHand){const targetStore=store;const old=stock.f
 function stepSuggest(p,onHand){let rule=fixBagRule(p,stockRules.find(r=>r.product_id===p.id&&r.store_id===store));const fallback=defaultMinimum(p)??suggestedMinimum(p,store,piecesPerUnit(p));if(fallback!=null&&(!rule||(rule.weekday_base==null&&rule.weekend_base==null)))rule={...(rule||{}),weekday_base:fallback,weekend_base:null};const rec=recommendation({on_hand:Number(onHand)+incoming(p)},rule,date);if(!rec)return null;return Math.ceil(rec.quantity/halfBoxCount(p))*halfBoxCount(p);}
 // 주문 1단위에 낱개 몇 개인지 (추천 최소수량 계산용): 치즈케이크 트레이 10, 쿠키 봉지 20, 휘낭시에 봉지 10, 낱개 1, 모르면 0
 function piecesPerUnit(p){if(bagSize(p))return bagSize(p);if(stockDisplayFactor(p)>1)return stockDisplayFactor(p);return /^(ea|개|낱개|set|pack)$/i.test(String(p.order_unit||'').trim())?1:0;}
-// 오는 중인 주문: 이 매장 주문 중 취소 안 됐고, 입고확인 전이고, 도착일이 내일 이후이거나 오늘 도착인데 아직 공장에서 안 보낸 것.
-// (오늘 도착분을 공장에서 이미 보냈으면 마감 때는 이미 받은 걸로 봐요. 입고확인을 안 눌러도 모자라게 주문되지 않게)
-function incomingOrders(){const received=new Set((receipts||[]).map(r=>r.order_id)),today=todayToronto();return (orders||[]).filter(o=>o.store_id===store&&o.id!==draft?.submitted_order_id&&!/cancel|void|reject/i.test(String(o.status||''))&&!received.has(o.id)&&o.delivery_date&&(o.delivery_date>today||(o.delivery_date===today&&/submit|pending|new/i.test(String(o.status||'')))));}
+// 오는 중인 주문 (오늘 주문 → 내일 도착): 이 매장 주문 중 취소 안 됐고, 입고확인 전이고, 도착일이 내일 이후인 것.
+// 오늘 도착분은 낮에 셀 때만 오는 중으로 봐요. 마감 때는 이미 받은 걸로 봐요 (입고확인을 안 눌러도 모자라게 주문되지 않게).
+function incomingOrders(){const received=new Set((receipts||[]).map(r=>r.order_id)),today=todayToronto();return (orders||[]).filter(o=>o.store_id===store&&o.id!==draft?.submitted_order_id&&!/cancel|void|reject/i.test(String(o.status||''))&&!received.has(o.id)&&o.delivery_date&&(o.delivery_date>today||(o.delivery_date===today&&shiftOf()==='morning'&&!/deliver|receiv|complete/i.test(String(o.status||'')))));}
 function incoming(p){let n=0;for(const o of incomingOrders())for(const i of o.kream_order_items||[])if(i.product_id===p.id)n+=Number(i.quantity)||0;return n;}
 // 낮 요정: 포장재·소모품·음료 베이스 / 마감 요정: 나머지
 function morningTask(p){return /포장|소모품/.test(String(p.category||''))||/포장|소모품|음료 ?베이스/.test(String(p.subgroup||''));}
