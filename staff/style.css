@@ -322,3 +322,12 @@ body,.signed-in aside,.signed-in header{background:#f8f5ef;color:#352e29}
 
 /* Keep native date text readable on the narrowest phones. */
 @media(max-width:360px){.reservation-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.reservation-controls button{grid-column:1/-1}}
+
+/* A fixed visual date field avoids iOS native date-control intrinsic sizing. */
+.reservation-controls>label{grid-template-rows:18px 44px;gap:6px;align-content:end;overflow:hidden}
+.reservation-controls>label>span:first-child{display:block;line-height:18px;white-space:nowrap}
+.reservation-controls .reservation-date-box{position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;height:44px;min-height:44px;max-height:44px;width:100%;min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 6px;font-size:13px;line-height:20px;color:inherit}
+.reservation-controls .reservation-date-box>span{white-space:nowrap;pointer-events:none}
+.reservation-controls .reservation-date-box input[type=date]{position:absolute;inset:0;display:block;width:100%;height:100%;min-height:0;max-height:none;min-width:0;padding:0;margin:0;border:0;opacity:0;cursor:pointer;font-size:16px}
+.reservation-controls .reservation-date-box input[type=date]::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;cursor:pointer}
+.reservation-controls .reservation-date-box:focus-within{outline:2px solid var(--orange);outline-offset:2px}
