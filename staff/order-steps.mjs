@@ -134,7 +134,7 @@ export function createStepState(store, today) {
  * c: {state, items, key, title, t, esc, name, unitLabel, picture, lastStock(p), parse(p,text),
  *     suggest(p, stored|null) → 주문수량|null, getQty(p), setQty(p,q), qtyStep(p), qtyDisplay(p,q),
  *     saveStock(p, stored) → Promise, locked, preview, nextCategory → 이름|null, goNextCategory(), openBasket(),
- *     showGrid(), shift/shiftCounts/setShift/otherShiftHere: 낮·마감 나누기, bagMode(p) 티백 1봉지/반봉지/없음, yesNoText(p) 있다/없다 버튼 글자, onTheWay(p) → {date}|null 이미 주문해서 오는 중, yesNo(p) → true면 '한 박스 있다/없다' 버튼 (포장·소모품), allIds: 이 매장 전체 품목 id (모두 끝나면 🏆)}
+ *     showGrid(), shift/shiftCounts/setShift/otherShiftHere: 낮·마감 나누기, bagMode(p) 티백 1봉지/반봉지/없음, yesNoText(p) 있다/없다 버튼 글자, yesNoQty(p) 없을 때 주문할 양, onTheWay(p) → {date}|null 이미 주문해서 오는 중, yesNo(p) → true면 '한 박스 있다/없다' 버튼 (포장·소모품), allIds: 이 매장 전체 품목 id (모두 끝나면 🏆)}
  */
 export function renderOrderSteps(host, c) {
   ensureStyle();
@@ -180,7 +180,7 @@ export function renderOrderSteps(host, c) {
       const enough = c.bagMode?.(p) ? Number(v) >= 1 : Number(v) > 0;
       if (enough) return {q: 0, auto: true};
       if (c.onTheWay?.(p)) return {q: 0, auto: true, way: true};
-      return {q: c.qtyStep(p), auto: true};
+      return {q: c.yesNoQty?.(p) ?? c.qtyStep(p), auto: true};   // 없을 때 주문할 양 (매장마다 다를 수 있음, 예: 3호점 다이제스티브 2박스)
     }
     const sug = v == null || v === undefined ? null : c.suggest(p, v);
     if (sug != null) return {q: sug, auto: true};
