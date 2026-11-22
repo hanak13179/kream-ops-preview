@@ -1,5 +1,5 @@
 import {renderReservations} from './reservations.mjs?v=20261122-date-box';
-import {openMyAccount} from './my-account.mjs?v=20261121-language';
+import {openMyAccount} from './my-account.mjs?v=20261122-account-dialog';
 import {chooseWorkplace,clearWorkplaceChoice,workplaceBadge,bindWorkplaceSwitch,assignedWorkplaces} from './entry-chooser.mjs?v=20261121-entry-assigned';
 import {canFinalizeMidland,midlandReviewStatus,workflowError,requestMidlandReview,renderGroupedOrderHistory} from './order-review.mjs?v=20261120-midland-review2';
 import {showSignupNotice} from './signup-notice.mjs?v=20261119-signup-notice';
