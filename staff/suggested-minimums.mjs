@@ -38,18 +38,24 @@ const CAKE = /치즈케이크|치즈케익|티라미수|쇼트케이크|요거�
 
 /**
  * p: 품목, store: 매장 id, piecesPerUnit: 주문 1단위에 낱개 몇 개 (트레이 10, 쿠키 봉지 20, 휘낭시에 봉지 10, 낱개 1, 모르면 0)
+ * recent: 이 매장 최근 2주 발주에서 한 번에 주문한 양 (가운데 값, 주문 단위). 판매 자료가 0이거나 없을 때 대신 써요
+ *         (예: 3호점 시루는 Clover 이름 연결이 안 돼서 판매 0으로 나오지만 실제로는 주문함).
  * → 주문 단위 최소수량 | null (Midland 등)
  */
-export function suggestedMinimum(p, store, piecesPerUnit) {
+export function suggestedMinimum(p, store, piecesPerUnit, recent = 0) {
   const i = STORES.indexOf(store);
   if (i < 0 || !p) return null;
-  if (EXPLICIT[store]?.[p.id] != null) return EXPLICIT[store][p.id];
+  if (EXPLICIT[store]?.[p.id] != null) return Math.max(EXPLICIT[store][p.id], recent || 0);
   const name = String(p.name_ko || '').trim(), key = ALIAS[name] || name;
   const cake = CAKE.test(name);
-  if (PIECES[key] && piecesPerUnit > 0) {
+  const r = Number(recent) || 0;
+  if (PIECES[key] && piecesPerUnit > 0 && PIECES[key][i] > 0) {
     const pcs = cake ? Math.max(3, PIECES[key][i]) : PIECES[key][i];
     return Math.round(pcs / piecesPerUnit * 100) / 100;
   }
+  // 판매 0 / 자료 없음: 최근에 주문했으면 그 양, 아니면 기본값
+  if (r > 0) return r;
+  if (PIECES[key] && piecesPerUnit > 0 && !cake) return 0;
   if (USED[key] && !USED[key][i]) return 0;
   if (cake && piecesPerUnit > 0) return Math.round(3 / piecesPerUnit * 100) / 100;
   return 1;
