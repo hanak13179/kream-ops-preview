@@ -1,5 +1,3 @@
-import {chooseEntry,entryChoice,entryStore} from './entry-chooser.mjs';
-import {guardPreview} from './preview-guard.mjs';
 import {openMyAccount} from './my-account.mjs?v=20261121-language';
 import {canFinalizeMidland,midlandReviewStatus,workflowError,requestMidlandReview,renderGroupedOrderHistory} from './order-review.mjs?v=20261120-midland-review2';
 import {showSignupNotice} from './signup-notice.mjs?v=20261119-signup-notice';
@@ -113,8 +111,8 @@ async function loadIdentity(){
  if(!profile?.active){stores=[];catalog=[];orders=[];return;}
  if(profile.store_manager){const memberships=await result(db.from('kream_memberships').select('store_id').eq('user_id',user.id));profile.store_ids=memberships.map(m=>m.store_id);}
  const s=await result(db.from('kream_stores').select('id,name').eq('active',true).order('name'));await loadCatalog();
- if(epoch!==generation)return;stores=s.sort((a,b)=>storeRank(a)-storeRank(b));const assigned=screenStores();const entry=entryChoice(),entryAt=entryStore(stores);if(entryAt&&assigned.some(s=>s.id===entryAt.id))store=entryAt.id;else if(entryAt||(entry&&entry.key!=='factory'))setTimeout(()=>say(t(entry.label+'에 접근 권한이 없어서 기본 매장으로 열었어요.','No access to '+entry.label+'; opened your default store.'),true),0);store=assigned.some(s=>s.id===store)?store:(assigned[0]?.id||'');
- if(stores.length&&stores.every(s=>s.id.startsWith('galleria-')))page='galleria';else if(profile.role==='factory'&&!profile.store_manager)page='production';if(entry?.key==='factory'&&(profile.role==='factory'||profile.factory_manager||profile.role==='manager'))page='production';await loadOrders();await loadModules();if((profile.role!=='factory'||profile.store_manager)&&store)await loadDraft();
+ if(epoch!==generation)return;stores=s.sort((a,b)=>storeRank(a)-storeRank(b));const assigned=screenStores();store=assigned.some(s=>s.id===store)?store:(assigned[0]?.id||'');
+ if(stores.length&&stores.every(s=>s.id.startsWith('galleria-')))page='galleria';else if(profile.role==='factory'&&!profile.store_manager)page='production';await loadOrders();await loadModules();if((profile.role!=='factory'||profile.store_manager)&&store)await loadDraft();
 }
 function groupedOrder(o){return {...o,kream_order_items:sortProductRows(o.kream_order_items||[],catalogAll)};}
 async function loadCatalog(){catalogAll=await result(db.from('kream_catalog').select('id,name_ko,name_en,category,subgroup,order_unit,unit_confirmed,active,archived,photo_path,production_team,factory_subgroup,revision').order('name_ko').limit(1000));catalogAll=sortCatalog(catalogAll);catalog=catalogAll.filter(p=>p.active&&!p.archived);photoURLs=await signedPhotos(db,catalog);if(category&&!(store==='finch'&&category==='키친 발주')&&!catalog.some(p=>p.category===category)){category='';subgroup='';}}
@@ -249,7 +247,7 @@ function skipCount(p){return String(p.subgroup||'')==='사워도우'||String(p.n
 function digestive(p){return String(p.name_ko||'').trim()==='다이제스티브';}
 function digestiveBoxes(){return store==='richmond-hill'?2:1;}
 // 품목별 질문 글자 (숫자로 세는 품목)
-function countPrompt(p){const n=String(p.name_ko||'').trim();if(n==='레몬')return t('레몬 몇 개 있나요?','How many lemons?');if(['카라멜 소스','딸기 네스퀵','리얼 레몬 주스'].includes(n))return t('몇 병 있나요?','How many bottles?');if(n==='그래놀라')return t('몇 팩 있나요?','How many packs?');if(n==='콜드브루')return t('콜드브루 얼마나 남았나요?','How much cold brew is left?');if(n==='우유 2%')return t('우유 몇 백 있나요?','How many milk bags?');if(n==='오트 밀크'||n==='아몬드 밀크')return t('몇 팩 있나요? (1팩 = 1.89L)','How many cartons? (1.89L)');if(n==='망고퓨레 소스')return t('몇 통 있나요? (1통 = 2kg, 반 통은 0.5)','How many tubs? (1 tub = 2kg, half = 0.5)');if(n==='밀크 폼')return t('몇 통 있나요? (1통 = 2kg, 반 통은 0.5)','How many tubs? (1 tub = 2kg, half = 0.5)');if(n==='스패너 크림')return t('몇 통 있나요? (1통 ≈ 4~5kg, 반 통은 0.5)','How many tubs? (1 tub ≈ 4-5kg, half = 0.5)');if(n==='갈린 얼음')return t('몇 통 있나요? (1통 ≈ 5kg, 반 통은 0.5)','How many tubs? (1 tub ≈ 5kg, half = 0.5)');if(coffeeBeans(p))return t('몇 백 있나요? (1백 = 2kg, 반 백은 0.5)','How many bags? (1 bag = 2kg, half = 0.5)');return '';}
+function countPrompt(p){const n=String(p.name_ko||'').trim();if(halfBoxCount(p)===32)return t('낱개로 몇 개 있나요? (주문은 공장에서 64개 박스 · 반 박스 32개로 와요)','How many pieces? (factory sends 64-pc boxes · half box 32)');if(n==='레몬')return t('레몬 몇 개 있나요?','How many lemons?');if(['카라멜 소스','딸기 네스퀵','리얼 레몬 주스'].includes(n))return t('몇 병 있나요?','How many bottles?');if(n==='그래놀라')return t('몇 팩 있나요?','How many packs?');if(n==='콜드브루')return t('콜드브루 얼마나 남았나요?','How much cold brew is left?');if(n==='우유 2%')return t('우유 몇 백 있나요?','How many milk bags?');if(n==='오트 밀크'||n==='아몬드 밀크')return t('몇 팩 있나요? (1팩 = 1.89L)','How many cartons? (1.89L)');if(n==='망고퓨레 소스')return t('몇 통 있나요? (1통 = 2kg, 반 통은 0.5)','How many tubs? (1 tub = 2kg, half = 0.5)');if(n==='밀크 폼')return t('몇 통 있나요? (1통 = 2kg, 반 통은 0.5)','How many tubs? (1 tub = 2kg, half = 0.5)');if(n==='스패너 크림')return t('몇 통 있나요? (1통 ≈ 4~5kg, 반 통은 0.5)','How many tubs? (1 tub ≈ 4-5kg, half = 0.5)');if(n==='갈린 얼음')return t('몇 통 있나요? (1통 ≈ 5kg, 반 통은 0.5)','How many tubs? (1 tub ≈ 5kg, half = 0.5)');if(coffeeBeans(p))return t('몇 백 있나요? (1백 = 2kg, 반 백은 0.5)','How many bags? (1 bag = 2kg, half = 0.5)');return '';}
 // 로즈마리·타임: 싱싱한 게 반 통 이상 있다/없다
 // 냉동 망고: 냉동팩 1개 이상 있다/없다 (주문은 1케이스)
 function labelSticker(p){return store!=='midland'&&/스티커|라벨|label|sticker|paper ?clip|클립/i.test((p.subgroup||'')+' '+(p.name_ko||'')+' '+(p.name_en||''))&&String(p.category||'').startsWith('포장');}
@@ -277,7 +275,7 @@ function groupTogether(list,test){const first=list.findIndex(test);if(first<0)re
 function teaBag(p){return /티백/.test(String(p.name_ko||''))||/tea ?bag/i.test(String(p.name_en||''));}
 function renderSteps(list){const host=$('#products'),layout=currentLayout(),shift=shiftOf(),countable=orderCatalog().filter(p=>p.unit_confirmed&&p.category!=='키친 발주'&&!skipCount(p)),items=groupTogether(list.filter(p=>p.unit_confirmed&&!skipCount(p)&&inShift(p,shift)),teaBag);const cats=ordered([...new Set(orderCatalog().map(p=>p.category))].sort(),layout.category_order).filter(c=>c!=='키친 발주');const ci=cats.indexOf(category),next=category&&ci>=0?cats.slice(ci+1).find(c=>countable.some(p=>p.category===c&&inShift(p,shift)))||null:null;const art=p=>artwork[p.id]||{};
  renderOrderSteps(host,{state:stepStateFor(),items,key:[shift,category,subgroup,filter,search].join('|'),title:subgroup||category||(filter==='need'?t('발주 필요','Needs order'):t('전체','All')),t,esc,name:showName,
-  unitLabel:p=>countFactor(p)>1?t(`재고는 ${countFactor(p)===10?'조각':'낱개'}로 · 주문은 `,'Count pieces · order in ')+countUnitLabel(p):unitLabel(p),
+  unitLabel:p=>halfBoxCount(p)===32?t('재고는 낱개로 · 주문은 64개 box (반 박스 32개)','Count pieces · order 64-pc box (half 32)'):countFactor(p)>1?t(`재고는 ${countFactor(p)===10?'조각':'낱개'}로 · 주문은 `,'Count pieces · order in ')+countUnitLabel(p):unitLabel(p),
   picture:p=>p.photo_path&&photoURLs[p.photo_path]?`<img src="${esc(photoURLs[p.photo_path])}" alt="">`:`<span style="background:${art(p).color||'#e6e8dc'};width:100%;height:100%;display:grid;place-items:center">${esc(art(p).art||name(p).slice(0,5))}</span>`,
   lastStock:p=>countDisplay(p,stock.find(s=>s.product_id===p.id)?.on_hand),
   parse:(p,text)=>{const v=countInput(p,text);stockNumbers(v,null);return v;},
@@ -286,10 +284,10 @@ function renderSteps(list){const host=$('#products'),layout=currentLayout(),shif
   nextCategory:next,goNextCategory:()=>{category=next;subgroup='';filter='all';renderOrderArea();scrollOrderSelection();},
   openBasket:()=>{cartOpen=true;renderCart();},showGrid:()=>setOrderView('grid'),yesNo:p=>String(p.category||'').includes('포장')||iceCream(p)||digestive(p)||freshHerb(p)||frozenMango(p)||almondBag(p),countPrompt,choices:p=>coldBrew(p)?COLD_BREW_CHOICES.map(([v,l,i])=>[v,v===0?t('없음','None'):v===0.5?t('반 통','Half'):t(`${v}통`,`${v} tub`),i]):null,yesNoQty:p=>digestive(p)?digestiveBoxes()*halfBoxCount(p):null,yesNoText:p=>labelSticker(p)?{q:t('반 이상 있나요?','At least half left?'),yes:t('있어요','Yes'),yesSmall:t('반 이상','half+'),yesIcon:'🏷️',no:t('더 필요해요','Need more'),noSmall:t('자동으로 1개 주문','Orders 1')}:almondBag(p)?(h=>({q:t(`반 ${h.u} 이상 남았나요?`,`At least half a ${h.en} left?`),yes:t('남았음','Yes'),yesSmall:t(`반 ${h.u} 이상`,`half ${h.en}+`),yesIcon:h.icon,no:t('안 남았음','No'),noSmall:/^case$/i.test(String(p.order_unit||'').trim())?t('자동으로 1케이스 주문','Orders 1 case'):t(`자동으로 1${h.u} 주문`,`Orders 1 ${h.en}`)}))(halfUnit(p)):frozenMango(p)?{q:t('냉동팩 1개 이상 있나요?','At least 1 frozen pack?'),yes:t('있어요','Yes'),yesSmall:t('1팩 이상','1+ pack'),yesIcon:'🥭',no:t('없어요','No'),noSmall:t('자동으로 1케이스 주문','Orders 1 case')}:freshHerb(p)?{q:t('싱싱하고 초록초록한 게 반 통 이상 있나요?','Fresh green, at least half a tub?'),yes:t('있어요','Yes'),yesSmall:t('반 통 이상','half tub+'),yesIcon:'🌿',no:t('아니요','No'),noSmall:t('자동으로 1팩 주문','Orders 1 pack')}:digestive(p)?{q:t('1박스 이상 남았나요?','1+ box left?'),yes:t('남았음','Yes'),yesSmall:t('1박스 이상','1+ box'),yesIcon:'🍪',no:t('안 남았음','No'),noSmall:t(`자동으로 ${digestiveBoxes()}박스 주문`,`Orders ${digestiveBoxes()} box`)}:iceCream(p)?{q:t('10스쿱 이상 남았나요?','10+ scoops left?'),yes:t('남았음','Yes'),yesSmall:t('10스쿱 이상','10+ scoops'),yesIcon:'🍨',no:t('안 남았음','No'),noSmall:t('자동으로 1통 주문','Orders 1 tub')}:null,onTheWay,allIds:countable.filter(p=>inShift(p,shift)).map(p=>p.id),shift,shiftCounts:{morning:countable.filter(morningTask).length,closing:countable.filter(p=>inShift(p,'closing')).length},setShift:v=>{try{sessionStorage.setItem('kream-order-shift',v);}catch{}renderProducts();},otherShiftHere:list.some(p=>p.unit_confirmed&&!inShift(p,shift))});}
 // 최소수량 탭: 매니저만 (Sora 앱에서 기준재고를 고칠 수 있는 권한과 같음). 2호점 Midland는 원래 그대로라 안 보여요.
-function canSetMinimum(){return store!=='midland'; /* Hana 미리보기 전용: 누구나 최소수량 탭 보기 */}
+function canSetMinimum(){return store!=='midland'; /* Hana 미리보기 전용: 보여주려고 모두에게 보임 */}
 function minimumOf(p){const r=stockRules.find(x=>x.product_id===p.id&&x.store_id===store);return {wd:r?.weekday_base==null?null:countDisplay(p,r.weekday_base),we:r?.weekend_base==null?null:countDisplay(p,r.weekend_base),sug:(()=>{const v=defaultMinimum(p)??suggestedMinimum(p,store,piecesPerUnit(p));return v==null?null:countDisplay(p,v);})()};}
 function renderMinimums(list){if(!minState||minState.store!==store){minState=createMinimumState();minState.store=store;}const items=list.filter(p=>p.unit_confirmed&&p.category!=='키친 발주'&&!String(p.category||'').includes('포장')&&!teaBag(p)&&!iceCream(p)&&!digestive(p)&&!freshHerb(p)&&!frozenMango(p)&&!almondBag(p)&&!skipCount(p)); /* 포장·아이스크림(있다/없다)과 티백(봉지)은 1개씩 자동 주문이라 최소수량 없음 */
- renderMinimumEditor($('#products'),{state:minState,items,t,esc,name:showName,unitLabel:p=>countFactor(p)>1?t(`${countFactor(p)===10?'조각':'낱개'}로 · ${countUnitLabel(p)}`,`pieces · ${countUnitLabel(p)}`):unitLabel(p),current:minimumOf,preview:true /* Hana 미리보기: 저장 안 함 */,
+ renderMinimumEditor($('#products'),{state:minState,items,t,esc,name:showName,unitLabel:p=>halfBoxCount(p)===32?t('낱개로 · 64개 box (반 박스 32개)','pieces · 64-pc box (half 32)'):countFactor(p)>1?t(`${countFactor(p)===10?'조각':'낱개'}로 · ${countUnitLabel(p)}`,`pieces · ${countUnitLabel(p)}`):unitLabel(p),current:minimumOf,preview:true /* Hana 미리보기: 저장 안 함 */,
   save:async changes=>{const targetStore=store;let failed=null;for(const {p,weekday,weekend} of changes){try{const wd=weekday==null?null:countInput(p,weekday),we=weekend==null?null:countInput(p,weekend);const old=stock.find(x=>x.product_id===p.id),rule=stockRules.find(x=>x.product_id===p.id&&x.store_id===targetStore);const bases=[wd,we].filter(v=>v!=null),lowest=bases.length?Math.min(...bases):null;const minimum=old?.minimum!=null&&lowest!=null&&old.minimum>lowest?lowest:(old?.minimum??null);
    const r=await db.rpc('kream_save_stock_plan',{target_store:targetStore,target_product:p.id,new_on_hand:old?.on_hand??null,new_minimum:minimum,weekday_base:wd,weekend_base:we,weekend_days:rule?.weekend_days||[5,6,0],expected_stock_revision:old?.revision||0,expected_rule_revision:rule?.revision||0});if(r.error)throw r.error;delete minState.edits[p.id];}catch(e){failed=e;break;}}
    await loadOrders();await loadModules();if(failed)throw failed;}});}
@@ -319,7 +317,7 @@ window.addEventListener('beforeunload',e=>{if(ownerView?.dirty||ownerView?.uncer
 async function boot(){
  render();say(t('연결 중…','Connecting…'));try{
  const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.78.0/+esm');
- db=guardPreview(createClient('https://imkhosgnkgwchoyrqczw.supabase.co','sb_publishable_ISqCCHUBASP2sKEqEM04Lg_Jnft4D-y',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'kream-staff-auth-v1'}}));
+ db=createClient('https://imkhosgnkgwchoyrqczw.supabase.co','sb_publishable_ISqCCHUBASP2sKEqEM04Lg_Jnft4D-y',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'kream-staff-auth-v1'}});
  db.auth.onAuthStateChange(event=>{if(event==='PASSWORD_RECOVERY'){recovery=true;setTimeout(render,0);}if(event==='SIGNED_OUT'){++generation;previewRole='';ownerView=null;clearModuleState();receipts=[];guides=[];receiptOrders=[],waste=[],dispatches=[],layoutRows=[],stockRules=[];user=null;profile=null;catalog=[];stores=[];orders=[];draft=null;quantities={};dirty=false;uncertain=false;setTimeout(render,0);}});
  watchPendingAccess({window,document,shouldRefresh:()=>!!(db&&user&&!profile?.active&&!recovery&&!busy&&!dirty&&!uncertain&&!isPreview()&&!hasModuleEdits()&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)),refresh:()=>run(async()=>{await loadIdentity();if(profile?.active)say(t('승인이 확인됐어요. 업무 화면을 열었어요.','Access confirmed. Your workspace is ready.'));})});
  await loadIdentity();say('');render();
@@ -336,4 +334,24 @@ setInterval(async()=>{
  if(JSON.stringify(r.data)!==JSON.stringify(stock)){stock=r.data;renderOrderArea();}
  }catch{}
 },60000);
-chooseEntry().then(boot);
+boot();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
