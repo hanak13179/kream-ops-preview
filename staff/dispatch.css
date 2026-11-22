@@ -79,3 +79,15 @@
 .receiving-store .table-scroll input[data-receive]{height:32px;min-height:32px;padding:4px 6px}
 .receiving-history .receiving-record,.receiving-missing .receiving-record{padding:6px 0}
 .receiving-record .line{padding:3px 0;line-height:1.35}
+
+/* Match the tighter receiving rows in dispatch confirmation lists. */
+.dispatch-store:not(.receiving-store){margin:6px 0}
+.dispatch-store:not(.receiving-store)>summary{padding:9px 12px}
+.dispatch-store:not(.receiving-store) .dispatch-order{padding:6px 0}
+.dispatch-store:not(.receiving-store) .dispatch-order+.dispatch-order{margin-top:6px}
+.dispatch-store:not(.receiving-store) .dispatch-order-reference{margin:2px 0 5px}
+.dispatch-store:not(.receiving-store) .table-scroll th{padding:4px 6px;line-height:1.25}
+.dispatch-store:not(.receiving-store) .table-scroll td{padding:3px 6px;line-height:1.25}
+.dispatch-store:not(.receiving-store) .dispatch-row-actions button{min-height:32px;padding:3px 7px;line-height:1.25}
+.dispatch-store:not(.receiving-store) .dispatch-row-actions+small{font-size:10px;line-height:1.1;margin-top:1px}
+.dispatch-store:not(.receiving-store) .table-scroll input{height:32px;min-height:32px;padding:4px 6px}
