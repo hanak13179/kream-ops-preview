@@ -33,7 +33,17 @@ const EXPLICIT = {
   finch: { 'sheet-e35b099b4e': 3, 'sheet-2a614f0f8e': 4, 'sheet-c2bcf67036': 2 },
 };
 
-const ALIAS = { '플레인 치즈케이크': '플레인 치즈케익', '블루베리 치아시드 푸딩': '블루베리 치아시드' };
+// 앱 품목 이름과 시트 이름이 다른 경우 (앱 이름 → 시트 이름). 띄어쓰기는 무시하고 비교해요.
+const ALIAS = {
+  '플레인 치즈케이크': '플레인 치즈케익', '플레인 크림 치즈케익': '플레인 치즈케익', '플레인 크림 치즈케이크': '플레인 치즈케익',
+  '블루베리 치아시드 푸딩': '블루베리 치아시드', '망고 치아시드': '망고 치아시드 푸딩', '딸기 치아시드': '딸기 치아시드 푸딩', '코코넛 치아시드': '코코넛 치아시드 푸딩',
+  '딸기 쇼트케이크': '딸기 요거트케이크', '청포도 요거트 쇼트케이크': '청포도 요거트케이크',
+  '말차 쿠키': '말차 마카다미아 쿠키', '피칸 쿠키': '피칸쿠키', '오리지널 두바이쫀득쿠키': '두바이쫀득쿠키', '오리지널 츄이볼': '두바이쫀득쿠키',
+  '말차 티라미수': '마차 티라미수', '곡물라떼 캔': '미숫가루 캔', '리얼 망고 프루티': '리얼 망고 프루티 캔',
+};
+const squash = x => String(x || '').replace(/\s+/g, '');
+const SHEET_KEY = Object.fromEntries([...Object.keys(PIECES), ...Object.keys(USED)].map(k => [squash(k), k]));
+for (const [app, sheet] of Object.entries(ALIAS)) SHEET_KEY[squash(app)] = sheet;
 const CAKE = /치즈케이크|치즈케익|티라미수|쇼트케이크|요거트케이크|푸딩|치아시드|홀케이크|시루/;
 // 디저트는 전 메뉴가 매장에 있어야 해서, 판매가 0이어도 최소 낱개 2개 (케이크·시루 종류는 3개)
 const DESSERT_FLOOR = 2;
@@ -48,7 +58,7 @@ export function suggestedMinimum(p, store, piecesPerUnit, recent = 0) {
   const i = STORES.indexOf(store);
   if (i < 0 || !p) return null;
   if (EXPLICIT[store]?.[p.id] != null) return Math.max(EXPLICIT[store][p.id], recent || 0);
-  const name = String(p.name_ko || '').trim(), key = ALIAS[name] || name;
+  const name = String(p.name_ko || '').trim(), key = SHEET_KEY[squash(name)] || name;
   const cake = CAKE.test(name);
   const r = Number(recent) || 0;
   const dessert = String(p.category || '') === '디저트';

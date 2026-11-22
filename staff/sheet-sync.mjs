@@ -38,5 +38,7 @@ export function flushSheetStock() {
   } catch { /* 시트 기록 실패는 앱 사용을 막지 않아요 */ }
 }
 
-addEventListener('pagehide', flushSheetStock);
-document.addEventListener('visibilitychange', () => { if (document.hidden) flushSheetStock(); });
+if (typeof window !== 'undefined') {
+  addEventListener('pagehide', flushSheetStock);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flushSheetStock(); });
+}

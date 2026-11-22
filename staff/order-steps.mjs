@@ -83,7 +83,7 @@ const CSS = `
 `;
 
 function ensureStyle() {
-  if (document.getElementById(STYLE_ID)) return;
+  if (typeof document === 'undefined' || document.getElementById(STYLE_ID)) return;
   const el = document.createElement('style');
   el.id = STYLE_ID;
   el.textContent = CSS;
@@ -341,6 +341,7 @@ export function renderOrderSteps(host, c) {
   };
 
   // 컴퓨터 키보드: 숫자, Enter(다음), ←(이전). 검색창 등에 쓰는 중이면 무시.
+  if (typeof window === 'undefined') { draw(); return; }
   if (!window.__osKeys) {
     window.__osKeys = true;
     document.addEventListener('keydown', e => {

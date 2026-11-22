@@ -53,7 +53,7 @@ export function renderMinimumEditor(host, c) {
 
   function rowHtml(p) {
     const wd = get(p, 'wd'), we = get(p, 'we');
-    const step = (k, label, v, ph) => `<div class="me-step"><label>${label}</label><button data-me="-" data-k="${k}" data-id="${esc(p.id)}" aria-label="${label} ${t('줄이기', 'less')}">−</button><input data-me-input="${esc(p.id)}" data-k="${k}" type="number" inputmode="numeric" min="0" max="100000" step="1" value="${esc(fmt(v))}" placeholder="${esc(ph)}" aria-label="${esc(c.name(p))} ${label}"><button data-me="+" data-k="${k}" data-id="${esc(p.id)}" aria-label="${label} ${t('늘리기', 'more')}">＋</button></div>`;
+    const step = (k, label, v, ph) => `<div class="me-step"><label>${label}</label><button data-me="-" data-k="${k}" data-id="${esc(p.id)}" aria-label="${label} ${t('줄이기', 'less')}">−</button><input data-me-input="${esc(p.id)}" data-k="${k}" type="number" inputmode="decimal" min="0" max="100000" step="any" value="${esc(fmt(v))}" placeholder="${esc(ph)}" aria-label="${esc(c.name(p))} ${label}"><button data-me="+" data-k="${k}" data-id="${esc(p.id)}" aria-label="${label} ${t('늘리기', 'more')}">＋</button></div>`;
     return `<div class="me-row ${isChanged(p) ? 'changed' : ''}" data-row="${esc(p.id)}"><b>${esc(c.name(p))}</b><small>${esc(c.unitLabel(p))}${cur(p).wd == null && cur(p).we == null ? ' · ' + (cur(p).sug != null ? t(`아직 안 정함 · 지금은 추천값 ${cur(p).sug} 으로 발주`, `not set · ordering with suggested ${cur(p).sug}`) : t('아직 안 정함', 'not set')) : ''}</small>
       <div class="me-pair">${step('wd', t('평일', 'Wkday'), wd, cur(p).sug != null && wd == null ? `(${cur(p).sug})` : '—')}${step('we', t('주말', 'Wkend'), we, wd == null ? '—' : `(${wd})`)}</div></div>`;
   }
@@ -73,7 +73,8 @@ export function renderMinimumEditor(host, c) {
   function setVal(id, k, v, fromTyping) {
     const p = items.find(x => x.id === id); if (!p) return;
     const e = s.edits[id] || (s.edits[id] = {});
-    e[k] = v === '' || v == null ? null : Math.max(0, Math.min(100000, Math.round(Number(v))));
+    // 반 단위(예: 스패너 크림 1.5통, 우유 2.5백)도 그대로 둬요. 소수 둘째 자리까지.
+    e[k] = v === '' || v == null || !Number.isFinite(Number(v)) ? null : Math.max(0, Math.min(100000, Math.round(Number(v) * 100) / 100));
     if (!isChanged(p)) delete s.edits[id];
     s.msg = ''; s.err = false;
     // 그 줄과 아래 막대만 고치기 (화면이 튀지 않게)
