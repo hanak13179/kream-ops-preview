@@ -39,7 +39,7 @@ function ensureStyle() {
 export function createMinimumState() { return {edits: {}, msg: '', err: false, saving: false}; }
 
 /**
- * c: {state, items, t, esc, name, unitLabel, current(p) → {wd, we} (숫자|null),
+ * c: {state, items, t, esc, name, unitLabel, current(p) → {wd, we, sug} (숫자|null, sug = 아직 안 정했을 때 쓰는 추천값),
  *     save: async (changes:[{p, weekday, weekend}]) → void (저장된 품목은 state.edits에서 지워요), preview}
  */
 export function renderMinimumEditor(host, c) {
@@ -54,8 +54,8 @@ export function renderMinimumEditor(host, c) {
   function rowHtml(p) {
     const wd = get(p, 'wd'), we = get(p, 'we');
     const step = (k, label, v, ph) => `<div class="me-step"><label>${label}</label><button data-me="-" data-k="${k}" data-id="${esc(p.id)}" aria-label="${label} ${t('줄이기', 'less')}">−</button><input data-me-input="${esc(p.id)}" data-k="${k}" type="number" inputmode="numeric" min="0" max="100000" step="1" value="${esc(fmt(v))}" placeholder="${esc(ph)}" aria-label="${esc(c.name(p))} ${label}"><button data-me="+" data-k="${k}" data-id="${esc(p.id)}" aria-label="${label} ${t('늘리기', 'more')}">＋</button></div>`;
-    return `<div class="me-row ${isChanged(p) ? 'changed' : ''}" data-row="${esc(p.id)}"><b>${esc(c.name(p))}</b><small>${esc(c.unitLabel(p))}${cur(p).wd == null && cur(p).we == null ? ' · ' + t('아직 안 정함', 'not set') : ''}</small>
-      <div class="me-pair">${step('wd', t('평일', 'Wkday'), wd, '—')}${step('we', t('주말', 'Wkend'), we, wd == null ? '—' : `(${wd})`)}</div></div>`;
+    return `<div class="me-row ${isChanged(p) ? 'changed' : ''}" data-row="${esc(p.id)}"><b>${esc(c.name(p))}</b><small>${esc(c.unitLabel(p))}${cur(p).wd == null && cur(p).we == null ? ' · ' + (cur(p).sug != null ? t(`아직 안 정함 · 지금은 추천값 ${cur(p).sug} 으로 발주`, `not set · ordering with suggested ${cur(p).sug}`) : t('아직 안 정함', 'not set')) : ''}</small>
+      <div class="me-pair">${step('wd', t('평일', 'Wkday'), wd, cur(p).sug != null && wd == null ? `(${cur(p).sug})` : '—')}${step('we', t('주말', 'Wkend'), we, wd == null ? '—' : `(${wd})`)}</div></div>`;
   }
 
   function draw() {
@@ -95,7 +95,7 @@ export function renderMinimumEditor(host, c) {
     if (b.dataset.me === '+' || b.dataset.me === '-') {
       const p = items.find(x => x.id === id);
       // 주말이 비어 있으면 평일 숫자에서 시작
-      const start = get(p, k) ?? (k === 'we' ? get(p, 'wd') : null) ?? 0;
+      const start = get(p, k) ?? (k === 'we' ? get(p, 'wd') : null) ?? (k === 'wd' ? cur(p).sug : null) ?? 0;
       setVal(id, k, Number(start) + (b.dataset.me === '+' ? 1 : -1));
       return;
     }
