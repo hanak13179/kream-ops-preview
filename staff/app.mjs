@@ -1,4 +1,4 @@
-import {renderReservations} from './reservations.mjs?v=20261121-cake-messages';
+import {renderReservations} from './reservations.mjs?v=20261121-daily-cakes';
 import {openMyAccount} from './my-account.mjs?v=20261121-language';
 import {chooseWorkplace,clearWorkplaceChoice,workplaceBadge,bindWorkplaceSwitch,assignedWorkplaces} from './entry-chooser.mjs?v=20261121-entry-assigned';
 import {canFinalizeMidland,midlandReviewStatus,workflowError,requestMidlandReview,renderGroupedOrderHistory} from './order-review.mjs?v=20261120-midland-review2';
