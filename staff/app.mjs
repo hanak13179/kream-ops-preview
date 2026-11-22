@@ -1,3 +1,5 @@
+import {chooseEntry,entryChoice,entryStore} from './entry-chooser.mjs';
+import {guardPreview} from './preview-guard.mjs';
 import {openMyAccount} from './my-account.mjs?v=20261121-language';
 import {canFinalizeMidland,midlandReviewStatus,workflowError,requestMidlandReview,renderGroupedOrderHistory} from './order-review.mjs?v=20261120-midland-review2';
 import {showSignupNotice} from './signup-notice.mjs?v=20261119-signup-notice';
@@ -111,8 +113,8 @@ async function loadIdentity(){
  if(!profile?.active){stores=[];catalog=[];orders=[];return;}
  if(profile.store_manager){const memberships=await result(db.from('kream_memberships').select('store_id').eq('user_id',user.id));profile.store_ids=memberships.map(m=>m.store_id);}
  const s=await result(db.from('kream_stores').select('id,name').eq('active',true).order('name'));await loadCatalog();
- if(epoch!==generation)return;stores=s.sort((a,b)=>storeRank(a)-storeRank(b));const assigned=screenStores();store=assigned.some(s=>s.id===store)?store:(assigned[0]?.id||'');
- if(stores.length&&stores.every(s=>s.id.startsWith('galleria-')))page='galleria';else if(profile.role==='factory'&&!profile.store_manager)page='production';await loadOrders();await loadModules();if((profile.role!=='factory'||profile.store_manager)&&store)await loadDraft();
+ if(epoch!==generation)return;stores=s.sort((a,b)=>storeRank(a)-storeRank(b));const assigned=screenStores();const entry=entryChoice(),entryAt=entryStore(stores);if(entryAt&&assigned.some(s=>s.id===entryAt.id))store=entryAt.id;else if(entryAt||(entry&&entry.key!=='factory'))setTimeout(()=>say(t(entry.label+'에 접근 권한이 없어서 기본 매장으로 열었어요.','No access to '+entry.label+'; opened your default store.'),true),0);store=assigned.some(s=>s.id===store)?store:(assigned[0]?.id||'');
+ if(stores.length&&stores.every(s=>s.id.startsWith('galleria-')))page='galleria';else if(profile.role==='factory'&&!profile.store_manager)page='production';if(entry?.key==='factory'&&(profile.role==='factory'||profile.factory_manager||profile.role==='manager'))page='production';await loadOrders();await loadModules();if((profile.role!=='factory'||profile.store_manager)&&store)await loadDraft();
 }
 function groupedOrder(o){return {...o,kream_order_items:sortProductRows(o.kream_order_items||[],catalogAll)};}
 async function loadCatalog(){catalogAll=await result(db.from('kream_catalog').select('id,name_ko,name_en,category,subgroup,order_unit,unit_confirmed,active,archived,photo_path,production_team,factory_subgroup,revision').order('name_ko').limit(1000));catalogAll=sortCatalog(catalogAll);catalog=catalogAll.filter(p=>p.active&&!p.archived);photoURLs=await signedPhotos(db,catalog);if(category&&!(store==='finch'&&category==='키친 발주')&&!catalog.some(p=>p.category===category)){category='';subgroup='';}}
@@ -322,7 +324,7 @@ window.addEventListener('beforeunload',e=>{if(ownerView?.dirty||ownerView?.uncer
 async function boot(){
  render();say(t('연결 중…','Connecting…'));try{
  const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.78.0/+esm');
- db=createClient('https://imkhosgnkgwchoyrqczw.supabase.co','sb_publishable_ISqCCHUBASP2sKEqEM04Lg_Jnft4D-y',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'kream-staff-auth-v1'}});
+ db=guardPreview(createClient('https://imkhosgnkgwchoyrqczw.supabase.co','sb_publishable_ISqCCHUBASP2sKEqEM04Lg_Jnft4D-y',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'kream-staff-auth-v1'}}));
  db.auth.onAuthStateChange(event=>{if(event==='PASSWORD_RECOVERY'){recovery=true;setTimeout(render,0);}if(event==='SIGNED_OUT'){++generation;previewRole='';ownerView=null;clearModuleState();receipts=[];guides=[];receiptOrders=[],waste=[],dispatches=[],layoutRows=[],stockRules=[];user=null;profile=null;catalog=[];stores=[];orders=[];draft=null;quantities={};dirty=false;uncertain=false;setTimeout(render,0);}});
  watchPendingAccess({window,document,shouldRefresh:()=>!!(db&&user&&!profile?.active&&!recovery&&!busy&&!dirty&&!uncertain&&!isPreview()&&!hasModuleEdits()&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)),refresh:()=>run(async()=>{await loadIdentity();if(profile?.active)say(t('승인이 확인됐어요. 업무 화면을 열었어요.','Access confirmed. Your workspace is ready.'));})});
  await loadIdentity();say('');render();
@@ -339,7 +341,7 @@ setInterval(async()=>{
  if(JSON.stringify(r.data)!==JSON.stringify(stock)){stock=r.data;renderOrderArea();}
  }catch{}
 },60000);
-boot();
+chooseEntry().then(boot);
 
 
 
