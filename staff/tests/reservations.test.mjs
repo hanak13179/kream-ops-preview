@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {reservationToday,reservationDefaultDate,shiftReservationDate,manufacturingTotals,hasCakeMessage,messageDone,messageCard,renderReservations} from '../reservations.mjs';
+import {reservationToday,reservationDefaultDate,manufacturingTotals,hasCakeMessage,messageDone,messageCard,renderReservations} from '../reservations.mjs';
 import {visiblePages,navigationGroups} from '../access.mjs';
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 const row={source_order_id:1,order_number:'51',status:'processing',store_id:'midland',pickup_time:'17:30:00',customer_note:'Happy birthday <script>alert(1)</script>',items:[{name:'Cake',quantity:1}],content_hash:'new',reviewed_hash:'old'};
@@ -11,9 +11,9 @@ test('cancelled and unpaid orders cannot be marked written; previews are read on
 test('unapproved users cannot query reservation data',async()=>{let queried=false;const host={innerHTML:''};await renderReservations(host,{...c,profile:{active:false},db:{from(){queried=true;}}});assert.equal(queried,false);});
 test('store messages remain assigned-branch tasks and factory preparation has a separate menu',()=>{for(const role of ['employee','manager','midland_owner','general_manager','manager_factory'])assert.ok(visiblePages(role).includes('reservations'));for(const role of ['factory','factory_staff','factory_manager']){assert.equal(visiblePages(role).includes('reservations'),false);assert.ok(visiblePages(role).includes('factoryreservations'));}for(const role of ['employee','manager','midland_owner'])assert.equal(visiblePages(role).includes('factoryreservations'),false);const groups=navigationGroups([['reservations']],'owner');assert.equal(groups.find(g=>g.key==='stores').pages[0][0],'reservations');});
 
-test('factory opens tomorrow Toronto pickup date across DST and year boundaries; stores open today',()=>{
+test('both workspaces open today in Toronto and leave pickup date selection to the user',()=>{
  for(const [now,today,tomorrow] of [['2026-11-22T01:00:00Z','2026-11-21','2026-11-22'],['2026-03-08T05:30:00Z','2026-03-08','2026-03-09'],['2026-11-01T04:30:00Z','2026-11-01','2026-11-02'],['2027-01-01T02:00:00Z','2026-12-31','2027-01-01']]){
-  assert.equal(reservationDefaultDate(false,new Date(now)),today);assert.equal(reservationDefaultDate(true,new Date(now)),tomorrow);assert.equal(shiftReservationDate(tomorrow,-1),today);
+  assert.equal(reservationDefaultDate(false,new Date(now)),today);assert.equal(reservationDefaultDate(true,new Date(now)),today);
  }
 });
 test('manufacturing totals combine equivalent sizes across branches and exclude cancelled and unpaid reservations',()=>{
@@ -25,7 +25,7 @@ test('factory reads cake requests without changing the store written marker',()=
  const html=messageCard({...row,reviewed_hash:'new'},{...c,factory:true});assert.match(html,/제조 대상/);assert.match(html,/고객 요청 원문/);assert.doesNotMatch(html,/data-reservation-review|문구 작성완료/);
  const groups=navigationGroups([['reservations'],['factoryreservations']],'owner');assert.equal(groups.find(g=>g.key==='factory').pages[0][0],'factoryreservations');
 });
-test('factory default queries all branches for tomorrow while store default queries only its branch today',async()=>{
+test('factory queries all branches for the selected date while stores remain branch scoped',async()=>{
  const savedInterval=globalThis.setInterval;globalThis.setInterval=()=>0;
  try{
   for(const factory of [false,true]){
