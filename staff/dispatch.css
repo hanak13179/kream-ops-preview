@@ -64,3 +64,18 @@
 .receiving-store .receiving-quantity>small{display:inline;margin:0;font-size:12px;color:#737669}
 .receiving-store .dispatch-row-actions button[data-receive-choice="none"][aria-pressed="true"]{background:#9a4035;border-color:#9a4035}
 @media(max-width:600px){.receiving-store .table-scroll table{min-width:610px}}
+
+/* Compact receiving lists while preserving the existing action targets. */
+.receiving-store{margin:6px 0}
+.receiving-store>summary{padding:9px 12px}
+.receiving-store .receiving-order{padding:6px 0}
+.receiving-store .receiving-order-select{margin-top:8px}
+.receiving-store .dispatch-order-reference{margin:2px 0 5px}
+.receiving-store .table-scroll th{padding:4px 6px;line-height:1.25}
+.receiving-store .table-scroll td{padding:3px 6px;line-height:1.25}
+.receiving-store .receiving-item{gap:1px 6px}
+.receiving-store .dispatch-row-actions button{min-height:32px;padding:3px 7px;line-height:1.25}
+.receiving-store .dispatch-row-actions+small{font-size:10px;line-height:1.1;margin-top:1px}
+.receiving-store .table-scroll input[data-receive]{height:32px;min-height:32px;padding:4px 6px}
+.receiving-history .receiving-record,.receiving-missing .receiving-record{padding:6px 0}
+.receiving-record .line{padding:3px 0;line-height:1.35}
