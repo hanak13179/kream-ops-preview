@@ -278,7 +278,7 @@ export function renderOrderSteps(host, c) {
     if(c.locked||s.saving)return false;
     const v=stored(p);
     if(v===undefined){const w=host.querySelector('#osWarn');if(w)w.textContent=t('수량을 다시 확인해 주세요.','Check the count.');return false;}
-    if(c.preview)return true;
+    if(c.preview){s.edited.delete(p.id);return true;}
     const o=orderFor(p);s.saving=true;draw();
     try {
       if(v!=null){if(c.yesNo?.(p)||c.bagMode?.(p))await c.saveAvailability(p,Number(v)>0);else await c.saveStock(p,v);}
