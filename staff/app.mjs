@@ -35,7 +35,7 @@ import {sortCatalog,sortProductRows,ordered,groupKey} from './order-layout.mjs?v
 import {renderClover} from './clover.mjs?v=20261106-all-cheesecake-trays';
 import {renderOverview} from './overview.mjs?v=20261119-garnish-sequence';
 import {stockDisplay,stockDisplayFactor,stockInput} from './stock-units.mjs?v=20261122-cookie-pieces';
-import {stockFields,bindStock,hasStockEdits,stockNumbers} from './store-stock.mjs?v=20261122-cookie-pieces';
+import {stockFields,bindStock,hasStockEdits,stockNumbers} from './store-stock.mjs?v=20261122-cookie-pieces2';
 import {renderDispatch} from './dispatch.mjs?v=20261119-garnish-sequence';
 import {renderProduction} from './production.mjs?v=20261119-memo-items';
 import {renderWaste,todayToronto} from './waste.mjs?v=20261102-whole-quantity';
