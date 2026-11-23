@@ -43,7 +43,7 @@ import {renderDispatch} from './dispatch.mjs?v=20261122-pending-date';
 import {renderProduction} from './production.mjs?v=20261119-memo-items';
 import {renderWaste,todayToronto} from './waste.mjs?v=20261102-whole-quantity';
 import {navigationGroups,orderedPages,previewRoles,visiblePages,canPreview,isFactoryRole,scopePreview} from './access.mjs?v=20261122-factory-cakes';
-import {renderReceiving,renderGuides,hasModuleEdits as hasOtherModuleEdits,clearModuleState as clearOtherModuleState} from './operations.mjs?v=20261122-history-unit';
+import {renderReceiving,renderGuides,hasModuleEdits as hasOtherModuleEdits,clearModuleState as clearOtherModuleState} from './operations.mjs?v=20261123-no-carry';
 import {artwork,deliveryLabel,filterProducts,needsOrder,frequentIds,favoriteIds,orderReference} from './presentation.mjs?v=20261106-below-minimum';
 import {tomorrowToronto,validItems,sameBasketItems,saveSharedBasket as saveDraft,submitSharedBasket as submitDraft,aggregate} from './core.mjs?v=20261103-submit-fix';
 const $=s=>document.querySelector(s), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -144,7 +144,7 @@ function renderPortal(){
  bindPreview();document.querySelectorAll('[data-area]').forEach(b=>b.onclick=()=>{if(hasModuleEdits()&&!confirm(t('작성 중인 내용을 두고 전환할까요?','Leave unsaved entries?')))return;clearModuleState();combinedArea=b.dataset.area;render();});const view=$('#view');
  if(['orderSaved','orderComplete'].includes(page)){renderOrderConfirmation(view);return;}
  if(!['factoryreservations','reservations','clover','galleria','galleriaHistory','galleriaSop','factorymanual','order','history','production','receiving','sop','manual','waste','dispatch','overview','productionlog','finishedstock','costs','externaldispatch','daily','inventory','purchases','materialreceiving','settlement','accounts','workplaces','catalogreview'].includes(page)){view.innerHTML=`<div class="panel pending"><h2>${t('실제 자료 연결 준비 중','Shared data connection pending')}</h2><p>${t('기존 초안에서 구성한 메뉴입니다. 이 기능은 아직 로그인 계정의 공유 자료와 연결되지 않았습니다. 지금은 매장 발주·초안 저장·발주 내역·생산 합계를 사용할 수 있어요.','This module is part of the original design. It is not connected to shared account data yet. Store ordering, cloud drafts, order history and production totals are available.')}</p><a href="../" target="_blank" rel="noopener">${t('기존 디자인 미리보기 열기 ↗','Open original design preview ↗')}</a></div>`;return;}
- const moduleContext={photoURLs,reorderMissing,orders,receipts,guides,waste,dispatches,profile:vp,stores:shownStores,store,lang,t,esc,name,preview:isPreview(),act:run,db,say,reload:async()=>{await loadOrders();await loadModules();}};
+ const moduleContext={photoURLs,orders,receipts,guides,waste,dispatches,profile:vp,stores:shownStores,store,lang,t,esc,name,preview:isPreview(),act:run,db,say,reload:async()=>{await loadOrders();await loadModules();}};
  if(page==='reservations'||page==='factoryreservations'){renderReservations(view,{...moduleContext,factory:page==='factoryreservations'});return;}
  if(page==='clover'){renderClover(view,{...moduleContext,catalogAll});return;}
  if(['galleria','galleriaHistory','galleriaSop'].includes(page)){renderGalleriaWorkspace(view,{...moduleContext,section:page==='galleriaHistory'?'history':page==='galleriaSop'?'sop':'dispatch',onNavigate:section=>{page=section==='history'?'galleriaHistory':section==='sop'?'galleriaSop':'galleria';render();},profile:{...vp,store_ids:shownStores.map(s=>s.id)}});return;}
@@ -171,7 +171,6 @@ function renderPortal(){
  if(!factory&&page==='order')renderOrderArea();
  renderHistory();
 }
-async function reorderMissing(targetStore,items){if(isPreview()||uncertain)return;if(!items.length)return;if(!confirm(t('미입고 수량을 공유 발주함에 추가할까요? 기존 수량에 더하며, 발주완료 전에는 전송되지 않습니다.','Add missing quantities to the shared basket? Adds to existing quantities; nothing is submitted yet.')))return;if(dirty)await persistDraft();store=targetStore;await loadDraft();const available=orderCatalog();const skipped=[];for(const i of items){const p=available.find(p=>p.id===i.product_id);if(!p?.unit_confirmed||p.order_unit!==i.order_unit){skipped.push(name(i));continue;}quantities[i.product_id]=(Number(quantities[i.product_id])||0)+i.remaining;}dirty=true;await persistDraft();await loadOrders();page='order';cartOpen=true;say(skipped.length?t('일부 품목은 숨김·단위 변경으로 담지 못했어요: ','Some items could not be added (unavailable or unit changed): ')+skipped.join(', '):t('미입고 수량을 발주함에 담았어요. 수량 확인 후 발주완료를 눌러 주세요.','Missing quantities added. Review the basket, then submit.'));}
 function renderOrderArea(){
  if(!store)return;
  const locked=!!draft?.submitted_order_id||uncertain;
