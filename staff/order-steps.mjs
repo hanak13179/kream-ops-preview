@@ -194,7 +194,8 @@ export function renderOrderSteps(host, c) {
 
   function drawList() {
     wrap(head() + `<div class="os-list">${items.map((p, i) => {
-      const st = stockText(p), last = c.lastStock(p);
+      // 오늘 센 숫자를 먼저 보여줘요: 지금 입력 중인 것 → 오늘 저장된 것 → (없으면) 지난번
+      const typed = stockText(p), saved = typed === '' ? c.todayValue?.(p) : null, st = typed !== '' ? typed : saved == null ? '' : String(saved), last = c.lastStock(p);
       return `<button class="os-row ${i === s.index ? 'on' : ''}" data-go="${i}"><span>${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</span><em>${esc(ynText(p, st !== '' ? st : last ?? '—'))}</em><small>${st !== '' ? t('오늘', 'today') : t('지난번', 'last')}</small></button>`;
     }).join('')}</div>`);
   }
