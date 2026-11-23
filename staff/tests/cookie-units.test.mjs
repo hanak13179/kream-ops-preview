@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {stockDisplay,stockInput} from '../stock-units.mjs';import {quantityLabel,unitLabel} from '../packing.mjs';import {stockFields,bindStock,clearStockEdits} from '../store-stock.mjs';
+for(const id of ['cookie','sheet-c4bd38d984','sheet-4c1b6660cd'])test(id+': 20 counted cookies save as 1 bag and stock editor round-trips in pieces',async()=>{
+ const p={id,name_ko:'쿠키',order_unit:'Bag · 20개/봉',unit_confirmed:true};assert.equal(stockInput(p,20),1);assert.equal(stockDisplay(p,1),20);assert.equal(stockDisplay(p,.5),10);assert.equal(quantityLabel(p,1),'1봉 (20개)');assert.equal(unitLabel(p),'Bag · 20개/봉');
+ clearStockEdits();let save;const stock=[{product_id:id,on_hand:1,minimum:.5,revision:1}],rules=[{product_id:id,weekday_base:1,weekend_base:1,weekend_days:[5,6,0],revision:1}];const c={stock,rules,profile:{role:'owner'},t:k=>k,esc:String,name:()=> '쿠키',date:'2026-11-23',store:'finch',sheetRecommendations:[],act:f=>f(),db:{rpc:async(_,p)=>{save=p;return {}; }},reload:async()=>{},applyRecommendation(){},say(){}};
+ const html=stockFields(p,stock[0],c);assert.match(html,/value="20"/);assert.match(html,/value="10"/);
+ const input={dataset:{stockId:id,stockKey:'on_hand'},value:'20',setCustomValidity(){},checkValidity:()=>true};const button={dataset:{stockSave:id}};const host={querySelectorAll:s=>s==='[data-stock-key]'?[input]:s==='[data-stock-save]'?[button]:[]};bindStock(host,c);input.oninput();await button.onclick();assert.equal(save.new_on_hand,1);assert.equal(save.new_minimum,.5);assert.equal(save.weekday_base,1);
+});
