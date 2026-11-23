@@ -40,3 +40,5 @@ test('actual basket submission blocks the game bypass and resumes the first unfi
  vm.createContext(context);vm.runInContext(source,context);await vm.runInContext('submitCurrentBasket()',context);assert(!calls.includes('submitted'));assert.equal(context.category,'포장·소모품');assert.equal(state.key,'');assert.match(calls[1],/아직 1개/);
  state.done.add('b');await vm.runInContext('submitCurrentBasket()',context);assert.equal(calls.at(-1),'submitted');
 });
+test('game list distinguishes checked and pending rows without relying only on color',()=>{const s=screen({items:[{id:'a'},{id:'b'}],done:['a']});s.state.view='list';s.draw();assert.match(s.host.innerHTML,/os-row checked/);assert.match(s.host.innerHTML,/os-row pending/);assert.match(s.host.innerHTML,/確認|확인 완료/);assert.match(s.host.innerHTML,/미확인/);});
+test('partial progress shows encouragement and no completion trophy',()=>{const s=screen({done:['a']});assert.match(s.host.innerHTML,/os-cheer/);assert.doesNotMatch(s.host.innerHTML,/🏆/);});

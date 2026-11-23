@@ -47,10 +47,10 @@ const CSS = `
 .os-next{background:#3e4b33;color:#fff}
 .os-nav button:disabled{opacity:.4}
 .os-warn{font-size:12px;color:#a0522d;min-height:16px;margin-top:6px}
-.os-list{background:#fff;border-radius:18px;box-shadow:0 3px 10px #0001;overflow:hidden}
+.os-cheer{font-size:14px;font-weight:700;color:#566c3f;text-align:center;margin:8px 0}.os-list{background:#fff;border-radius:18px;box-shadow:0 3px 10px #0001;overflow:hidden}
 .os-row{display:grid;grid-template-columns:1fr auto 44px;gap:10px;align-items:center;width:100%;border:0;border-bottom:1px solid #f0ebe0;background:none;padding:12px 14px;text-align:left;font-size:15px}
 .os-row:last-child{border-bottom:0}
-.os-row.on{background:#f3f7ee}
+.os-row.on{outline:2px solid #81715f;outline-offset:-2px}.os-row.checked{background:#edf6e9;border-left:4px solid #6b9259}.os-row.pending{background:#fff2e4;border-left:4px solid #d49345}.os-row .os-check-label{display:block;font-size:11px;margin-top:3px}.os-row.checked .os-check-label{color:#3e6b31}.os-row.pending .os-check-label{color:#8b571b}
 .os-row small{color:#6b6555;font-size:12px;white-space:nowrap}
 .os-row em{font-style:normal;font-weight:700;white-space:nowrap}
 .os-win{text-align:center;background:#fff;border-radius:22px;padding:26px 14px;box-shadow:0 3px 10px #0001}
@@ -107,6 +107,16 @@ const SPEED = [
   [12, '😎', '깔끔하게 끝! 재고 장인 인정합니다', 'Clean finish! Certified stock master'],
   [Infinity, '🐢', '천천히, 정확하게! 거북이가 이긴 거 아시죠?', 'Slow and steady wins the race!']
 ];
+const ENCOURAGEMENT = [
+ ['힘내요! 하나씩 확인하면 금방 끝나요 💪','You’ve got this! One item at a time 💪'],
+ ['잘하고 있어요! 확인한 만큼 매장이 든든해져요 🌟','Doing great! Every check helps the store 🌟'],
+ ['조금만 더 힘내요! 남은 품목도 같이 확인해요 🙌','Keep going! Let’s check the remaining items 🙌'],
+ ['천천히, 정확하게! 오늘도 고마워요 💚','Slow and steady! Thank you for your work today 💚'],
+ ['하나 더 확인 완료! 차근차근 잘하고 있어요 ✨','One more checked! You’re making progress ✨'],
+ ['끝이 가까워지고 있어요! 놓친 품목도 살펴봐요 👀','Getting closer! Check for anything missed 👀'],
+ ['오늘의 재고 요정, 응원해요! 🧚','Cheering for today’s stock fairy! 🧚'],
+ ['힘내요! 꼼꼼한 확인이 내일을 편하게 해줘요 ☀️','Keep it up! Careful checks make tomorrow easier ☀️']
+];
 const pick = list => list[Math.floor(Math.random() * list.length)];
 function timeText(secs, t) { return secs >= 60 ? `${Math.floor(secs / 60)}${t('분', 'm')} ${secs % 60}${t('초', 's')}` : `${secs}${t('초', 's')}`; }
 
@@ -156,9 +166,9 @@ export function renderOrderSteps(host, c) {
     const full=progress(),pct=full.total?Math.round(full.completed/full.total*100):0;
     const sc = c.shiftCounts || {};
     const shiftBar = c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">☀️ ${t('낮 요정', 'Day fairy')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🧚‍♀️ ${t('마감 요정', 'Closing fairy')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
-    return shiftBar + `<div class="os-head"><span class="os-count">${full.completed} / ${full.total}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${doneCount === items.length && items.length ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
-    ${full.remaining.length?`<p class="os-warn" role="status">${esc(pendingMessage(full.remaining.length))}${c.shift==='closing'&&c.carriedCount?` ${t('오전반 미확인 품목도 포함되어 있어요.','Includes unfinished morning tasks.')}`:''}</p>`:''}
-    <div class="os-tools"><button data-os="one" aria-pressed="${s.view === 'one'}">${t('한 개씩', 'One by one')}</button><button data-os="list" aria-pressed="${s.view === 'list'}">✎ ${t('목록', 'List')}</button><button data-os="grid">▦ ${t('전체 보기', 'Grid')}</button></div>`;
+    return shiftBar + `<div class="os-head"><span class="os-count">${full.completed} / ${full.total}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${full.complete ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
+    ${full.remaining.length?`<p class="os-cheer">${esc(t(...ENCOURAGEMENT[Math.floor(full.completed/3)%ENCOURAGEMENT.length]))}</p><p class="os-warn" role="status">${esc(pendingMessage(full.remaining.length))}${c.shift==='closing'&&c.carriedCount?` ${t('오전반 미확인 품목도 포함되어 있어요.','Includes unfinished morning tasks.')}`:''}</p>`:''}
+    <div class="os-tools"><button data-os="one" aria-pressed="${s.view === 'one'}">${t('한 개씩', 'One by one')}</button><button data-os="list" aria-pressed="${s.view === 'list'}">✎ ${t('목록', 'List')}</button><button data-os="grid">▦ ${t('전체 목록', 'All items')}</button></div>`;
   }
 
   const wrap = html => { host.innerHTML = `<div class="os">${html}</div>`; };
@@ -200,7 +210,7 @@ export function renderOrderSteps(host, c) {
     wrap(head() + `<div class="os-list">${items.map((p, i) => {
       // 오늘 센 숫자를 먼저 보여줘요: 지금 입력 중인 것 → 오늘 저장된 것 → (없으면) 지난번
       const typed = stockText(p), saved = typed === '' ? c.todayValue?.(p) : null, st = typed !== '' ? typed : saved == null ? '' : String(saved), last = c.lastStock(p);
-      return `<button class="os-row ${i === s.index ? 'on' : ''}" data-go="${i}"><span>${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</span><em>${esc(ynText(p, st !== '' ? st : last ?? '—'))}</em><small>${st !== '' ? t('오늘', 'today') : t('지난번', 'last')}</small></button>`;
+      return `<button class="os-row ${s.done.has(p.id)&&!s.failed.has(p.id)?'checked':'pending'} ${i === s.index ? 'on' : ''}" data-go="${i}"><span>${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}<small class="os-check-label">${s.done.has(p.id)&&!s.failed.has(p.id)?t('확인 완료','Checked'):t('미확인','Not checked')}</small></span><em>${esc(ynText(p, st !== '' ? st : last ?? '—'))}</em><small>${st !== '' ? t('오늘', 'today') : t('지난번', 'last')}</small></button>`;
     }).join('')}</div>`);
   }
 
@@ -234,7 +244,7 @@ export function renderOrderSteps(host, c) {
       <div class="os-top"><div class="os-pic">${c.picture(p)}</div><div><div class="os-name">${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</div><div class="os-unit">${esc(c.unitLabel(p))}</div><div class="os-last">${last == null || last === '' ? t('지난 재고 기록 없음', 'No previous count') : `${t('지난번 재고', 'Last count')}: ${esc(ynText(p, last))}${esc(c.countSuffix?.(p)||'')}`}</div></div></div>
       ${c.choices?.(p) ? `<div class="os-label">${esc(c.countPrompt?.(p) || t('얼마나 남았나요?', 'How much is left?'))}</div>
       <div class="os-yn many">${c.choices(p).map(([v, label, icon]) => `<button class="${st === String(v) ? 'on' : ''}" data-yn="${esc(v)}" ${dis}><i>${icon || ''}</i>${esc(label)}</button>`).join('')}</div>` : c.bagMode?.(p) ? `<div class="os-label">${t('얼마나 남았나요?', 'How much is left?')}</div>
-      <div class="os-yn three"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>🫖</i>${t('1봉지 이상', '1+ bag')}</button><button class="half ${st === '0.5' ? 'on' : ''}" data-yn="0.5" ${dis}><i>🍵</i>${t('반봉지', 'Half')}</button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${t('없음', 'None')}</button></div>${(() => { const w = c.onTheWay?.(p); return w && (c.yesNo?.(p) || c.bagMode?.(p)) ? `<div class="os-way">📦 ${t(`이미 주문했어요${w.date ? ` (${w.date} 도착 예정)` : ''} · 받을 때까지 또 주문 안 해요`, `Already ordered${w.date ? ` (arrives ${w.date})` : ''} · won't reorder until received`)}</div>` : ''; })()}` : c.yesNo?.(p) ? `${(() => { const w = c.onTheWay?.(p); return w && (c.yesNo?.(p) || c.bagMode?.(p)) ? `<div class="os-way">📦 ${t(`이미 주문했어요${w.date ? ` (${w.date} 도착 예정)` : ''} · 받을 때까지 또 주문 안 해요`, `Already ordered${w.date ? ` (arrives ${w.date})` : ''} · won't reorder until received`)}</div>` : ''; })()}<div class="os-label">${yn.q}</div>
+      <div class="os-yn three"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>🫖</i>${t('1봉지 이상', '1+ bag')}</button><button class="half ${st === '0.5' ? 'on' : ''}" data-yn="0.5" ${dis}><i>🍵</i>${t('반봉지', 'Half')}</button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${t('없음', 'None')}</button></div>` : c.yesNo?.(p) ? `<div class="os-label">${yn.q}</div>
       <div class="os-yn"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>${yn.yesIcon}</i>${yn.yes}<small>${yn.yesSmall}</small></button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${yn.no}<small>${yn.noSmall}</small></button></div>` : `<div class="os-label">${esc(c.countPrompt?.(p) || t('지금 재고', 'Stock now'))}</div>
       <div class="os-num"><button data-os="minus" ${dis} aria-label="${t('하나 빼기', 'minus one')}">−</button><output class="${st === '' ? 'empty' : ''}">${st === '' ? '?' : esc(st)}</output><button data-os="plus" ${dis} aria-label="${t('하나 더하기', 'plus one')}">＋</button></div>
       <div class="os-pad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k => `<button data-key="${k}" ${dis} aria-label="${k === '⌫' ? t('지우기', 'delete') : k}">${k}</button>`).join('')}</div>`}
@@ -336,7 +346,7 @@ export function renderOrderSteps(host, c) {
           if (!s.startedAt) s.startedAt = now;
           s.streak += 1; s.counts += 1;
           const fast = s.lastNext && now - s.lastNext < 3000;
-          toast(STREAK[s.streak] || (fast ? pick(FAST) : pick(PRAISE)));
+          toast(STREAK[s.streak] || (s.counts%2===0?pick(ENCOURAGEMENT):(fast ? pick(FAST) : pick(PRAISE))));
           pop(s.streak % 5 === 0 ? '🔥' : fast ? '⚡' : ['⭐', '✨', '👍', '💪'][s.streak % 4]);
         }
         s.lastNext = now;
