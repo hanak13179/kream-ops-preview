@@ -1,5 +1,5 @@
 import {workTime} from './work-records.mjs?v=20261102-drag';
-import {periodFor} from './settlement.mjs?v=20261123-monthly-settlement';
+import {periodFor} from './settlement.mjs?v=20261123-memo-settlement';
 import {todayToronto} from './waste.mjs?v=20261102-drag';
 let reviewDirty=false;
 export const hasReviewEdits=()=>reviewDirty;
