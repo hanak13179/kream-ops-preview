@@ -17,10 +17,10 @@ test('completion requires every unique shift item and no failed save',()=>{
  assert.deepEqual(countProgress(['a','b'],new Set(['a','b']),new Set(['b'])).remaining,['b']);
  assert.equal(countProgress([],new Set()).complete,false);assert.equal(countProgress(['a','b'],new Set(['a','b'])).complete,true);
 });
-function screen({done=[],items=[{id:'a'}],required=['a','b'],typed={},failed=[],preview=false,fail=false,getRequiredIds}={}){
+function screen({done=[],items=[{id:'a'}],required=['a','b'],typed={},failed=[],preview=false,fail=false,getRequiredIds,binary=false,qty=0,keepManual=false}={}){
  const state=createStepState('trial','2026-11-22');state.done=new Set(done);state.failed=new Set(failed);state.typed={...typed};const warn={textContent:''},saved=[],basket=[],opened=[];
  const host={innerHTML:'',contains:()=>true,querySelector:selector=>selector==='#osWarn'?warn:null};
- const context={state,items,key:'all',title:'Trial',shift:'morning',allIds:required,getRequiredIds,preview,t:ko=>ko,esc:String,name:p=>p.id,unitLabel:()=>'',picture:()=>'',parse:(_,s)=>Number(s),lastStock:()=>null,getQty:()=>0,qtyStep:()=>1,qtyDisplay:(_,q)=>q,suggest:()=>1,saveStock:async(p,v)=>{if(fail)throw Error('offline');saved.push(v);},setQty:(_,v)=>basket.push(v),openBasket:()=>opened.push(true),goRemaining:id=>opened.push(id)};
+ const context={state,items,key:'all',title:'Trial',shift:'morning',allIds:required,getRequiredIds,preview,t:ko=>ko,esc:String,name:p=>p.id,unitLabel:()=>'',picture:()=>'',parse:(_,s)=>Number(s),lastStock:()=>null,getQty:()=>qty,keepManual:()=>keepManual,yesNo:()=>binary,saveAvailability:async()=>{},qtyStep:()=>1,qtyDisplay:(_,q)=>q,suggest:()=>1,saveStock:async(p,v)=>{if(fail)throw Error('offline');saved.push(v);},setQty:(_,v)=>basket.push(v),openBasket:()=>opened.push(true),goRemaining:id=>opened.push(id)};
  renderOrderSteps(host,context);
  const click=(os,extra={})=>host.onclick({target:{closest:()=>({dataset:{os,...extra}})}});
  return {state,host,warn,saved,basket,opened,click,draw:()=>renderOrderSteps(host,context)};
@@ -42,3 +42,7 @@ test('actual basket submission blocks the game bypass and resumes the first unfi
 });
 test('game list distinguishes checked and pending rows without relying only on color',()=>{const s=screen({items:[{id:'a'},{id:'b'}],done:['a']});s.state.view='list';s.draw();assert.match(s.host.innerHTML,/os-row checked/);assert.match(s.host.innerHTML,/os-row pending/);assert.match(s.host.innerHTML,/確認|확인 완료/);assert.match(s.host.innerHTML,/미확인/);});
 test('partial progress shows encouragement and no completion trophy',()=>{const s=screen({done:['a']});assert.match(s.host.innerHTML,/os-cheer/);assert.doesNotMatch(s.host.innerHTML,/🏆/);});
+
+test('explicit quantity entered in the product list survives a later availability check',async()=>{const s=screen({typed:{a:'1'},required:['a'],binary:true,qty:1,keepManual:true});await s.click('prev');assert.deepEqual(s.basket,[]);assert(s.state.done.has('a'));});
+test('manual numeric order quantities are preserved when stock recommendations change',async()=>{const s=screen({typed:{a:'5'},qty:3,keepManual:true,required:['a']});await s.click('prev');assert.deepEqual(s.basket,[]);assert.deepEqual(s.saved,[5]);});
+test('automatic availability quantities can still return to zero when stock is enough',async()=>{const s=screen({typed:{a:'1'},qty:1,binary:true,keepManual:false,required:['a']});await s.click('prev');assert.deepEqual(s.basket,[0]);});

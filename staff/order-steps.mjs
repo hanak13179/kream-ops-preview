@@ -191,6 +191,8 @@ export function renderOrderSteps(host, c) {
     try { return c.parse(p, text); } catch { return undefined; }
   }
   function orderFor(p) {
+    // A shared basket or explicit list entry is an order request, not a stock suggestion.
+    if(c.keepManual?.(p)&&s.order[p.id]==null)return {q:c.getQty(p)||0,auto:false,keep:true};
     if (s.order[p.id] != null) return {q: s.order[p.id], auto: false};
     const v = stored(p);
     // 포장·소모품(있다/없다)과 티백(1봉지/반봉지/없음): 모자라면 1개(박스·봉지) 주문.
@@ -297,7 +299,7 @@ export function renderOrderSteps(host, c) {
     const o=orderFor(p);s.saving=true;draw();
     try {
       if(v!=null){if(c.yesNo?.(p)||c.bagMode?.(p))await c.saveAvailability(p,Number(v)>0);else await c.saveStock(p,v);}
-      if(!o.keep&&o.q!==(c.getQty(p)||0))c.setQty(p,o.q);
+      if(!o.keep&&o.q!==(c.getQty(p)||0))c.setQty(p,o.q,{auto:o.auto===true});
       s.edited.delete(p.id);if(v!=null){s.done.add(p.id);s.failed.delete(p.id);try{localStorage.setItem(s.memoryKey,JSON.stringify([...s.done]));}catch{}}
       return true;
     }catch{s.failed.add(p.id);s.done.delete(p.id);return false;}

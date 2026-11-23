@@ -12,7 +12,7 @@ import {renderCosting} from './costing.mjs?v=20261106-costs';
 import {renderGalleriaWorkspace,canUseGalleria} from './galleria-workspace.mjs?v=20261121-tea-total';
 import {validDeliveryDate,defaultReceiptDate,receiptRequestLabel,fullDeliveryDate} from './delivery-date.mjs?v=20261121-cutoff';
 import {subcategoryStyle} from './category-colors.mjs?v=20261104-drag-only';
-import {renderExternalDispatch} from './external-dispatch.mjs?v=20261119-garnish-sequence';
+import {renderExternalDispatch} from './external-dispatch.mjs?v=20261122-request-notes';
 import {navigationTile} from './navigation.mjs?v=20261122-factory-cakes';
 import {renderFinishedStock} from './finished-stock.mjs?v=20261119-memo-items';
 import {halfBoxCount,packingHint,unitLabel,quantityLabel,boxAmount,displayQuantity,inputQuantity} from './packing.mjs?v=20261122-cookie-pieces';
@@ -28,7 +28,7 @@ import {renderMaterials} from './materials.mjs?v=20261119-garnish-sequence';
 import {renderCatalogTools,openProduct,signedPhotos,canManageProducts} from './catalog-editor.mjs?v=20261104-drag-only';
 import {renderDailyLog} from './daily-log.mjs?v=20261102-whole-quantity';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
-import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261122-completion-list2';
+import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261122-manual-quantity';
 import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261122-game-fixed';
 import {renderProductionLog} from './production-log.mjs?v=20261119-memo-items';
 import {renderChecklist} from './checklist.mjs?v=20261104-manual-compact';
@@ -37,7 +37,7 @@ import {renderClover} from './clover.mjs?v=20261106-all-cheesecake-trays';
 import {renderOverview} from './overview.mjs?v=20261119-garnish-sequence';
 import {stockDisplay,stockDisplayFactor,stockInput} from './stock-units.mjs?v=20261122-cookie-pieces';
 import {stockFields,bindStock,hasStockEdits,stockNumbers} from './store-stock.mjs?v=20261122-cookie-pieces2';
-import {renderDispatch} from './dispatch.mjs?v=20261119-garnish-sequence';
+import {renderDispatch} from './dispatch.mjs?v=20261122-request-notes';
 import {renderProduction} from './production.mjs?v=20261119-memo-items';
 import {renderWaste,todayToronto} from './waste.mjs?v=20261102-whole-quantity';
 import {navigationGroups,orderedPages,previewRoles,visiblePages,canPreview,isFactoryRole,scopePreview} from './access.mjs?v=20261122-factory-cakes';
@@ -219,7 +219,7 @@ function applyStockRecommendation(id,force=false){if(isPreview()||draft?.submitt
 function setOrderView(view){orderView=view;try{localStorage.setItem('kream-order-view',view);}catch{}renderOrderArea();}
 function countDate(){return addDaysISO(defaultReceiptDate(),-1);}
 function stepStateFor(){const today=countDate();if(!stepState||stepState.store!==store||stepState.today!==today)stepState=createStepState(store,today);stepState.done=new Set(orderCatalog().filter(p=>countedToday(p)&&!stepState.failed.has(p.id)).map(p=>p.id));return stepState;}
-function stepSetQty(p,q,context){if(context&&(store!==context.store||user?.id!==context.userId))throw Error('COUNT_CONTEXT_CHANGED');quantities[p.id]=q;delete autoAssigned[p.id];dirty=true;draftStatus();renderCart();scheduleBasketSave();}
+function stepSetQty(p,q,context,automatic=false){if(context&&(store!==context.store||user?.id!==context.userId))throw Error('COUNT_CONTEXT_CHANGED');quantities[p.id]=q;if(automatic)autoAssigned[p.id]=q;else delete autoAssigned[p.id];dirty=true;draftStatus();renderCart();scheduleBasketSave();}
 async function stepSaveStock(p,onHand,context){
  if(isPreview()||store!==context.store||user?.id!==context.userId)throw Error('COUNT_CONTEXT_CHANGED');
  const targetStore=context.store,old=context.stock.find(s=>s.product_id===p.id),rule=context.rules.find(r=>r.product_id===p.id&&r.store_id===targetStore);
@@ -309,7 +309,7 @@ function renderSteps(list){const host=$('#products'),layout=currentLayout(),shif
   picture:p=>p.photo_path&&photoURLs[p.photo_path]?`<img src="${esc(photoURLs[p.photo_path])}" alt="">`:`<span style="background:${art(p).color||'#e6e8dc'};width:100%;height:100%;display:grid;place-items:center">${esc(art(p).art||name(p).slice(0,5))}</span>`,
   countSuffix:p=>cookieBag(p)?t('개',' pcs'):'',lastStock:p=>{const v=stock.find(s=>s.product_id===p.id)?.on_hand;return countDisplay(p,v);},todayValue:p=>{if(!countedToday(p))return null;if(availabilityProduct(p)){const r=availabilityChecks.find(r=>r.store_id===store&&r.product_id===p.id&&r.check_date===countDate());return r?(r.has_stock?1:0):null;}const v=stock.find(s=>s.product_id===p.id)?.on_hand;return v==null?null:countDisplay(p,v);},
   parse:(p,text)=>{const v=countInput(p,text);stockNumbers(v,null);return v;},
-  suggest:stepSuggest,getQty:p=>Number(quantities[p.id])||0,setQty:(p,q)=>stepSetQty(p,q,countContext),qtyStep:p=>halfBoxCount(p),qtyDisplay:(p,q)=>displayQuantity(p,q),
+  suggest:stepSuggest,getQty:p=>Number(quantities[p.id])||0,keepManual:p=>Number(quantities[p.id])>0&&autoAssigned[p.id]!==Number(quantities[p.id]),setQty:(p,q,options)=>stepSetQty(p,q,countContext,options?.auto===true),qtyStep:p=>halfBoxCount(p),qtyDisplay:(p,q)=>displayQuantity(p,q),
   saveStock:(p,v)=>stepSaveStock(p,v,countContext),saveAvailability:(p,v)=>stepSaveAvailability(p,v,countContext),locked:!!draft?.submitted_order_id||uncertain||busy,preview:isPreview(),
   nextCategory:next,goNextCategory:()=>{category=next;subgroup='';filter='all';renderOrderArea();scrollOrderSelection();},
   goRemaining:id=>{const p=orderCatalog().find(p=>p.id===id);if(!p)return;category=p.category;subgroup='';filter='all';search='';stepState.key='';renderOrderArea();scrollOrderSelection();},openBasket:()=>{cartOpen=true;renderCart();},showGrid:()=>setOrderView('list'),yesNo:availabilityProduct,countPrompt,choices:p=>coldBrew(p)?COLD_BREW_CHOICES.map(([v,l,i])=>[v,v===0?t('없음','None'):v===0.5?t('반 통','Half'):t(`${v}통`,`${v} tub`),i]):null,yesNoQty:p=>digestive(p)?digestiveBoxes()*halfBoxCount(p):null,yesNoText:p=>packagingProduct(p)?{q:t('한 박스 이상 남아 있나요?','Is there at least one box left?'),yes:t('있어요','Yes'),yesSmall:t('1박스 이상','1+ box'),yesIcon:'📦',no:t('없어요','No'),noSmall:t('자동으로 1단위 주문','Orders 1 unit')}:labelSticker(p)?{q:t('반 이상 있나요?','At least half left?'),yes:t('있어요','Yes'),yesSmall:t('반 이상','half+'),yesIcon:'🏷️',no:t('더 필요해요','Need more'),noSmall:t('자동으로 1개 주문','Orders 1')}:almondBag(p)?(h=>({q:t(`반 ${h.u} 이상 남았나요?`,`At least half a ${h.en} left?`),yes:t('남았음','Yes'),yesSmall:t(`반 ${h.u} 이상`,`half ${h.en}+`),yesIcon:h.icon,no:t('안 남았음','No'),noSmall:/^case$/i.test(String(p.order_unit||'').trim())?t('자동으로 1케이스 주문','Orders 1 case'):t(`자동으로 1${h.u} 주문`,`Orders 1 ${h.en}`)}))(halfUnit(p)):frozenMango(p)?{q:t('냉동팩 1개 이상 있나요?','At least 1 frozen pack?'),yes:t('있어요','Yes'),yesSmall:t('1팩 이상','1+ pack'),yesIcon:'🥭',no:t('없어요','No'),noSmall:t('자동으로 1케이스 주문','Orders 1 case')}:freshHerb(p)?{q:t('싱싱하고 초록초록한 게 반 통 이상 있나요?','Fresh green, at least half a tub?'),yes:t('있어요','Yes'),yesSmall:t('반 통 이상','half tub+'),yesIcon:'🌿',no:t('아니요','No'),noSmall:t('자동으로 1팩 주문','Orders 1 pack')}:digestive(p)?{q:t('1박스 이상 남았나요?','1+ box left?'),yes:t('남았음','Yes'),yesSmall:t('1박스 이상','1+ box'),yesIcon:'🍪',no:t('안 남았음','No'),noSmall:t(`자동으로 ${digestiveBoxes()}박스 주문`,`Orders ${digestiveBoxes()} box`)}:iceCream(p)?{q:t('10스쿱 이상 남았나요?','10+ scoops left?'),yes:t('남았음','Yes'),yesSmall:t('10스쿱 이상','10+ scoops'),yesIcon:'🍨',no:t('안 남았음','No'),noSmall:t('자동으로 1통 주문','Orders 1 tub')}:null,onTheWay,getRequiredIds:()=>countable.filter(p=>inShift(p,shift)).map(p=>p.id),carriedCount:shift==='closing'?countable.filter(p=>morningTask(p)&&inShift(p,shift)&&!countedToday(p)).length:0,allIds:countable.filter(p=>inShift(p,shift)).map(p=>p.id),shift,shiftCounts:{morning:countable.filter(morningTask).length,closing:countable.filter(p=>inShift(p,'closing')).length},setShift:v=>{try{sessionStorage.setItem('kream-order-shift',v);sessionStorage.setItem('kream-order-shift-context',shiftContext());}catch{}renderProducts();},otherShiftHere:list.some(p=>p.unit_confirmed&&!inShift(p,shift))});}
