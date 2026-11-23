@@ -51,5 +51,5 @@ test('actual app submit handler routes Midland staff to review, other stores sti
 test('combined history exposes individual references without employee edit controls',()=>{
  const host={innerHTML:'',querySelectorAll:()=>[]};
  renderGroupedOrderHistory(host,{t:a=>a,esc:String,name:p=>p.name_ko,orders:[{...order,kream_order_items:[{product_id:'milk',name_ko:'우유',order_unit:'EA',quantity:1}]},{...order,id:'b',kream_order_items:[{product_id:'milk',name_ko:'우유',order_unit:'EA',quantity:2}]}],stores:[{id:'midland',name:'Midland'}],profile:employee,lang:'ko',orderReference:id=>id});
- assert.match(host.innerHTML,/추가발주 포함/);assert.match(host.innerHTML,/3 EA/);assert.match(host.innerHTML,/개별 발주 내역/);assert.doesNotMatch(host.innerHTML,/data-amend-order=/);
+ assert.match(host.innerHTML,/추가발주 포함/);assert.match(host.innerHTML,/class="history-quantity"><b>3<\/b>/);assert.match(host.innerHTML,/history-item-unit">개/);assert.match(host.innerHTML,/개별 발주 내역/);assert.doesNotMatch(host.innerHTML,/data-amend-order=/);
 });

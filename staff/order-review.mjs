@@ -1,3 +1,5 @@
+import {stockDisplayFactor} from './stock-units.mjs?v=20261122-cookie-pieces';
+import {englishSystemLabel} from './system-labels.mjs?v=20261122-english';
 import {aggregate} from './core.mjs?v=20261103-submit-fix';
 import {sortProductRows} from './order-layout.mjs?v=20261119-garnish-sequence';
 import {halfBoxCount,displayQuantity,inputQuantity,quantityLabel} from './packing.mjs?v=20261119-memo-items';
@@ -38,11 +40,25 @@ export async function requestMidlandReview(db,draft){
 let editor=null,editorDirty=false;
 export const hasOrderRevisionEdits=()=>editorDirty;
 export function clearOrderRevision(){editor?.remove();editor=null;editorDirty=false;}
+export function orderHistoryAmount(p,lang='ko'){
+ const q=Number(p.quantity),dubai=halfBoxCount(p)===32,boxed=dubai&&Number.isFinite(q)&&q%32===0;
+ const raw=String(p.order_unit||''),base=raw.split('·')[0].trim(),factor=stockDisplayFactor(p);
+ const ko={ea:'개',bag:'봉',box:'박스',case:'케이스',pack:'팩',tray:'트레이',set:'세트'};
+ const unit=boxed?(lang==='en'?'box':'박스'):dubai?(lang==='en'?'pcs':'개'):lang==='en'?englishSystemLabel(base):(ko[base.toLowerCase()]||base);
+ let hint=boxed?(lang==='en'?`${q} pcs`:`${q}개`):factor===20?(lang==='en'?'20 pcs/bag':'20개/봉'):factor===10?(lang==='en'?'10 slices/tray':'10조각/트레이'):raw.split('·').slice(1).join('·').trim();
+ if(lang==='en')hint=englishSystemLabel(hint);
+ return {quantity:boxed?q/64:q,unit,hint};
+}
+export function orderHistoryTable(items,c){
+ const {t,esc,name,lang='ko'}=c;
+ if(!items.length)return `<p>${t('유효한 발주 품목이 없어요.','No active order items.')}</p>`;
+ return `<div class="order-history-table-wrap"><table class="order-history-table" aria-label="${t('발주 품목과 수량','Ordered items and quantities')}"><colgroup><col class="history-name-col"><col class="history-quantity-col"></colgroup><thead><tr><th scope="col">${t('품목','Item')}</th><th scope="col">${t('발주수량','Quantity')}</th></tr></thead><tbody>${items.map(p=>{const amount=orderHistoryAmount(p,lang);return `<tr><td><div class="history-item-cell"><span class="history-item-text"><span>${esc(name(p))}</span>${amount.hint?`<small class="history-pack-hint">${esc(amount.hint)}</small>`:''}</span><small class="history-item-unit">${esc(amount.unit)}</small></div></td><td class="history-quantity"><b>${esc(amount.quantity)}</b></td></tr>`;}).join('')}</tbody></table></div>`;
+}
 export function renderGroupedOrderHistory(host,c){
  const {t,esc,name,orders,catalog=[],stores=[],profile,preview,lang}=c;
  const groups=groupOrdersByDelivery(orders,catalog);
  const status=o=>o.status==='cancelled'?t('취소','Cancelled'):o.status==='received'?t('입고 완료','Received'):o.dispatch_finalized_at||o.status==='dispatched'?t('출고 확정','Dispatched'):t('발주 완료','Submitted');
- host.innerHTML=groups.map(g=>`<details class="panel delivery-order-group" ${g.orders.some(o=>o.id===c.focusOrder)?'open':''}><summary><strong>${esc(g.delivery_date)} · ${esc(stores.find(s=>s.id===g.store_id)?.name||g.store_id)}</strong> · ${g.items.length}${t('품목',' items')} · ${g.orders.length>1?t('추가발주 포함 ','Includes additions · '):''}${g.orders.length}${t('건',' orders')}</summary><p class="muted">${t('같은 지점·입고희망일의 발주를 합산한 목록입니다. 취소된 발주는 합계에서 제외합니다.','Combined orders for this store and requested receipt date. Cancelled orders are excluded from totals.')}</p>${g.items.map(p=>`<div class="line"><strong>${esc(name(p))}</strong><b>${esc(quantityLabel(p,p.quantity,lang))}</b></div>`).join('')||`<p>${t('유효한 발주 품목이 없어요.','No active order items.')}</p>`}<details><summary>${t('개별 발주 내역·수정','Individual orders / edit')}</summary>${g.orders.map(o=>`<article class="panel"><div class="line"><strong>${esc(c.orderReference(o.id))}</strong><span>${status(o)}</span></div>${o.amended_at?`<small>${t('수정됨','Amended')} · ${esc(new Date(o.amended_at).toLocaleString(lang==='en'?'en-CA':'ko-KR',{timeZone:'America/Toronto'}))} · v${esc(o.order_revision)}</small>`:''}${(o.kream_order_items||[]).map(p=>`<div class="line"><span>${esc(name(p))}</span><b>${esc(quantityLabel(p,p.quantity,lang))}</b></div>`).join('')}${o.note?`<p class="guide-body">${esc(o.note)}</p>`:''}${o.store_id==='midland'&&o.source_kind!=='factory'&&canFinalizeMidland(profile)?`<button type="button" data-amend-order="${esc(o.id)}" ${preview||!midlandEditOpen(o,profile,new Date(),c.dispatches,c.receipts)?'disabled':''}>${t('발주내용 수정','Edit order')}</button><small class="muted">${t('수정 마감: ','Edit deadline: ')}${esc(o.delivery_date)} 03:00 · Toronto</small>`:''}</article>`).join('')}</details></details>`).join('')||`<p>${t('아직 발주 내역이 없어요.','No orders yet.')}</p>`;
+ host.innerHTML=groups.map(g=>`<details class="panel delivery-order-group" ${g.orders.some(o=>o.id===c.focusOrder)?'open':''}><summary><strong>${esc(g.delivery_date)} · ${esc(stores.find(s=>s.id===g.store_id)?.name||g.store_id)}</strong> · ${g.items.length}${t('품목',' items')} · ${g.orders.length>1?t('추가발주 포함 ','Includes additions · '):''}${g.orders.length}${t('건',' orders')}</summary><p class="muted">${t('같은 지점·입고희망일의 발주를 합산한 목록입니다. 취소된 발주는 합계에서 제외합니다.','Combined orders for this store and requested receipt date. Cancelled orders are excluded from totals.')}</p>${orderHistoryTable(g.items,c)}<details><summary>${t('개별 발주 내역·수정','Individual orders / edit')}</summary>${g.orders.map(o=>`<article class="panel"><div class="line"><strong>${esc(c.orderReference(o.id))}</strong><span>${status(o)}</span></div>${o.amended_at?`<small>${t('수정됨','Amended')} · ${esc(new Date(o.amended_at).toLocaleString(lang==='en'?'en-CA':'ko-KR',{timeZone:'America/Toronto'}))} · v${esc(o.order_revision)}</small>`:''}${orderHistoryTable(o.kream_order_items||[],c)}${o.note?`<p class="guide-body">${esc(o.note)}</p>`:''}${o.store_id==='midland'&&o.source_kind!=='factory'&&canFinalizeMidland(profile)?`<button type="button" data-amend-order="${esc(o.id)}" ${preview||!midlandEditOpen(o,profile,new Date(),c.dispatches,c.receipts)?'disabled':''}>${t('발주내용 수정','Edit order')}</button><small class="muted">${t('수정 마감: ','Edit deadline: ')}${esc(o.delivery_date)} 03:00 · Toronto</small>`:''}</article>`).join('')}</details></details>`).join('')||`<p>${t('아직 발주 내역이 없어요.','No orders yet.')}</p>`;
  host.querySelectorAll('[data-amend-order]').forEach(button=>button.onclick=()=>openOrderRevision(orders.find(o=>o.id===button.dataset.amendOrder),c));
 }
 
