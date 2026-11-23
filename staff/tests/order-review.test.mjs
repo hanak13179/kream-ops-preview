@@ -43,7 +43,7 @@ test('review requests retain revision and later staff edits are flagged',async()
 test('actual app submit handler routes Midland staff to review, other stores still submit',async()=>{
  const app=fs.readFileSync(new URL('../app.mjs',import.meta.url),'utf8');
  const source=app.slice(app.indexOf('function submitCurrentBasket(){'),app.indexOf('function orderActionLabel(){'));
- const calls=[];const context={store:'midland',uncertain:true,screenProfile:()=>employee,canFinalizeMidland,requestCurrentMidlandReview:()=>calls.push('review'),run:async fn=>fn(),completeBasketSubmission:async()=>calls.push('final')};
+ const calls=[];const context={store:'midland',orderView:'grid',uncertain:true,screenProfile:()=>employee,canFinalizeMidland,requestCurrentMidlandReview:()=>calls.push('review'),run:async fn=>fn(),completeBasketSubmission:async()=>calls.push('final')};
  vm.createContext(context);vm.runInContext(source,context);await vm.runInContext('submitCurrentBasket()',context);assert.deepEqual(calls,['review']);
  context.store='finch';await vm.runInContext('submitCurrentBasket()',context);assert.deepEqual(calls,['review','final']);
  context.store='midland';context.screenProfile=()=>manager;await vm.runInContext('submitCurrentBasket()',context);assert.deepEqual(calls,['review','final','final']);

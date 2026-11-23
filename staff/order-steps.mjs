@@ -1,3 +1,4 @@
+import {countProgress} from './count-game-policy.mjs?v=20261122-completion';
 // 매장 발주 · 한 개씩 보기
 // 카테고리 안에서 품목을 하나씩 보여주고, 재고 숫자만 넣으면 자동 주문수량이 발주함에 들어가고 (화면에는 안 보임),
 // "다음"을 누르면 저장하고 다음 품목으로 넘어가요. 이전으로 가거나 목록에서 골라 고칠 수 있어요.
@@ -146,14 +147,17 @@ export function renderOrderSteps(host, c) {
   if (s.key !== c.key) { s.key = c.key; s.index = firstUndone(); s.view = 'one'; s.streak = 0; s.startedAt = 0; s.counts = 0; s.finishedIn = 0; }
   if (s.index > items.length) s.index = items.length;
 
+  const progress = () => countProgress(c.getRequiredIds?.() || c.allIds || items.map(p=>p.id), s.done, s.failed);
+  const pendingMessage = n => t(`아직 ${n}개 품목이 남아 있어요. 나머지 품목도 모두 확인해 주세요.`, `${n} items still need checking. Please check every remaining item.`);
   function firstUndone() { const i = items.findIndex(p => !s.done.has(p.id)); return i < 0 ? 0 : i; }
   let doneCount = 0;
   function head() {
     doneCount = items.filter(p => s.done.has(p.id)).length;
-    const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
+    const full=progress(),pct=full.total?Math.round(full.completed/full.total*100):0;
     const sc = c.shiftCounts || {};
     const shiftBar = c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">☀️ ${t('낮 요정', 'Day fairy')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🧚‍♀️ ${t('마감 요정', 'Closing fairy')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
-    return shiftBar + `<div class="os-head"><span class="os-count">${Math.min(s.index + 1, items.length)} / ${items.length}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${doneCount === items.length && items.length ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
+    return shiftBar + `<div class="os-head"><span class="os-count">${full.completed} / ${full.total}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${doneCount === items.length && items.length ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
+    ${full.remaining.length?`<p class="os-warn" role="status">${esc(pendingMessage(full.remaining.length))}${c.shift==='closing'&&c.carriedCount?` ${t('오전반 미확인 품목도 포함되어 있어요.','Includes unfinished morning tasks.')}`:''}</p>`:''}
     <div class="os-tools"><button data-os="one" aria-pressed="${s.view === 'one'}">${t('한 개씩', 'One by one')}</button><button data-os="list" aria-pressed="${s.view === 'list'}">✎ ${t('목록', 'List')}</button><button data-os="grid">▦ ${t('전체 보기', 'Grid')}</button></div>`;
   }
 
@@ -201,16 +205,16 @@ export function renderOrderSteps(host, c) {
   }
 
   function drawWin() {
-    const next = c.nextCategory, allDone = (c.allIds || []).length > 0 && c.allIds.every(id => s.done.has(id));
+    const next = c.nextCategory, full=progress(),allDone=full.complete;
     const secs = s.finishedIn || 0, per = s.counts ? secs / s.counts : Infinity;
     const tier = SPEED.find(x => per <= x[0]);
     wrap(head() + `<div class="os-win"><div class="big">${allDone ? '🏆' : tier[1]}</div>
-      <h3>${allDone ? (c.shift === 'morning' ? t('낮 요정 임무 완료! ☀️', 'Day fairy: mission complete! ☀️') : c.shift === 'closing' ? t('마감 요정 임무 완료! 🧚‍♀️', 'Closing fairy: mission complete! 🧚‍♀️') : t('오늘 재고 전부 끝!', 'All stock counted!')) : `${esc(c.title)} ${t('완료!', 'done!')}`}</h3>
-      <p class="praise">${esc(t(tier[2], tier[3]))}</p>
+      <h3>${allDone ? (c.shift === 'morning' ? t('낮 요정 임무 완료! ☀️', 'Day fairy: mission complete! ☀️') : c.shift === 'closing' ? t('마감 요정 임무 완료! 🧚‍♀️', 'Closing fairy: mission complete! 🧚‍♀️') : t('오늘 재고 전부 끝!', 'All stock counted!')) : `${esc(c.title)} ${t('목록을 확인했어요', 'list checked')}`}</h3>
+      <p class="praise">${allDone?esc(t(tier[2],tier[3])):esc(pendingMessage(full.remaining.length))}</p>
       <p class="time">${s.counts ? `${s.counts}${t('개', ' items')} · ${timeText(secs, t)}` : `${doneCount} / ${items.length} ${t('품목', 'items')}`}</p>
       ${s.failed.size ? `<p class="os-warn">${t(`${s.failed.size}개 재고가 저장되지 않았어요. 목록에서 다시 확인해 주세요.`, `${s.failed.size} counts did not save. Check them in the list.`)}</p>` : ''}
-      ${next && !allDone ? `<button class="primary" data-os="nextcat">${t(`다음: ${next} →`, `Next: ${next} →`)}</button>` : ''}
-      <button class="done" data-os="basket">${t('다 했어요! 🙌', 'All done! 🙌')}</button>
+      ${!allDone&&full.remaining.length?`<button class="primary" data-os="remaining">${t('남은 품목 확인하기 →','Check remaining items →')}</button>`:''}
+      <button class="done" data-os="basket" ${!allDone||c.preview||c.locked?'disabled':''}>${t('다 했어요! 🙌', 'All done! 🙌')}</button>
       <button data-os="list">✎ ${t('목록에서 고치기', 'Fix from list')}</button></div>`);
   }
 
@@ -235,7 +239,7 @@ export function renderOrderSteps(host, c) {
       <div class="os-num"><button data-os="minus" ${dis} aria-label="${t('하나 빼기', 'minus one')}">−</button><output class="${st === '' ? 'empty' : ''}">${st === '' ? '?' : esc(st)}</output><button data-os="plus" ${dis} aria-label="${t('하나 더하기', 'plus one')}">＋</button></div>
       <div class="os-pad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k => `<button data-key="${k}" ${dis} aria-label="${k === '⌫' ? t('지우기', 'delete') : k}">${k}</button>`).join('')}</div>`}
       <div class="os-warn" id="osWarn">${c.preview ? t('미리보기: 저장되지 않아요.', 'Preview: nothing is saved.') : s.failed.has(p.id) ? t('이 품목 재고가 저장되지 않았어요. 다시 넣어 주세요.', 'This count did not save. Please re-enter.') : ''}</div>
-      <div class="os-nav"><button class="os-prev" data-os="prev" ${s.index === 0 ? 'disabled' : ''}>← ${t('이전', 'Back')}</button><button class="os-next" data-os="next" ${dis}>${s.index + 1 === items.length ? t('다 했어요! 🙌', 'All done! 🙌') : t('다음 →', 'Next →')}</button></div>
+      <div class="os-nav"><button class="os-prev" data-os="prev" ${s.index === 0 ? 'disabled' : ''}>← ${t('이전', 'Back')}</button><button class="os-next" data-os="next" ${dis}>${s.index + 1 === items.length ? t('저장하고 계속 →', 'Save & continue →') : t('다음 →', 'Next →')}</button></div>
     </div>`);
   }
 
@@ -291,6 +295,7 @@ export function renderOrderSteps(host, c) {
   }
 
   function toast(pair) {
+    if(typeof document==='undefined')return;
     document.querySelectorAll('.os-toast').forEach(x => x.remove());
     const el = document.createElement('div');
     el.className = 'os-toast'; el.textContent = t(pair[0], pair[1]);
@@ -299,6 +304,7 @@ export function renderOrderSteps(host, c) {
   }
 
   function pop(emoji) {
+    if(typeof document==='undefined')return;
     const el = document.createElement('div');
     el.className = 'os-pop'; el.textContent = emoji;
     document.body.appendChild(el);
@@ -306,7 +312,7 @@ export function renderOrderSteps(host, c) {
   }
 
   host.onclick = async e => {
-    const b = e.target.closest('button'); if (!b || !host.contains(b)||s.saving) return;
+    const b = e.target.closest('button'); if (!b || b.disabled || !host.contains(b)||s.saving) return;
     if (b.dataset.key) return press(b.dataset.key);
     if (b.dataset.shift) return c.setShift?.(b.dataset.shift);
     if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.edited.add(it.id);s.typed[it.id] = b.dataset.yn; b.classList.add('on'); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
@@ -322,7 +328,9 @@ export function renderOrderSteps(host, c) {
       case 'qplus': return stepOrder(1);
       case 'prev': if (p && !await commit(p)) return; s.index = Math.max(0, s.index - 1); s.streak = 0; return draw();
       case 'next': {
-        if (!p || !await commit(p)) return;
+        if(!p)return;
+        if(stored(p)==null&&(!s.done.has(p.id)||s.edited.has(p.id)||s.failed.has(p.id))){const w=host.querySelector('#osWarn');if(w)w.textContent=t('재고 수량을 입력하거나 있음·없음을 선택한 뒤 다음으로 넘어가 주세요.','Enter a stock count or choose Yes / No before continuing.');return;}
+        if(!await commit(p))return;
         const now = Date.now();
         if (stored(p) != null) {
           if (!s.startedAt) s.startedAt = now;
@@ -337,7 +345,8 @@ export function renderOrderSteps(host, c) {
         return draw();
       }
       case 'nextcat': return c.goNextCategory();
-      case 'basket': return c.openBasket();
+      case 'remaining': {const id=progress().remaining[0];if(c.goRemaining)return c.goRemaining(id);const i=items.findIndex(p=>p.id===id);if(i>=0){s.index=i;s.view='one';return draw();}return;}
+      case 'basket': if(!progress().complete||c.preview||c.locked)return drawWin();return c.openBasket();
     }
   };
 
@@ -360,4 +369,5 @@ export function renderOrderSteps(host, c) {
 
   draw();
 }
+
 
