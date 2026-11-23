@@ -1,6 +1,7 @@
 import {withSheetRule} from './sheet-recommendations.mjs?v=20261122-game-fixed';
 import {sheetUnitPolicy} from './sheet-unit-policy.mjs?v=20261122-game-fixed';
 import {incomingQuantity} from './count-planning.mjs?v=20261122-game-fixed';
+import {queueSheetStock} from './sheet-sync.mjs?v=20261122-sheet-log';
 import {renderReservations} from './reservations.mjs?v=20261122-date-box';
 import {openMyAccount} from './my-account.mjs?v=20261122-account-dialog';
 import {chooseWorkplace,clearWorkplaceChoice,workplaceBadge,bindWorkplaceSwitch,assignedWorkplaces} from './entry-chooser.mjs?v=20261121-entry-assigned';
@@ -226,13 +227,17 @@ async function stepSaveStock(p,onHand,context){
  const [row,ruleRow]=await Promise.all([db.from('kream_stock').select('product_id,on_hand,minimum,revision,updated_at,physical_count_at').eq('store_id',targetStore).eq('product_id',p.id).maybeSingle(),db.from('kream_stock_rules').select('*').eq('store_id',targetStore).eq('product_id',p.id).maybeSingle()]);if(row.error||ruleRow.error)throw row.error||ruleRow.error;
  if(store!==targetStore||user?.id!==context.userId)throw Error('COUNT_CONTEXT_CHANGED');
  if(row.data){stock=[...stock.filter(s=>s.product_id!==p.id),row.data];context.stock=stock;}if(ruleRow.data){stockRules=[...stockRules.filter(r=>!(r.product_id===p.id&&r.store_id===targetStore)),ruleRow.data];context.rules=stockRules;}
+ logSheetCount(p,targetStore,countDisplay(p,onHand),countUnitLabel(p));
 }
 async function stepSaveAvailability(p,hasStock,context){
  if(isPreview()||store!==context.store||user?.id!==context.userId)throw Error('COUNT_CONTEXT_CHANGED');
  const stamp=await result(db.rpc('kream_save_availability_check',{target_store:context.store,target_product:p.id,has_stock:hasStock}));
  if(store!==context.store||user?.id!==context.userId)throw Error('COUNT_CONTEXT_CHANGED');
  availabilityChecks=[...availabilityChecks.filter(r=>!(r.store_id===context.store&&r.product_id===p.id&&r.check_date===countDate())),{store_id:context.store,product_id:p.id,check_date:countDate(),has_stock:hasStock,checked_at:stamp}];
+ logSheetCount(p,context.store,hasStock?1:0,'있음=1 · 없음=0');
 }
+// 저장이 끝난 숫자만 Hana의 Google 시트(Kream Inventory · 재고 기록)에 복사해요. 시트가 실패해도 앱 저장에는 영향이 없어요. Midland는 보내지 않아요.
+function logSheetCount(p,targetStore,count,unit){try{if(targetStore==='midland')return;const list=sortCatalog(orderCatalog(),currentLayout());queueSheetStock({store:targetStore,staff:profile?.display_name||user?.email||'',product:{...p,name_ko:SHOW_NAME[String(p.name_ko||'').trim()]||p.name_ko},count,sort:list.findIndex(x=>x.id===p.id)+1,unit});}catch{/* 시트 기록 실패는 무시 */}}
 function stepSuggest(p,onHand){const rule=withSheetRule(stockRules.find(r=>r.product_id===p.id&&r.store_id===store),sheetRecommendations.find(r=>r.product_id===p.id&&r.store_id===store),stock.find(r=>r.product_id===p.id));const rec=recommendation({on_hand:Number(onHand)+incoming(p)},rule,date);return rec?Math.ceil(rec.quantity/halfBoxCount(p))*halfBoxCount(p):null;}
 // 주문 1단위에 낱개 몇 개인지 (추천 최소수량 계산용): 치즈케이크 트레이 10, 쿠키 봉지 20, 휘낭시에 봉지 10, 낱개 1, 모르면 0
 // 이 매장 최근 2주 발주(취소 제외)에서 이 품목을 한 번에 주문한 양의 가운데 값
