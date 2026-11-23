@@ -418,3 +418,4 @@ body.order-list-mode #products .card .count-check-status{grid-column:1;font-size
 body.order-list-mode #products .card.count-checked .count-check-status{color:#3e6b31}
 body.order-list-mode #products .card.count-pending .count-check-status{color:#8b571b}
 body.order-list-mode #products .card .stepper{grid-row:1/span 4}
+body.order-list-mode #products .card{width:100%;min-width:0;align-self:stretch}
