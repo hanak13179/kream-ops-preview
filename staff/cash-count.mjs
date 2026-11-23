@@ -61,6 +61,19 @@ const CSS = `
 .cc-tt tfoot td{font-weight:800}
 .cc-warn{margin-top:10px;padding:10px;border-radius:14px;background:#fdf1e7;color:#7a3e1d;font-size:13px}
 .cc-warn ul{margin:4px 0 0;padding-left:18px}
+.cc input[type=number],.cc input.cc-in{background:#eef4ff;border:1.5px solid #8fb0e8 !important;color:#1d3f7a}
+.cc-legend{margin:0 0 10px;padding:8px 12px;border-radius:14px;background:#eef4ff;color:#1d3f7a;font-size:13px;font-weight:700}
+.cc-auto{font-size:11px;font-weight:700;color:#8a8370;margin-left:4px}
+.cc-crew{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+.cc-crew th{font-size:12px;color:#6b6555;text-align:right;padding:4px}
+.cc-crew th:first-child{text-align:left}
+.cc-crew td{padding:4px;text-align:right;border-bottom:1px solid #f0ebe0}
+.cc-crew td:first-child{text-align:left}
+.cc-crew input{width:100%;height:36px;border-radius:10px;padding:0 8px;font-size:15px}
+.cc-crew input.h{width:64px;text-align:right}
+.cc-crew button{border:0;background:none;font-size:16px;color:#a0522d}
+.cc-crew tfoot td{font-weight:800;border-bottom:0}
+.cc-add{margin-top:8px;width:100%;height:40px;border:1px dashed #b9b09a;border-radius:12px;background:#fff;font-size:15px;font-weight:700;color:#3b382f}
 .cc-diff{font-size:14px;font-weight:700}.cc-diff.over{color:#2f4a22}.cc-diff.short{color:#a0522d}
 `;
 
@@ -106,18 +119,37 @@ export function cashDate(now = new Date()) {
   return new Date(Date.UTC(+p.year, +p.month - 1, +p.day - (+p.hour < 4 ? 1 : 0))).toISOString().slice(0, 10);
 }
 
+// 오늘 근무한 사람끼리 일한 시간만큼 현금·카드 팁을 따로 나눠요 (센트 단위, 남는 센트는 시간 많은 사람부터)
+export function shareTips(cash, card, crew) {
+  const people = (crew || []).map(p => ({name: String(p.name || '').trim(), hours: Math.max(0, Number(p.hours) || 0)})).filter(p => p.name || p.hours);
+  const hours = people.reduce((a, p) => a + p.hours, 0);
+  const part = amount => {
+    const cents = Math.round((Number(amount) || 0) * 100);
+    if (!hours || !cents) return people.map(() => 0);
+    const raw = people.map(p => cents * p.hours / hours), base = raw.map(Math.floor);
+    let left = cents - base.reduce((a, b) => a + b, 0);
+    raw.map((r, i) => [r - base[i], i]).sort((a, b) => b[0] - a[0] || people[b[1]].hours - people[a[1]].hours).forEach(([, i]) => { if (left > 0) { base[i]++; left--; } });
+    return base.map(c => c / 100);
+  };
+  const c1 = part(cash), c2 = part(card);
+  return {hours: money(hours), people: people.map((p, i) => ({...p, cash: c1[i], card: c2[i], total: money(c1[i] + c2[i])}))};
+}
+export function salesTotal(after, before) { return after === '' && before === '' ? '' : money((Number(after) || 0) + (Number(before) || 0)); }
+
 const memory = {store: '', date: ''};
-const blank = () => ({counts: {}, open: DEFAULT_FLOAT, cashSales: '', afterTax: '', beforeTax: '', total: '', cashTips: '', cardTips: '', note: ''});
+const blank = () => ({counts: {}, open: DEFAULT_FLOAT, cashSales: '', afterTax: '', beforeTax: '', total: '', cashTips: '', cardTips: '', crew: [], note: ''});
 function key(store, date) { return `kream-cash-${store}-${date}`; }
 function shiftDate(date, n) { const d = new Date(date + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 function prevDay(date) { const d = new Date(date + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); }
+function crewKey(store) { return `kream-cash-crew-${store}`; }
+function lastCrew(store) { try { return (JSON.parse(localStorage.getItem(crewKey(store)) || '[]') || []).map(name => ({name, hours: ''})); } catch { return []; } }
 function load(store, date) {
   try {
     const saved = JSON.parse(localStorage.getItem(key(store, date)) || 'null');
-    if (saved) return {...blank(), ...saved};
+    if (saved) return {...blank(), ...saved, crew: saved.crew || []};
     // 처음 여는 날: 어제 이 기기에서 센 '내일 오픈시재'를 오늘 오픈시재로
     const prev = JSON.parse(localStorage.getItem(key(store, prevDay(date))) || 'null');
-    return prev ? {...blank(), open: cashPlan({...blank(), ...prev}).nextOpen} : blank();
+    return {...blank(), ...(prev ? {open: cashPlan({...blank(), ...prev}).nextOpen} : {}), crew: lastCrew(store)};   // 지난번 근무자 이름을 미리 채워요 (시간은 비움)
   } catch { return blank(); }
 }
 function keep(store, date, v) { try { localStorage.setItem(key(store, date), JSON.stringify(v)); } catch { /* 이 기기에 저장 못 해도 계산은 돼요 */ } }
@@ -193,6 +225,7 @@ export function renderCashCount(host, c) {
     host.innerHTML = `<div class="cc">
       <div class="cc-top"><label>${t('매장', 'Store')}<select id="ccStore">${stores.map(x => `<option value="${esc(x.id)}" ${x.id === memory.store ? 'selected' : ''}>${esc(x.name || x.id)}</option>`).join('')}</select></label>
       <label>${t('마감 날짜', 'Closing date')}<input id="ccDate" type="date" value="${esc(memory.date)}"></label></div>
+      <p class="cc-legend">🔵 ${t('파란 칸만 입력해요 · 나머지는 자동 계산', 'Fill in the blue boxes only · the rest is calculated')}</p>
       <div class="cc-card"><h3>💵 ${t('지폐·동전 몇 개?', 'How many of each?')}</h3>
       ${DENOMS.map(([d, label]) => { const n = Number(v.counts[String(d)]) || 0; return `<div class="cc-row"><b>${esc(label)}</b><div class="cc-step"><button data-cc="-" data-d="${d}" aria-label="${esc(label)} −">−</button><input data-d="${d}" type="number" inputmode="numeric" min="0" step="1" value="${n || ''}" placeholder="0" aria-label="${esc(label)}"><button data-cc="+" data-d="${d}" aria-label="${esc(label)} +">＋</button></div><em data-line="${d}">${fmt(money(n * d))}</em></div>`; }).join('')}
       </div>
@@ -207,15 +240,21 @@ export function renderCashCount(host, c) {
       <div class="cc-env">✉️ ${t('봉투에 넣을 돈', 'Put in the envelope')}: <b id="ccEnv"></b><small id="ccBills"></small></div>
       <div class="cc-next">🌅 ${t('내일 오픈시재', 'Tomorrow’s opening float')}: <b id="ccNext"></b></div></div>
       <div class="cc-card"><h3>🧾 ${t('오늘 매출', 'Today’s sales')}</h3><div class="cc-sum">
-        ${num('ccAfterTax', 'After Tax Sales', v.afterTax)}
-        ${num('ccBeforeTax', 'Before Tax', v.beforeTax)}
-        ${num('ccTotalSales', 'Total', v.total)}
+        ${num('ccAfterTax', 'After Tax Sales', v.afterTax, t('영수증 보고 적어요', 'From the receipt'))}
+        ${num('ccBeforeTax', 'Before Tax', v.beforeTax, t('영수증 보고 적어요', 'From the receipt'))}
+        <span>Total<span class="cc-auto">${t('자동', 'auto')}</span></span><span class="big" id="ccSalesTotal"></span>
       </div></div>
       <div class="cc-card"><h3>💝 ${t('오늘 팁', 'Today’s tips')}</h3><div class="cc-sum">
         ${num('ccCashTips', t('현금 팁', 'Cash tips'), v.cashTips, t('팁 통에 있는 돈 전부', 'Everything in the tip jar'))}
         ${num('ccCardTips', t('카드 팁', 'Card tips'), v.cardTips, t('Clover 리포트의 Tips', 'Tips on the Clover report'))}
-        <span>${t('팁 합계', 'Total tips')}</span><span class="big" id="ccTipTotal"></span>
-      </div><small style="display:block;margin-top:6px;color:#6b6555">${t('오늘 일한 사람들끼리 일한 시간만큼 나눠요. 현금 팁은 봉투·시재와 따로 보관해요.', 'Shared by hours among everyone who worked today. Keep cash tips separate from the envelope and float.')}</small></div>
+        <span>${t('팁 합계', 'Total tips')}<span class="cc-auto">${t('자동', 'auto')}</span></span><span class="big" id="ccTipTotal"></span>
+      </div>
+      <h3 style="margin-top:14px">👥 ${t('오늘 근무 (확인용)', 'Who worked today (to check)')}</h3>
+      <table class="cc-crew"><thead><tr><th>${t('이름', 'Name')}</th><th>${t('시간', 'Hours')}</th><th>${t('현금', 'Cash')}</th><th>${t('카드', 'Card')}</th><th>${t('팁', 'Tip')}</th><th></th></tr></thead>
+        <tbody>${(v.crew || []).map((p, i) => `<tr><td><input class="cc-in" data-crew="${i}" data-k="name" value="${esc(p.name || '')}" placeholder="${t('이름', 'Name')}" maxlength="40"></td><td><input class="h" type="number" inputmode="decimal" min="0" step="0.25" data-crew="${i}" data-k="hours" value="${esc(p.hours ?? '')}" placeholder="h"></td><td data-share="${i}c"></td><td data-share="${i}d"></td><td><b data-share="${i}t"></b></td><td><button data-cc="crewDel" data-i="${i}" aria-label="${t('빼기', 'Remove')}">✕</button></td></tr>`).join('')}</tbody>
+        <tfoot><tr><td>${t('합계', 'Total')}</td><td id="ccCrewHours"></td><td id="ccCrewCash"></td><td id="ccCrewCard"></td><td id="ccCrewTip"></td><td></td></tr></tfoot></table>
+      <button class="cc-add" data-cc="crewAdd">＋ ${t('사람 추가', 'Add person')}</button>
+      <small style="display:block;margin-top:6px;color:#6b6555">${t('Homebase 스케줄을 보고 이름과 일한 시간을 적어요. 현금·카드 팁을 시간만큼 나눠요. 현금 팁은 봉투·시재와 따로 보관해요.', 'Check the Homebase schedule and enter names and hours. Cash and card tips are shared by hours. Keep cash tips separate from the envelope and float.')}</small></div>
       <div class="cc-card"><textarea id="ccNote" class="cc-note" maxlength="300" placeholder="${t('메모 (선택) · 예: 동전 롤 1개 따로 보관', 'Note (optional)')}">${esc(v.note || '')}</textarea></div>
       <div class="cc-actions"><button class="cc-clear" data-cc="clear">${t('다시 세기', 'Start over')}</button><button class="cc-save" data-cc="save" ${c.preview || saving ? 'disabled' : ''}>${saving ? t('저장 중…', 'Saving…') : t('시트에 저장 ✅', 'Save to sheet ✅')}</button></div>
       <p class="cc-msg" id="ccMsg">${c.preview ? t('미리보기: 저장되지 않아요.', 'Preview: nothing is saved.') : ''}</p>
@@ -232,6 +271,20 @@ export function renderCashCount(host, c) {
     q('#ccBills').textContent = s.envelope ? billText(s.bills) + (s.extra - s.envelope > 0 ? ' · ' + t(`나머지 ${fmt(money(s.extra - s.envelope))}는 시재에 남겨요`, `keep ${fmt(money(s.extra - s.envelope))} in the till`) : '') : s.extra > 0 ? t('지폐로 뺄 수 있는 돈이 없어요 · 전부 시재에 남겨요', 'No bills to take out · keep it all in the till') : '';
     q('#ccNext').textContent = fmt(s.nextOpen);
     q('#ccTipTotal').textContent = fmt(money((Number(v.cashTips) || 0) + (Number(v.cardTips) || 0)));
+    v.total = salesTotal(v.afterTax, v.beforeTax);
+    q('#ccSalesTotal').textContent = v.total === '' ? '—' : fmt(v.total);
+    const sh = shareTips(v.cashTips, v.cardTips, v.crew), rows = (v.crew || []).map(p => ({name: String(p.name || '').trim(), hours: Math.max(0, Number(p.hours) || 0)}));
+    let k = 0;
+    rows.forEach((p, i) => {
+      const got = (p.name || p.hours) ? sh.people[k++] : null;
+      const set = (suf, val) => { const el = host.querySelector(`[data-share="${i}${suf}"]`); if (el) el.textContent = got ? fmt(val) : ''; };
+      if (got) { set('c', got.cash); set('d', got.card); set('t', got.total); } else { set('c'); set('d'); set('t'); }
+    });
+    const sum = f => money(sh.people.reduce((a, p) => a + p[f], 0));
+    q('#ccCrewHours').textContent = sh.hours ? sh.hours + 'h' : '';
+    q('#ccCrewCash').textContent = sh.people.length ? fmt(sum('cash')) : '';
+    q('#ccCrewCard').textContent = sh.people.length ? fmt(sum('card')) : '';
+    q('#ccCrewTip').textContent = sh.people.length ? fmt(sum('total')) : '';
     const diff = q('#ccDiff');
     diff.textContent = s.diff == null ? '' : s.diff === 0 ? t('✅ 현금 매출과 딱 맞아요', '✅ Matches cash sales') : s.diff > 0 ? t(`⬆ ${fmt(s.diff)} 더 많아요`, `⬆ ${fmt(s.diff)} over`) : t(`⬇ ${fmt(-s.diff)} 모자라요`, `⬇ ${fmt(-s.diff)} short`);
     diff.className = 'cc-diff ' + (s.diff > 0 ? 'over' : s.diff < 0 ? 'short' : '');
@@ -244,11 +297,12 @@ export function renderCashCount(host, c) {
     const inp = host.querySelector(`input[data-d="${d}"]`); if (inp && document.activeElement !== inp) inp.value = n || '';
     refresh();
   }
-  const FIELDS = {ccOpen: 'open', ccCashSales: 'cashSales', ccAfterTax: 'afterTax', ccBeforeTax: 'beforeTax', ccTotalSales: 'total', ccCashTips: 'cashTips', ccCardTips: 'cardTips'};
+  const FIELDS = {ccOpen: 'open', ccCashSales: 'cashSales', ccAfterTax: 'afterTax', ccBeforeTax: 'beforeTax', ccCashTips: 'cashTips', ccCardTips: 'cardTips'};
 
   host.oninput = e => {
     const el = e.target;
     if (el.dataset.d) return setCount(el.dataset.d, el.value);
+    if (el.dataset.crew != null) { const p = v.crew[Number(el.dataset.crew)]; if (p) { p[el.dataset.k] = el.dataset.k === 'hours' ? (el.value === '' ? '' : Number(el.value)) : el.value; refresh(); } return; }
     if (FIELDS[el.id]) { v[FIELDS[el.id]] = el.value === '' ? '' : money(el.value); refresh(); return; }
     if (el.id === 'ccNote') { v.note = el.value; keep(memory.store, memory.date, v); }
   };
@@ -268,6 +322,8 @@ export function renderCashCount(host, c) {
   host.onclick = async e => {
     const b = e.target.closest('button'); if (!b || !host.contains(b)) return;
     if (b.dataset.cc === '+' || b.dataset.cc === '-') return setCount(b.dataset.d, (Number(v.counts[b.dataset.d]) || 0) + (b.dataset.cc === '+' ? 1 : -1));
+    if (b.dataset.cc === 'crewAdd') { v.crew = v.crew || []; v.crew.push({name: '', hours: ''}); draw(); const ins = host.querySelectorAll('[data-k="name"]'); if (ins.length) ins[ins.length - 1].focus(); return; }
+    if (b.dataset.cc === 'crewDel') { v.crew.splice(Number(b.dataset.i), 1); return draw(); }
     if (b.dataset.cc === 'split') return runSplit(false);
     if (b.dataset.cc === 'splitSave') return runSplit(true);
     if (b.dataset.cc === 'clear') { if (!confirm(t('센 숫자와 입력한 매출을 모두 지울까요?', 'Clear everything?'))) return; v = blank(); keep(memory.store, memory.date, v); return draw(); }
@@ -277,9 +333,10 @@ export function renderCashCount(host, c) {
       if (!s.total && !confirm(t('합계가 $0이에요. 그래도 저장할까요?', 'Total is $0. Save anyway?'))) return;
       saving = true; b.disabled = true; b.textContent = t('저장 중…', 'Saving…');
       try {
-        const r = await fetch(SHEET_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({action: 'recordCash', key: SYNC_KEY, store_id: memory.store, count_date: memory.date, counts: v.counts, open_float: s.open, cash_sales: s.reported, after_tax: v.afterTax === '' ? null : v.afterTax, before_tax: v.beforeTax === '' ? null : v.beforeTax, total_sales: v.total === '' ? null : v.total, cash_tips: v.cashTips === '' ? null : v.cashTips, card_tips: v.cardTips === '' ? null : v.cardTips, staff: c.profile?.display_name || '', note: v.note || ''})});
+        const r = await fetch(SHEET_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({action: 'recordCash', key: SYNC_KEY, store_id: memory.store, count_date: memory.date, counts: v.counts, open_float: s.open, cash_sales: s.reported, after_tax: v.afterTax === '' ? null : v.afterTax, before_tax: v.beforeTax === '' ? null : v.beforeTax, total_sales: v.total === '' ? null : v.total, crew: shareTips(v.cashTips, v.cardTips, v.crew).people, cash_tips: v.cashTips === '' ? null : v.cashTips, card_tips: v.cardTips === '' ? null : v.cardTips, staff: c.profile?.display_name || '', note: v.note || ''})});
         const out = await r.json().catch(() => ({}));
         if (!r.ok || out.ok === false) throw Error(out.error || 'SAVE_FAILED');
+        try { localStorage.setItem(crewKey(memory.store), JSON.stringify(shareTips(0, 0, v.crew).people.map(p => p.name).filter(Boolean))); } catch {}
         saving = false; draw();
         say(t(`저장했어요 · 봉투 ${fmt(s.envelope)} · 내일 오픈시재 ${fmt(s.nextOpen)}`, `Saved · envelope ${fmt(s.envelope)} · tomorrow’s float ${fmt(s.nextOpen)}`));
       } catch (err) {
