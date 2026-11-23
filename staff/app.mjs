@@ -245,8 +245,9 @@ function recentOrderQty(p){const from=addDaysISO(todayToronto(),-14),q=[];for(co
 function piecesPerUnit(p){if(bagSize(p))return bagSize(p);if(stockDisplayFactor(p)>1)return stockDisplayFactor(p);return /^(ea|개|낱개|set|pack)$/i.test(String(p.order_unit||'').trim())?1:0;}
 // 오는 중인 주문 (오늘 주문 → 내일 도착): 이 매장 주문 중 취소 안 됐고, 입고확인 전이고, 도착일이 내일 이후인 것.
 // 오늘 도착분은 낮·마감 모두 이미 받은 걸로 봐요 (낮 요정도 물건이 온 뒤에 세요. 입고확인을 안 눌러도 모자라게 주문되지 않게).
-function incomingOrders(){const today=todayToronto();return (orders||[]).filter(o=>o.store_id===store&&!/cancel|void|reject|received/i.test(String(o.status||''))&&o.delivery_date>=today&&o.delivery_date<=date);}
-function incoming(p){return incomingQuantity({orders,receipts,dispatches,store,today:todayToronto(),date,product:p.id});}
+// 오는 중 = 센 날(countDate) 다음 날부터 이번 입고일까지 도착할 주문. 센 날 이미 도착한 물건은 선반 재고에 들어가 있으니 빼지 않아요 (입고확인을 안 눌렀어도 두 번 세지 않게).
+function incomingOrders(){const after=countDate();return (orders||[]).filter(o=>o.store_id===store&&!/cancel|void|reject|received/i.test(String(o.status||''))&&o.delivery_date>after&&o.delivery_date<=date);}
+function incoming(p){return incomingQuantity({orders,receipts,dispatches,store,today:addDaysISO(countDate(),1),date,product:p.id});}
 // 낮 요정: 포장재·소모품·음료 베이스 / 마감 요정: 나머지
 function morningTask(p){return /포장|소모품/.test(String(p.category||''))||/포장|소모품|음료 ?베이스/.test(String(p.subgroup||''));}
 function shiftOf(){let saved='';try{saved=sessionStorage.getItem('kream-order-shift');}catch{}if(saved==='morning'||saved==='closing')return saved;return Number(new Intl.DateTimeFormat('en-CA',{timeZone:'America/Toronto',hour:'numeric',hourCycle:'h23'}).format(new Date()))<15?'morning':'closing';}
