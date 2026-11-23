@@ -1,3 +1,4 @@
+import {startSystemLabels} from './system-labels.mjs?v=20261122-english';
 import {readAllRows,verifySubmittedItems} from './read-rows.mjs?v=20261122-complete-lists2';
 import {countPhase,closingCarryover,countProgress} from './count-game-policy.mjs?v=20261122-completion';
 import {withSheetRule} from './sheet-recommendations.mjs?v=20261122-game-fixed';
@@ -369,6 +370,7 @@ setInterval(async()=>{
  const checks=[...availabilityChecks.filter(x=>x.store_id!==currentStore),...(a.data||[])];if(JSON.stringify(r.data)!==JSON.stringify(stock)||JSON.stringify(checks)!==JSON.stringify(availabilityChecks)||leftoverKey!==[store,currentDay,phase].join('|')){stock=r.data;availabilityChecks=checks;renderOrderArea();}
  }catch{}
 },60000);
+startSystemLabels();
 boot();
 
 
