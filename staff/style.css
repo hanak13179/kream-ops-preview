@@ -228,6 +228,39 @@ body,.signed-in aside,.signed-in header{background:#f8f5ef;color:#352e29}
 .order-controls #refresh{height:50px;min-height:50px;min-width:0;margin:0}
 @media(max-width:700px){.toolbar.controls.order-controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.order-controls #refresh{grid-column:1/-1;width:100%}}
 
+/* 재고 세기 게임 시작 버튼 */
+.count-game-start{display:block;width:100%;margin:10px 0 12px;padding:16px;border:0;border-radius:16px;background:linear-gradient(135deg,#3e4b33,#6d8a57);color:#fff;font-size:18px;font-weight:800;box-shadow:0 3px 10px #3e4b3333}
+.count-game-start:disabled{opacity:.45}
+
+/* 한 개씩 보기: 위쪽을 줄여서 재고 세는 카드가 위에 보이게 */
+body.steps-mode.signed-in header{min-height:0;padding:10px 32px}
+body.steps-mode .section-title{padding-top:10px}
+body.steps-mode .section-title small{display:none}
+body.steps-mode .section-title h1{font-size:20px;margin:4px 0 2px}
+body.steps-mode .section-title .live{padding:5px 10px;font-size:11px}
+body.steps-mode #portal>p.muted{display:none}
+body.steps-mode .order-controls{padding:8px 12px;gap:10px;border-radius:14px;margin-top:8px}
+body.steps-mode .order-controls label{font-size:12px}
+body.steps-mode .order-controls select,body.steps-mode .order-controls input,body.steps-mode .order-controls .date-wrap{min-height:38px}
+body.steps-mode .order-controls .date-wrap{padding:6px 12px}
+body.steps-mode .order-controls button{min-height:38px;padding:6px 12px}
+body.steps-mode .search-field{margin:8px 0;font-size:12px}
+body.steps-mode .search-field input{height:38px}
+body.steps-mode .order-quick-actions{display:none}
+body.steps-mode .chips.categories{margin:6px 0}
+body.steps-mode .chips.categories button{padding:7px 14px}
+@media(max-width:700px){body.steps-mode.signed-in header{padding:6px 12px}body.steps-mode .order-controls{padding:8px}body.steps-mode .order-controls button{min-width:0;flex:0 1 auto}}
+body.steps-mode .search-field{display:none}
+body.steps-mode .order-controls label{font-size:0;gap:0}
+body.steps-mode .order-controls select,body.steps-mode .order-controls .date-wrap,body.steps-mode .order-controls .date-wrap span{font-size:14px}
+body.steps-mode .order-controls button{font-size:13px}
+body.steps-mode .section-title{border-top:0;padding-top:0}
+
+/* 매장 발주: 재고 세기 / 최소수량(매니저) 탭 */
+.order-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.order-tabs button{border:0;border-radius:14px;padding:11px 8px;font-size:15px;font-weight:800;background:#fff;color:#3b382f;box-shadow:0 1px 4px #0001}
+.order-tabs button small{font-size:11px;font-weight:600;opacity:.7}
+.order-tabs button[aria-pressed=true]{background:#ed522e;color:#fff}
 .workplace-badge{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:14px;background:var(--c);font:700 17px system-ui,sans-serif;color:#2f3129}
       .workplace-badge.dark{color:#fff}.workplace-badge span small{display:block;font:500 11px system-ui,sans-serif;opacity:.75}
       .workplace-badge button{font:600 13px system-ui,sans-serif;border:0;border-radius:20px;padding:6px 12px;background:#fff9;color:inherit;cursor:pointer;min-height:auto}
@@ -342,3 +375,4 @@ dialog.account-dialog{width:min(420px,calc(100vw - 24px));max-width:calc(100vw -
 .account-dialog [role=alert]:empty{display:none}
 .account-dialog .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:2px 0 0}
 .account-dialog .actions button{width:100%;min-width:0;height:44px;min-height:44px;padding:8px 12px;font-size:16px;line-height:24px;white-space:nowrap}
+

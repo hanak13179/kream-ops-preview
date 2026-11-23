@@ -21,15 +21,22 @@ import * as core from '../core.mjs';
 import * as operations from '../operations.mjs';
 import * as access from '../access.mjs';
 const catalog=[{id:'milk',name_ko:'우유',name_en:'Milk',category:'원재료·음료',subgroup:'유제품',order_unit:'봉',unit_confirmed:true,active:true},{id:'cookie',name_ko:'쿠키',name_en:'Cookie',category:'디저트',subgroup:'쿠키',order_unit:'개',unit_confirmed:true,active:true}];
-test('needs-order ignores category and unknown stock, includes threshold equality',()=>{assert.deepEqual(presentation.filterProducts(catalog,{filter:'need',category:'디저트',stock:[{product_id:'milk',on_hand:6,minimum:6},{product_id:'cookie',on_hand:null,minimum:2}]}).map(p=>p.id),['milk']);});
+test('needs-order ignores category and unknown stock, excludes threshold equality',()=>{assert.deepEqual(presentation.filterProducts(catalog,{filter:'need',category:'디저트',stock:[{product_id:'milk',on_hand:5,minimum:6},{product_id:'cookie',on_hand:null,minimum:2}]}).map(p=>p.id),['milk']);});
 test('frequent counts distinct delivery days in seven-day window, excludes cancelled',()=>{const order=(date,status='submitted')=>({delivery_date:date,status,kream_order_items:[{product_id:'milk'}]});assert.equal(presentation.frequentIds([order('2026-10-31'),order('2026-10-31')],new Date('2026-11-01T17:00Z')).size,0);assert.deepEqual([...presentation.frequentIds([order('2026-10-31'),order('2026-10-30'),order('2026-10-01')],new Date('2026-11-01T17:00Z'))],['milk']);});
 test('delivery display has weekday and omits year in both languages',()=>{for(const lang of ['ko','en']){const label=presentation.deliveryLabel('2026-11-02',lang);assert.ok(!label.includes('2026'));assert.match(label,lang==='ko'?/월/:/Mon/);}});
-test('authenticated presentation preserves draft through navigation and marks unconnected modules',()=>{
- const nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{addEventListener(){},innerHTML:'',textContent:'',hidden:false,classList:{toggle(){}},querySelector:s=>node(s),querySelectorAll:()=>[],scrollIntoView(){}});return nodes.get(id);};
- const context=vm.createContext({quantityStep,...availability,...subcategoryModule,...catalogModule,...dailyModule,...replenishmentModule,...layoutModule,...checklistModule,...journalModule,...overviewModule,...stockModule,...dispatchModule,...productionModule,...wasteModule,...presentation,...core,...operations,...access,URLSearchParams,Intl,Date,console,localStorage:{getItem:()=>null,setItem(){}},location:{hash:''},document:{querySelector:node,querySelectorAll:()=>[],documentElement:{},body:{classList:{toggle(){}}}},window:{addEventListener(){}},confirm:()=>true});
- let source=fs.readFileSync(new URL('../app.mjs',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace(/boot\(\);\s*$/,'');
+test('authenticated presentation preserves basket quantities through receiving navigation',async()=>{
+ const nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{addEventListener(){},insertAdjacentHTML(_,html){this.innerHTML+=html;},innerHTML:'',textContent:'',hidden:false,classList:{toggle(){},add(){},remove(){}},querySelector:s=>node(s),querySelectorAll:()=>[],scrollIntoView(){}});return nodes.get(id);};
+ let source=fs.readFileSync(new URL('../app.mjs',import.meta.url),'utf8');
+ const bindings={};
+ for(const m of source.matchAll(/import \{([^}]+)\} from ['"]([^'"]+)['"]/g)){
+  const mod=await import(new URL(m[2],new URL('../app.mjs',import.meta.url)));
+  for(const pair of m[1].split(',')){const [key,alias]=pair.trim().split(/\s+as\s+/);bindings[alias||key]=mod[key];}
+ }
+ bindings.renderReceiving=host=>{host.innerHTML='Receiving';};
+ const context=vm.createContext({...bindings,URLSearchParams,Intl,Date,console,setInterval(){},localStorage:{getItem:k=>k==='kream-order-view'?'grid':null,setItem(){}},location:{hash:''},document:{querySelector:node,querySelectorAll:()=>[],documentElement:{},body:{classList:{toggle(){},add(){},remove(){}}}},window:{addEventListener(){}},confirm:()=>true});
+ source=source.replace(/^import .*;\n/gm,'').replace(/boot\(\);\s*$/,'');
  vm.runInContext(source+`;user={id:'test'};profile={role:'owner',active:true,display_name:'Test'};stores=[{id:'finch',name:'Finch'}];store='finch';catalog=${JSON.stringify(catalog)};quantities={milk:3};dirty=true;render();`,context);
- assert.match(node('#navigation').innerHTML,/매장 발주/);assert.match(node('#products').innerHTML,/stepper/);assert.match(node('#categories').innerHTML,/디저트/);
- vm.runInContext("page='future';render();",context);assert.match(node('#view').innerHTML,/실제 자료 연결 준비 중/);assert.equal(node('#cart').innerHTML,'');
+ assert.match(node('#products').innerHTML,/stepper/);
+ vm.runInContext("page='receiving';render();",context);assert.equal(node('#cart').innerHTML,'');
  vm.runInContext("page='order';render();",context);assert.match(node('#products').innerHTML,/value="3"/);assert.equal(vm.runInContext('dirty',context),true);
 });

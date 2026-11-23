@@ -1,4 +1,4 @@
-import {withSheetRule,sheetRecommendationLabel} from './sheet-recommendations.mjs?v=20261122-sheets';
+import {withSheetRule,sheetRecommendationLabel} from './sheet-recommendations.mjs?v=20261122-game-fixed';
 import {stockDisplayFactor,stockDisplay,stockInput} from './stock-units.mjs?v=20261118-midland-sheet';
 import {halfBoxCount,unitLabel,quantityLabel,boxAmount} from './packing.mjs?v=20261119-memo-items';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
