@@ -1,4 +1,4 @@
-import {hasOrderRevisionEdits,clearOrderRevision} from './order-review.mjs?v=20261122-history-unit';
+import {hasOrderRevisionEdits,clearOrderRevision} from './order-review.mjs?v=20261123-note-english';
 import {receivingLayout} from './receiving-layout.mjs?v=20261123-no-carry';
 import {halfBoxCount,unitLabel,quantityLabel,displayQuantity,boxAmount} from './packing.mjs?v=20261119-memo-items';
 import {hasExternalEdits,clearExternalState} from './external-dispatch.mjs?v=20261122-pending-date';
