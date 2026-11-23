@@ -1,4 +1,4 @@
-import {readAllRows,verifySubmittedItems} from './read-rows.mjs?v=20261122-complete-lists';
+import {readAllRows,verifySubmittedItems} from './read-rows.mjs?v=20261122-complete-lists2';
 import {countPhase,closingCarryover,countProgress} from './count-game-policy.mjs?v=20261122-completion';
 import {withSheetRule} from './sheet-recommendations.mjs?v=20261122-game-fixed';
 import {sheetUnitPolicy} from './sheet-unit-policy.mjs?v=20261122-game-fixed';
