@@ -31,10 +31,10 @@ import {renderMaterials} from './materials.mjs?v=20261119-garnish-sequence';
 import {renderCatalogTools,openProduct,signedPhotos,canManageProducts} from './catalog-editor.mjs?v=20261104-drag-only';
 import {renderDailyLog} from './daily-log.mjs?v=20261102-whole-quantity';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
-import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261123-together';
+import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261124-required';
 import {isEvening,eveningItems,eveningHtml,cashSaved,CASH_STORES as EVENING_CASH_STORES,EVENING_CSS} from './evening-warning.mjs?v=20261123-auto3';
 import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261123-minsave3';
-import {renderSupplies} from './supplies-order.mjs?v=20261123-fairy';
+import {renderSupplies} from './supplies-order.mjs?v=20261124-required';
 import {renderProductionLog} from './production-log.mjs?v=20261119-memo-items';
 import {renderChecklist} from './checklist.mjs?v=20261104-manual-compact';
 import {sortCatalog,sortProductRows,ordered,groupKey} from './order-layout.mjs?v=20261119-garnish-sequence';
@@ -313,7 +313,13 @@ function countDisplay(p,v){return v==null||v===''?v:Math.round(Number(v)*countFa
 function countInput(p,text){if(text==null||text==='')return '';const f=countFactor(p),n=Number(text);if(!Number.isFinite(n)||n<0||(f>1&&!Number.isInteger(n)))throw Error('STOCK_PIECES_REQUIRED');return Math.round(n/f*1000)/1000;}
 // 발주 가능한 빵류도 다른 품목처럼 확인합니다. 카테고리만으로 누락시키지 않습니다.
 function supplyItem(p){return /포장|소모품/.test(String(p.category||''))||/포장|소모품/.test(String(p.subgroup||''));}
-function skipCount(p){return supplyItem(p);}
+// 발주게임 필수 확인: 주기가 짧아서 매번 세야 하는 품목만 (미들랜드는 예전 그대로). 나머지는 '📦 추가 주문'에서 '더 필요해요!'
+const REQUIRED_NAMES=new Set(['스패너크림','아몬드밀크','오트밀크','화채캔','리얼망고프루티캔','미숫가루캔']);
+const REQUIRED_SUBGROUPS=new Set(['레어치즈케이크','티라미수','미니크루아상','미니크로와상','홀케이크']);
+function requiredItem(p){const n=String(p.name_ko||'').replace(/[\s·]/g,''),g=String(p.subgroup||'').replace(/\s/g,''),c=String(p.category||'');
+ if(/포장|소모품/.test(c)||n.includes('예약케이크'))return false;
+ return /^우유/.test(n)||REQUIRED_NAMES.has(n)||n.includes('치아시드')||n.includes('치아씨드')||(c==='디저트'&&REQUIRED_SUBGROUPS.has(g))||/^(초코|초콜릿)?두바이쫀득쿠키$/.test(n)||/^초코두쫀쿠$/.test(n);}
+function skipCount(p){return store==='midland'?supplyItem(p):!requiredItem(p);}
 // 다이제스티브: 1박스 이상 있다/없다. 없으면 1박스, 3호점(빙수·티라미수·바나나푸딩에 많이 씀)은 2박스
 function digestive(p){return String(p.name_ko||'').trim()==='다이제스티브';}
 function digestiveBoxes(){return store==='richmond-hill'?2:1;}
@@ -351,7 +357,7 @@ function teaBag(p){return /티백/.test(String(p.name_ko||''))||/tea ?bag/i.test
 function dubaiChoice(p){return store!=='midland'&&halfBoxCount(p)===32;}
 function availabilityProduct(p){return dubaiChoice(p)||financierBag(p)||sheetUnitPolicy(p)?.mode==='availability'||String(p.category||'').includes('포장')||iceCream(p)||digestive(p)||freshHerb(p)||frozenMango(p)||almondBag(p);}
 let suppliesOpen=false;
-function renderSupplyOrder(host){const items=sortProductRows(orderCatalog().filter(p=>p.unit_confirmed&&supplyItem(p)&&p.category!=='키친 발주'),catalogAll);renderSupplies(host,{items,t,esc,name:showName,unitLabel:p=>unitLabel(p),picture:p=>p.photo_path&&photoURLs[p.photo_path]?`<img src="${esc(photoURLs[p.photo_path])}" alt="">`:`<span style="background:#e6e8dc;width:100%;height:100%;display:grid;place-items:center;font-size:10px">${esc(name(p).slice(0,4))}</span>`,getQty:p=>Number(quantities[p.id])||0,setQty:(p,q)=>stepSetQty(p,q,{store,userId:user?.id},false),qtyStep:p=>halfBoxCount(p),qtyDisplay:(p,q)=>displayQuantity(p,q),onTheWay,back:()=>{suppliesOpen=false;if(String(category).startsWith('포장')){category='';subgroup='';}renderOrderArea();},openBasket:()=>{cartOpen=true;renderCart();},locked:!!draft?.submitted_order_id||uncertain||busy,preview:isPreview()});}
+function renderSupplyOrder(host){const items=sortProductRows(orderCatalog().filter(p=>p.unit_confirmed&&skipCount(p)&&p.category!=='키친 발주'),catalogAll);renderSupplies(host,{items,t,esc,name:showName,unitLabel:p=>unitLabel(p),picture:p=>p.photo_path&&photoURLs[p.photo_path]?`<img src="${esc(photoURLs[p.photo_path])}" alt="">`:`<span style="background:#e6e8dc;width:100%;height:100%;display:grid;place-items:center;font-size:10px">${esc(name(p).slice(0,4))}</span>`,getQty:p=>Number(quantities[p.id])||0,setQty:(p,q)=>stepSetQty(p,q,{store,userId:user?.id},false),qtyStep:p=>halfBoxCount(p),qtyDisplay:(p,q)=>displayQuantity(p,q),onTheWay,back:()=>{suppliesOpen=false;if(String(category).startsWith('포장')){category='';subgroup='';}renderOrderArea();},openBasket:()=>{cartOpen=true;renderCart();},locked:!!draft?.submitted_order_id||uncertain||busy,preview:isPreview()});}
 function renderSteps(list){if(suppliesOpen||supplyItem({category})){renderSupplyOrder($('#products'));return;}const host=$('#products'),layout=currentLayout(),shift=shiftOf(),countable=orderCatalog().filter(p=>p.unit_confirmed&&p.category!=='키친 발주'&&!skipCount(p)),items=groupTogether(list.filter(p=>p.unit_confirmed&&!skipCount(p)&&inShift(p,shift)),teaBag);const cats=ordered([...new Set(orderCatalog().map(p=>p.category))].sort(),layout.category_order).filter(c=>c!=='키친 발주');const ci=cats.indexOf(category),next=category&&ci>=0?cats.slice(ci+1).find(c=>countable.some(p=>p.category===c&&inShift(p,shift)))||null:null;const art=p=>artwork[p.id]||{};const countContext={store,userId:user?.id,stock,rules:stockRules};
  renderOrderSteps(host,{state:stepStateFor(),items,key:[shift,category,subgroup,filter,search].join('|'),title:subgroup||category||(filter==='need'?t('발주 필요','Needs order'):t('전체','All')),t,esc,name:showName,
   unitLabel:p=>{if(cookieBag(p))return t('재고는 낱개 · 1봉 = 20개','Count pieces · 1 bag = 20 pcs');if(halfBoxCount(p)===32||countFactor(p)>1)return '';const pack=sheetUnitPolicy(p);return pack?.package_quantity&&['ml','g'].includes(pack.package_unit)?`${unitLabel(p)} · ${pack.package_quantity>=1000?pack.package_quantity/1000:pack.package_quantity}${pack.package_quantity>=1000?(pack.package_unit==='ml'?'L':'kg'):pack.package_unit}`:unitLabel(p);},
