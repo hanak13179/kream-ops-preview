@@ -48,3 +48,7 @@ test('access status separates disabled accounts from pending requests and keeps 
  assert.equal(accountLocation(accounts[0]),'finch');assert.equal(accountLocation(accounts[1]),'multiple');assert.equal(accountLocation(accounts[2]),'multiple');assert.equal(accountLocation(accounts[3]),'factory');assert.equal(accountLocation(accounts[4]),'all');assert.equal(accountLocation(accounts[5]),'midland');assert.equal(accountLocation(accounts[6]),'downtown');assert.equal(accountStatus(accounts[7]),'disabled');assert.equal(accountStatus(accounts[8]),'disabled');assert.equal(accountLocation(accounts[9]),'unassigned');
  assert.deepEqual(sections.find(s=>s.status==='disabled').groups[0].accounts.map(a=>a.user_id).sort(),['blocked','disabled']);
 });
+test('approval requests keep their top-level folder even when no requests are pending',()=>{
+ const groups=groupAccounts([{user_id:'a',role:'employee',active:true,store_ids:['finch'],requests:[]}]);
+ assert.equal(groups[0].status,'pending');assert.equal(groups[0].groups.length,0);assert.equal(groups[1].status,'enabled');
+});
