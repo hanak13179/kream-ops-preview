@@ -3,14 +3,26 @@ import {sortCatalog} from './order-layout.mjs?v=20261119-garnish-sequence';
 
 export const storageZones=[['chilled-desserts','냉장 디저트','Chilled desserts'],['chilled-ingredients','냉장 음료재료','Chilled drink ingredients'],['frozen','냉동','Frozen'],['supplies','포장·소모품','Packaging & supplies'],['ambient','상온','Ambient'],['unassigned','보관장소 확인','Check storage location'],['midland','미드랜드 크림밤','Midland Kream Bombs']];
 const compact=s=>String(s||'').replace(/\s/g,'');
+export function storageLocationNote(p,lang='ko'){
+ return compact(p.name_ko)==='삼각김밥라벨스티커'?(lang==='en'?'Office':'사무실'):'';
+}
 export function storageZone(p,store){
  const n=compact(p.name_ko),g=compact(p.subgroup),cat=compact(p.category);
  if(g==='크림밤')return store==='midland'?'midland':'unassigned';
+ // Confirmed locations override broad packaging, dessert and powder groups.
+ if(storageLocationNote(p))return 'ambient';
  if(/포장|소모품|생일용품|주방및포장용품/.test(cat+' '+g)||['커피빈','판매용커피빈','스플렌다'].includes(n))return 'supplies';
+ if(['죠리퐁','조리퐁','리얼레몬주스','딸기청'].includes(n))return 'ambient';
+ if(['레몬','바나나','아몬드밀크','오트밀크','스패너크림','콜드브루','말차음료베이스','할라피뇨'].includes(n)||/페이스트/.test(n)||/^갈릭마요소스/.test(n)||/^티라미수크림/.test(n)||/^티라미수베이스/.test(n))return 'chilled-ingredients';
+ if(g==='캔음료'||/캔$/.test(n)||n==='화채')return 'chilled-ingredients';
+ if(/홀케이크|홀케익/.test(n+' '+g)||['소세지빵','소시지빵','바나나푸딩'].includes(n))return 'chilled-desserts';
+ if(/^베이글(?:\(|$)/.test(n)||['생지','유부'].includes(n)||(/두바이|두쫀쿠/.test(n)&&!g.includes('재료')))return 'frozen';
  if(/티백|파우더/.test(n)||['설탕','황설탕','삼각김밥김','로투스','오레오','레이디핑거'].includes(n))return 'ambient';
  if(/냉동/.test(n)||['미니스콘','미니크루아상','휘낭시에','티라미수','아이스크림','사워도우'].includes(g))return 'frozen';
  if(g==='쿠키'&&!/두바이|두쫀쿠|구찌|세트/.test(n))return 'frozen';
+ // Rare cheesecake keeps its previously confirmed chilled location.
  if(['레어치즈케이크','시루','시루크럼블','요거트쇼트케이크','푸딩'].includes(g))return 'chilled-desserts';
+ if(/치즈케이크|치즈케익/.test(g)||(/치즈케이크|치즈케익/.test(n)&&!n.includes('레어')))return 'frozen';
  if(['우유2%','티라미수라떼베이스'].includes(n))return 'chilled-ingredients';
  return 'unassigned';
 }

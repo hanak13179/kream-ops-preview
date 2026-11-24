@@ -39,3 +39,20 @@ test('English units and numbered stores contain no Korean display labels',()=>{
 test('Midland kilogram taro item is orderable only at Midland',()=>{
  const p={id:'midland-sheet-taro-base-1kg',category:'원재료·음료',subgroup:'음료 베이스'};assert.equal(availableForStore(p,'midland'),true);for(const s of ['finch','downtown','richmond-hill'])assert.equal(availableForStore(p,s),false);
 });
+test('confirmed November 24 locations cover food, beverage and office items without overriding rare cheesecake',async()=>{
+ const {storageLocationNote}=await import('../dispatch-storage-model.mjs');
+ const cases={
+  frozen:['베이글','베이글 (박스)','두바이쫀득쿠키','오리지널 두바이쫀득쿠키','밤 치즈케이크 · 크림 포함','티라미수 치즈케이크','생지','유부'],
+  'chilled-desserts':['딸기 4인치 홀케이크 (워크인)','망고 4인치 홀케이크 (워크인)','소세지빵','바나나 푸딩'],
+  'chilled-ingredients':['아몬드 밀크','오트 밀크','스패너 크림','티라미수 크림 ( 음료제조용 )','화채 캔','미숫가루 캔','블루베리 티 캔','레몬','바나나','라임 페이스트','청포도 페이스트','콜드브루','말차 음료 베이스','갈릭마요소스 (베이킹용)','티라미수베이스 (티라미수제조용)','할라피뇨'],
+  ambient:['죠리퐁','리얼 레몬 주스','딸기 청','삼각김밥 라벨스티커']
+ };
+ for(const [zone,names] of Object.entries(cases))for(const name_ko of names)assert.equal(storageZone({name_ko},'finch'),zone,name_ko);
+ assert.equal(storageZone({name_ko:'삼각김밥 라벨 스티커',category:'포장·소모품'},'finch'),'ambient');
+ assert.equal(storageLocationNote({name_ko:'삼각김밥 라벨스티커'}),'사무실');
+ assert.equal(storageLocationNote({name_ko:'삼각김밥 라벨스티커'},'en'),'Office');
+ assert.equal(storageLocationNote({name_ko:'티라미수베이스'}),'');
+ assert.equal(storageZone(catalog[0],'finch'),'chilled-desserts');
+ assert.equal(storageZone({name_ko:'딸기 크림치즈',subgroup:'베이글 & 크림치즈'},'finch'),'unassigned');
+ assert.equal(storageZone({name_ko:'타로 음료 베이스'},'midland'),'unassigned');
+});
