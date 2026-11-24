@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kream 발주게임 미리보기</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f7f3ea;color:#352c22;font:16px/1.5 system-ui,sans-serif}main{width:min(100%,680px);padding:14px;margin:auto}h1{margin:10px 0;font-size:26px}h3{overflow-wrap:anywhere}button{cursor:pointer}header{background:#ffe39a;padding:9px;text-align:center;font-size:13px}.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}.tabs button,.basket,.check{font:inherit;border:0;min-height:44px;border-radius:12px;background:#fff;padding:8px 12px;color:inherit}.tabs [aria-pressed=true],.basket{background:#3e4b33;color:#fff}.rows{display:grid;gap:7px;padding:0;list-style:none}.rows li{background:white;border-radius:12px;padding:10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;overflow-wrap:anywhere}.check{background:#e9eddf;font-size:14px}.check[aria-pressed=true]{background:#3e4b33;color:#fff}dialog{width:min(440px,calc(100% - 24px));max-height:85vh;border:0;border-radius:18px;padding:18px;color:inherit}#view{min-width:0}.so-pic{display:grid;place-items:center;background:#f1eadc}
+</style>
+<header>미리보기 · 예시 품목으로 테스트 · 실제 발주 전송 없음</header>
+<main>
+<h1>발주게임</h1>
+<nav class="tabs" aria-label="발주 메뉴"><button id="required" aria-pressed="true">필수 확인</button><button id="extra" aria-pressed="false">📦 추가 주문</button><button class="basket" id="basket">발주함 보기</button></nav>
+<div id="view"></div>
+</main>
+<dialog id="cart"><h2>발주함</h2><ul id="basket-items" class="rows"></ul><form method="dialog"><button class="check">닫기</button></form></dialog>
+<script type="module">
+import {renderSupplies} from './supplies-order.mjs';
+import {isRequiredOrderItem} from './required-order-items.mjs';
+const inventory = {
+  '원재료·음료': ['우유 2%','스패너 크림','아몬드 밀크','오트 밀크','화채 캔','리얼 망고 프루티 캔','미숫가루 캔','콜드브루','유자 페이스트','다이제스티브'],
+  '디저트': ['딸기 레어 치즈케이크','망고 레어 치즈케이크','오레오 레어 치즈케이크','초코 레어 치즈케이크','딸기 치아시드 푸딩','망고 치아시드 푸딩','코코넛 치아시드 푸딩','클래식 티라미수','마차 티라미수','망고 티라미수','미니 크로와상','두바이쫀득쿠키 초코맛','딸기 홀케이크','초코 홀케이크','피칸쿠키','말차 두바이쫀득쿠키','플레인 사워도우'],
+  '포장·소모품': ['12oz 핫컵 흰색 뚜껑','16oz 투명 아이스컵','소형 손잡이 종이봉투','영수증 용지','삼각김밥 라벨스티커','스카치테이프']
+};
+const products = Object.entries(inventory).flatMap(([category,names]) => names.map(name_ko=>({id:name_ko,name_ko,category,unit_confirmed:true})));
+const checked = new Set(), quantities = new Map();
+const $ = selector=>document.querySelector(selector);
+const esc = x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const unit = p=>p.category==='포장·소모품'?'박스':p.name_ko.includes('콜드브루')?'케이스':p.name_ko.includes('두바이')?'반 박스':p.name_ko==='피칸쿠키'?'봉':'개';
+const updateBasket=()=>{$('#basket').textContent='발주함 보기'+(quantities.size?' · '+quantities.size+'개':'');};
+function openBasket(){
+  $('#basket-items').innerHTML=[...quantities].map(([p,q])=>'<li>'+esc(p.name_ko)+' <b>'+q+' '+unit(p)+'</b></li>').join('')||'<li>담은 품목이 없어요.</li>';
+  $('#cart').showModal();
+}
+function show(extra){
+  $('#extra').setAttribute('aria-pressed',extra);
+  $('#required').setAttribute('aria-pressed',!extra);
+  const host=$('#view');
+  if(extra){
+    renderSupplies(host,{items:products.filter(p=>!isRequiredOrderItem(p)),t:ko=>ko,esc,name:p=>p.name_ko,unitLabel:unit,picture:p=>p.category==='포장·소모품'?'📦':'＋',getQty:p=>quantities.get(p)||0,setQty:(p,q)=>{if(q)quantities.set(p,q);else quantities.delete(p);updateBasket();},qtyStep:()=>1,qtyDisplay:(p,q)=>q+' '+unit(p),openBasket});
+    return;
+  }
+  const required=products.filter(isRequiredOrderItem);
+  host.innerHTML='<h3>필수 재고 확인 · '+checked.size+'/'+required.length+'</h3><ul class="rows">'+required.map(p=>'<li><span>'+esc(p.name_ko)+'</span><button class="check" data-check="'+esc(p.id)+'" aria-pressed="'+checked.has(p.id)+'">'+(checked.has(p.id)?'✓ 확인 완료':'확인하기')+'</button></li>').join('')+'</ul>';
+  host.onclick=e=>{const id=e.target.dataset.check;if(!id)return;if(checked.has(id))checked.delete(id);else checked.add(id);show(false);};
+}
+$('#required').onclick=()=>show(false);
+$('#extra').onclick=()=>show(true);
+$('#basket').onclick=openBasket;
+show(false);
+</script>
