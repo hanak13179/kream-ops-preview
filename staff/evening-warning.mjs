@@ -11,9 +11,9 @@ export function isEvening(now = new Date()) { const h = torontoHour(now); return
 
 /** 무엇을 알려줄지: {remaining, total, submitted, cashDone (true|false|null=모름), cashPage} → [{key, ko, en}] */
 export function eveningItems({remaining = 0, total = 0, submitted = true, cashDone = null, cashPage = false}) {
-  const out = [];
-  if (total && remaining > 0) out.push({key: 'order', ko: `재고 세기 ${remaining}개가 남았어요 (${total - remaining}/${total})`, en: `${remaining} stock counts left (${total - remaining}/${total})`});
-  else if (total && !submitted) out.push({key: 'order', ko: '재고는 다 셌는데 발주함을 아직 보내지 않았어요', en: 'Counts are done but the basket has not been sent'});
+  const out = [], auto = submitted ? '' : ' · 새벽 3시까지 안 보내면 지금 발주함 그대로 자동 발주돼요', autoEn = submitted ? '' : ' · if not sent by 3 AM, the basket is sent as is';
+  if (total && remaining > 0) out.push({key: 'order', ko: `재고 세기 ${remaining}개가 남았어요 (${total - remaining}/${total})` + auto, en: `${remaining} stock counts left (${total - remaining}/${total})` + autoEn});
+  else if (total && !submitted) out.push({key: 'order', ko: '재고는 다 셌는데 발주함을 아직 보내지 않았어요' + auto, en: 'Counts are done but the basket has not been sent' + autoEn});
   if (cashPage && cashDone === false) out.push({key: 'cash', ko: '오늘 캐시 카운트를 아직 안 했어요', en: 'Today’s cash count is not done yet'});
   return out;
 }

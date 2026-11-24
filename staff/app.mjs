@@ -32,7 +32,7 @@ import {renderCatalogTools,openProduct,signedPhotos,canManageProducts} from './c
 import {renderDailyLog} from './daily-log.mjs?v=20261102-whole-quantity';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
 import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261123-together';
-import {isEvening,eveningItems,eveningHtml,cashSaved,CASH_STORES as EVENING_CASH_STORES,EVENING_CSS} from './evening-warning.mjs?v=20261123-evening';
+import {isEvening,eveningItems,eveningHtml,cashSaved,CASH_STORES as EVENING_CASH_STORES,EVENING_CSS} from './evening-warning.mjs?v=20261123-auto3';
 import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261123-minsave3';
 import {renderSupplies} from './supplies-order.mjs?v=20261123-fairy';
 import {renderProductionLog} from './production-log.mjs?v=20261119-memo-items';
