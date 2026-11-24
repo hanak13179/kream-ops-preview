@@ -160,6 +160,8 @@ export function renderOrderSteps(host, c) {
   const progress = () => countProgress(c.getRequiredIds?.() || c.allIds || items.map(p=>p.id), s.done, s.failed);
   const pendingMessage = n => t(`아직 ${n}개 품목이 남아 있어요. 나머지 품목도 모두 확인해 주세요.`, `${n} items still need checking. Please check every remaining item.`);
   function firstUndone() { const i = items.findIndex(p => !s.done.has(p.id)); return i < 0 ? 0 : i; }
+  // 다음 품목: 이 매장에서 오늘 아직 안 센 것만 (다른 직원이 이미 센 건 건너뛰어요)
+  function nextUndone(from) { for (let i = from; i < items.length; i++) if (!s.done.has(items[i].id) || s.failed.has(items[i].id)) return i; return items.length; }
   let doneCount = 0;
   function head() {
     doneCount = items.filter(p => s.done.has(p.id)).length;
@@ -356,7 +358,7 @@ export function renderOrderSteps(host, c) {
           pop(s.streak % 5 === 0 ? '🔥' : fast ? '⚡' : ['⭐', '✨', '👍', '💪'][s.streak % 4]);
         }
         s.lastNext = now;
-        s.index += 1;
+        s.index = nextUndone(s.index + 1);
         if (s.index >= items.length) s.finishedIn = s.startedAt ? Math.max(1, Math.round((now - s.startedAt) / 1000)) : 0;
         return draw();
       }

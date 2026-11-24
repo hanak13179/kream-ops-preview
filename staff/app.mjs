@@ -31,7 +31,7 @@ import {renderMaterials} from './materials.mjs?v=20261119-garnish-sequence';
 import {renderCatalogTools,openProduct,signedPhotos,canManageProducts} from './catalog-editor.mjs?v=20261104-drag-only';
 import {renderDailyLog} from './daily-log.mjs?v=20261102-whole-quantity';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
-import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261123-fairy';
+import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261123-together';
 import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261123-minsave3';
 import {renderSupplies} from './supplies-order.mjs?v=20261123-fairy';
 import {renderProductionLog} from './production-log.mjs?v=20261119-memo-items';
@@ -226,8 +226,14 @@ function stepStateFor(){const today=countDate();if(!stepState||stepState.store!=
 function stepSetQty(p,q,context,automatic=false){if(context&&(store!==context.store||user?.id!==context.userId))throw Error('COUNT_CONTEXT_CHANGED');quantities[p.id]=q;if(automatic)autoAssigned[p.id]=q;else delete autoAssigned[p.id];dirty=true;draftStatus();renderCart();scheduleBasketSave();}
 async function stepSaveStock(p,onHand,context){
  if(isPreview()||store!==context.store||user?.id!==context.userId)throw Error('COUNT_CONTEXT_CHANGED');
- const targetStore=context.store,old=context.stock.find(s=>s.product_id===p.id),rule=context.rules.find(r=>r.product_id===p.id&&r.store_id===targetStore);
- const r=await db.rpc('kream_save_stock_plan',{target_store:targetStore,target_product:p.id,new_on_hand:onHand,new_minimum:old?.minimum??null,weekday_base:rule?.weekday_base??null,weekend_base:rule?.weekend_base??null,weekend_days:rule?.weekend_days||[5,6,0],expected_stock_revision:old?.revision||0,expected_rule_revision:rule?.revision||0});if(r.error)throw r.error;
+ const targetStore=context.store;
+ // 같이 세는 중이면 다른 직원이 방금 같은 품목을 저장했을 수 있어요 → 저장 직전에 최신 줄을 읽고, 엇갈리면 한 번 더 (나중에 센 값이 남아요)
+ let r;for(let attempt=0;attempt<2;attempt++){
+  const [old,rule]=await Promise.all([latestRow('kream_stock',targetStore,p.id),latestRow('kream_stock_rules',targetStore,p.id)]);
+  r=await db.rpc('kream_save_stock_plan',{target_store:targetStore,target_product:p.id,new_on_hand:onHand,new_minimum:old?.minimum??null,weekday_base:rule?.weekday_base??null,weekend_base:rule?.weekend_base??null,weekend_days:rule?.weekend_days||[5,6,0],expected_stock_revision:old?.revision||0,expected_rule_revision:rule?.revision||0});
+  if(!r.error)break;
+ }
+ if(r.error)throw r.error;
  const [row,ruleRow]=await Promise.all([db.from('kream_stock').select('product_id,on_hand,minimum,revision,updated_at,physical_count_at').eq('store_id',targetStore).eq('product_id',p.id).maybeSingle(),db.from('kream_stock_rules').select('*').eq('store_id',targetStore).eq('product_id',p.id).maybeSingle()]);if(row.error||ruleRow.error)throw row.error||ruleRow.error;
  if(store!==targetStore||user?.id!==context.userId)throw Error('COUNT_CONTEXT_CHANGED');
  if(row.data){stock=[...stock.filter(s=>s.product_id!==p.id),row.data];context.stock=stock;}if(ruleRow.data){stockRules=[...stockRules.filter(r=>!(r.product_id===p.id&&r.store_id===targetStore)),ruleRow.data];context.rules=stockRules;}
@@ -404,7 +410,7 @@ setInterval(async()=>{
  if(r.error||a.error||countDate()!==currentDay||store!==currentStore||page!=='order'||isPreview()||busy||dirty||hasStockEdits()||hasModuleEdits()||document.querySelector('.stock-editor[open]'))return;
  const checks=[...availabilityChecks.filter(x=>x.store_id!==currentStore),...(a.data||[])];if(JSON.stringify(r.data)!==JSON.stringify(stock)||JSON.stringify(checks)!==JSON.stringify(availabilityChecks)||leftoverKey!==[store,currentDay,phase].join('|')){stock=r.data;availabilityChecks=checks;renderOrderArea();}
  }catch{}
-},60000);
+},15000);   // 같이 세는 직원 것도 15초 안에 보여요 (매장별)
 startSystemLabels();
 boot();
 
