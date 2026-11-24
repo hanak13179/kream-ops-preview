@@ -93,6 +93,17 @@ export function renderMinimumEditor(host, c) {
     if (bar) { bar.querySelector('span').textContent = n ? t(`${n}개 바뀜`, `${n} changed`) : t('바뀐 것 없음', 'No changes'); bar.querySelector('[data-me="save"]').disabled = !n || s.saving || c.preview; bar.querySelector('[data-me="undo"]').disabled = !n; }
   }
 
+  // 새 최소수량을 발주함에 반영한 결과
+  const basketNote = res => {
+    if (!res) return '';
+    if (res.error) return ' ' + t(`(발주함 반영은 실패했어요: ${res.error})`, `(Could not update the basket: ${res.error})`);
+    let out = '';
+    if (res.applied?.length) out += ' ' + (res.additional
+      ? t(`이미 발주완료된 것 말고 더 필요한 만큼 ${res.applied.length}개를 새 발주함(추가발주)에 넣었어요: ${res.applied.map(a => `${a.name} ${a.to}`).join(', ')}. 발주함 확인 → 발주완료를 눌러야 공장에 가요.`, `Added the extra needed for ${res.applied.length} items to a new basket (additional order): ${res.applied.map(a => `${a.name} ${a.to}`).join(', ')}. Press Submit to send it.`)
+      : t(`발주함에도 반영했어요: ${res.applied.map(a => `${a.name} ${a.from}→${a.to}`).join(', ')}.`, `Basket updated: ${res.applied.map(a => `${a.name} ${a.from}→${a.to}`).join(', ')}.`));
+    if (res.over?.length) out += ' ' + t(`이미 보낸 양이 새 최소수량보다 많아요 (줄이지 않았어요): ${res.over.map(o => `${o.name} ${o.already}`).join(', ')}.`, `Already sent more than the new minimum (not reduced): ${res.over.map(o => `${o.name} ${o.already}`).join(', ')}.`);
+    return out;
+  };
   host.onclick = async e => {
     const b = e.target.closest('button'); if (!b || !host.contains(b)) return;
     const id = b.dataset.id, k = b.dataset.k;
@@ -129,8 +140,8 @@ export function renderMinimumEditor(host, c) {
       const n0 = list.length;
       s.saving = true; draw();
       try {
-        await c.save(list);
-        s.msg = t(`${list.length}개 최소수량을 업데이트했어요.`, `Updated ${list.length} minimums.`); s.err = false;
+        const res = await c.save(list);
+        s.msg = t(`${list.length}개 최소수량을 업데이트했어요.`, `Updated ${list.length} minimums.`) + basketNote(res); s.err = false;
       } catch (err) {
         const why = r => /permission|denied|not allowed|42501|forbidden|권한/i.test(r) ? t('권한이 없어요', 'no permission')
           : /revision|conflict|stale|changed|modified/i.test(r) ? t('다른 사람이 방금 바꿨어요', 'someone just changed it')
@@ -140,6 +151,7 @@ export function renderMinimumEditor(host, c) {
         s.msg = list.length
           ? t(`${ok ? ok + '개는 저장했어요. ' : ''}저장 안 된 품목: ${list.join(', ')}. 색이 남은 품목을 다시 업데이트해 주세요.`, `${ok ? ok + ' saved. ' : ''}Not saved: ${list.join(', ')}. Update the highlighted items again.`)
           : t(`저장이 안 됐어요 (${why(String(err?.message || err))}). 다시 업데이트해 주세요.`, `Not saved (${why(String(err?.message || err))}). Please try again.`);
+        s.msg += basketNote(err?.applied);
         s.err = true;
       } finally { s.saving = false; draw(); }
     }

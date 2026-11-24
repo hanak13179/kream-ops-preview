@@ -32,7 +32,7 @@ import {renderCatalogTools,openProduct,signedPhotos,canManageProducts} from './c
 import {renderDailyLog} from './daily-log.mjs?v=20261102-whole-quantity';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
 import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261122-manual-quantity';
-import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261123-minsave2';
+import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261123-minsave3';
 import {renderProductionLog} from './production-log.mjs?v=20261119-memo-items';
 import {renderChecklist} from './checklist.mjs?v=20261104-manual-compact';
 import {sortCatalog,sortProductRows,ordered,groupKey} from './order-layout.mjs?v=20261119-garnish-sequence';
@@ -324,7 +324,7 @@ function fixBagRule(p,r){return r;}
 function minimumOf(p){const r=stockRules.find(x=>x.product_id===p.id&&x.store_id===store),effective=withSheetRule(r,sheetRecommendations.find(x=>x.product_id===p.id&&x.store_id===store),stock.find(x=>x.product_id===p.id));return {wd:r?.weekday_base==null?null:countDisplay(p,r.weekday_base),we:r?.weekend_base==null?null:countDisplay(p,r.weekend_base),sug:effective?.weekday_base==null?null:countDisplay(p,effective.weekday_base)};}
 function renderMinimums(list){if(!minState||minState.store!==store){minState=createMinimumState();minState.store=store;}const items=list.filter(p=>p.unit_confirmed&&p.category!=='키친 발주'&&!availabilityProduct(p)&&!skipCount(p)); /* 포장·아이스크림(있다/없다)과 티백(봉지)은 1개씩 자동 주문이라 최소수량 없음 */
  renderMinimumEditor($('#products'),{state:minState,items,t,esc,name:showName,unitLabel:p=>halfBoxCount(p)===32?t('낱개로 · 64개 box (반 박스 32개)','pieces · 64-pc box (half 32)'):countFactor(p)>1?t(`${sheetUnitPolicy(p)?.package_unit==='소포장 판매분'?'소포장 판매분':sheetUnitPolicy(p)?.package_unit==='판매분'?'판매분':countFactor(p)===10?'조각':'낱개'}로 · ${countUnitLabel(p)}`,`pieces · ${countUnitLabel(p)}`):unitLabel(p),current:minimumOf,preview:isPreview(),loadSheet:()=>sheetMinimums(items),
-  save:async changes=>{const targetStore=store;const failures=[];for(const {p,weekday,weekend} of changes){let wd,we;try{const whole=v=>v==null||v===''?v:(countFactor(p)>1?Math.round(Number(v)):v);wd=weekday==null?null:countInput(p,whole(weekday));we=weekend==null?null:countInput(p,whole(weekend));}catch(e){failures.push({p,error:e});continue;}let saved=false,last=null;for(let attempt=0;attempt<2&&!saved;attempt++){try{const [old,rule]=await Promise.all([latestRow('kream_stock',targetStore,p.id),latestRow('kream_stock_rules',targetStore,p.id)]);const r=await db.rpc('kream_save_count_rule',{target_store:targetStore,target_product:p.id,weekday_base:wd,weekend_base:we,weekend_days:rule?.weekend_days||[5,6,0],expected_stock_revision:old?.revision||0,expected_rule_revision:rule?.revision||0});if(r.error)throw r.error;saved=true;delete minState.edits[p.id];}catch(e){last=e;}}if(!saved)failures.push({p,error:last});}await loadOrders();await loadModules();if(failures.length){const err=Error('MINIMUM_SAVE_FAILED');err.failures=failures.map(f=>({name:showName(f.p),reason:String(f.error?.message||f.error||'')}));throw err;}}});}
+  save:async changes=>{const targetStore=store;const failures=[],savedProducts=[];for(const {p,weekday,weekend} of changes){let wd,we;try{const whole=v=>v==null||v===''?v:(countFactor(p)>1?Math.round(Number(v)):v);wd=weekday==null?null:countInput(p,whole(weekday));we=weekend==null?null:countInput(p,whole(weekend));}catch(e){failures.push({p,error:e});continue;}let saved=false,last=null;for(let attempt=0;attempt<2&&!saved;attempt++){try{const [old,rule]=await Promise.all([latestRow('kream_stock',targetStore,p.id),latestRow('kream_stock_rules',targetStore,p.id)]);const r=await db.rpc('kream_save_count_rule',{target_store:targetStore,target_product:p.id,weekday_base:wd,weekend_base:we,weekend_days:rule?.weekend_days||[5,6,0],expected_stock_revision:old?.revision||0,expected_rule_revision:rule?.revision||0});if(r.error)throw r.error;saved=true;savedProducts.push(p);delete minState.edits[p.id];}catch(e){last=e;}}if(!saved)failures.push({p,error:last});}await loadOrders();await loadModules();let applied=null;try{applied=await applyNewMinimums(targetStore,savedProducts);}catch(e){applied={error:String(e?.message||e)};}if(failures.length){const err=Error('MINIMUM_SAVE_FAILED');err.failures=failures.map(f=>({name:showName(f.p),reason:String(f.error?.message||f.error||'')}));err.applied=applied;throw err;}return applied;}});}
 async function latestRow(table,storeId,productId){const q=await db.from(table).select(table==='kream_stock'?'product_id,on_hand,minimum,revision':'*').eq('store_id',storeId).eq('product_id',productId).limit(1);if(q.error)throw q.error;return q.data?.[0]||null;}
 // 두바이 쫀득쿠키 같은 반 박스 품목은 박스로 적는데, 재고는 낱개로 세다 보니 '32'(낱개)를 적으면 32박스(2048개)로 들어갔어요 (웨슬리 11/23).
 // 매장 발주에서 16 이상은 박스가 아니라 낱개로 보고 반 박스 단위로 올려요: 32 → 0.5박스, 64 → 1박스.
@@ -333,6 +333,29 @@ function piecesNote(p,input){const n=Number(input.value);if(!p||halfBoxCount(p)!
 // 최소재고량 시트 → 최소수량 매니저: 시트 값을 읽어서 화면에 채워 넣어요. 저장은 매니저가 '업데이트 하기'로 (매니저 계정·권한으로).
 const MIN_SHEET_URL='https://script.google.com/macros/s/AKfycbwjnrGRDkR_qX7AmNq2S3oDVveSR1QbjED0FFga11Au1NcHWNNlPLQlZNwL7EpIlu6x/exec',MIN_SHEET_KEY='kream-stock-sync';
 async function sheetMinimums(items){const r=await fetch(MIN_SHEET_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'getMinimums',key:MIN_SHEET_KEY,store_id:store})});const j=await r.json();if(!j?.ok)throw Error(j?.error||'SHEET_READ_FAILED');const byId=new Map(items.map(p=>[p.id,p]));return (j.data?.rows||[]).filter(x=>x.store_id===store&&byId.has(x.product_id)).map(x=>{const p=byId.get(x.product_id);return {id:p.id,wd:x.minimum==null?null:countDisplay(p,x.minimum),we:x.weekend==null?null:countDisplay(p,x.weekend)};});}
+// 매니저가 최소수량을 바꾸면 그 품목만 이 매장 발주함에 다시 계산해서 넣어요 (오늘 재고를 센 품목만, 다른 품목은 그대로).
+// 추천 계산은 같은 입고희망일에 이미 발주완료된 양을 빼고 나와요 → 발주완료 전이면 발주함 수량이 새 값으로 바뀌고,
+// 발주완료 후면 모자란 만큼만 새 발주함(추가발주)에 들어가요. 발주완료를 눌러야 공장에 가요. 이미 보낸 양은 줄이지 않아요.
+async function applyNewMinimums(targetStore,products){
+ if(!products.length||store!==targetStore||isPreview()||uncertain)return null;
+ if(!dirty)await loadDraft();
+ if(draft?.submitted_order_id)return null;
+ const applied=[],over=[];
+ for(const p of products){
+  const count=stock.find(r=>r.product_id===p.id);
+  if(count?.on_hand==null||!countedToday(p))continue;
+  const extra=stepSuggest(p,count.on_hand);if(extra==null)continue;
+  const before=Number(quantities[p.id])||0;
+  const rule=withSheetRule(stockRules.find(r=>r.product_id===p.id&&r.store_id===store),sheetRecommendations.find(r=>r.product_id===p.id&&r.store_id===store),count);
+  const need=recommendation({on_hand:Number(count.on_hand)},rule,date),already=incoming(p);
+  if(need&&already>need.quantity)over.push({name:showName(p),already:displayQuantity(p,already)});
+  if(extra===before)continue;
+  if(extra>0){quantities[p.id]=extra;autoAssigned[p.id]=extra;}else{delete quantities[p.id];delete autoAssigned[p.id];}
+  applied.push({name:showName(p),from:displayQuantity(p,before),to:displayQuantity(p,extra)});
+ }
+ if(applied.length){dirty=true;await persistDraft();draftStatus();}
+ return {applied,over,additional:(orders||[]).some(o=>o.store_id===store&&o.delivery_date===date&&!/cancel/i.test(String(o.status||'')))};
+}
 function currentLayout(){return layoutRows.find(l=>l.store_id===store)||{};}
 function scrollOrderSelection(){requestAnimationFrame(()=>document.querySelector('#categories')?.scrollIntoView({block:'start',behavior:'instant'}));}
 function renderCategories(){const host=$('#categories'),catalog=orderCatalog();if(subgroup&&!(category==='키친 발주'&&['빵재료','디저트재료','식사재료'].includes(subgroup))&&!catalog.some(p=>p.subgroup===subgroup&&(!category||p.category===category)))subgroup='';const context={catalog,layout:currentLayout(),profile:screenProfile(),store,category,subgroup,t,esc,db,act:run,say,preview:isPreview(),redraw:()=>{renderCategories();renderProducts();},reload:loadModules};host.innerHTML=`<div class="chips categories"><button data-cat="" class="${!category?'active':''}">${t('전체','All')}</button>${ordered([...new Set([...catalog.map(p=>p.category),...(store==='finch'?['키친 발주']:[])])].sort(),currentLayout().category_order).map(c=>`<button data-cat="${esc(c)}" class="${category===c?'active':''}">${esc(c)}</button>`).join('')}</div>${subcategoryMarkup(context)}`;host.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{category=b.dataset.cat;subgroup='';filter='all';renderOrderArea();scrollOrderSelection();});host.querySelectorAll('[data-group]').forEach(b=>b.onclick=()=>{subgroup=b.dataset.group;filter='all';renderOrderArea();scrollOrderSelection();});const bottom=$('#orderLayoutTools'),tools=host.querySelector('.subcategory-tools');if(bottom&&typeof bottom.replaceChildren==='function'){bottom.replaceChildren();if(tools)bottom.appendChild(tools);}bindSubcategoryDrag($('#orderArea'),context);}
