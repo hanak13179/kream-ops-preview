@@ -165,7 +165,7 @@ export function renderOrderSteps(host, c) {
     doneCount = items.filter(p => s.done.has(p.id)).length;
     const full=progress(),pct=full.total?Math.round(full.completed/full.total*100):0;
     const sc = c.shiftCounts || {};
-    const shiftBar = c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">☀️ ${t('낮 요정', 'Day fairy')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🧚‍♀️ ${t('마감 요정', 'Closing fairy')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
+    const shiftBar = c.openSupplies ? `<div class="os-shift"><button aria-pressed="true">🧚‍♀️ ${t('발주 요정', 'Order fairy')}<small>${t('전부 다 해요', 'Everything')} · ${sc.all ?? ''}</small></button><button data-os="supplies">📦 ${t('소모품 주문', 'Supplies order')}<small>${t('소모품·패키징 · 더 필요해요!', 'Supplies · packaging · need more!')}</small></button></div>` : c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">☀️ ${t('낮 요정', 'Day fairy')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🧚‍♀️ ${t('마감 요정', 'Closing fairy')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
     return shiftBar + `<div class="os-head"><span class="os-count">${full.completed} / ${full.total}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${full.complete ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
     ${full.remaining.length?`<p class="os-cheer">${esc(t(...ENCOURAGEMENT[Math.floor(full.completed/3)%ENCOURAGEMENT.length]))}</p><p class="os-warn" role="status">${esc(pendingMessage(full.remaining.length))}${c.shift==='closing'&&c.carriedCount?` ${t('오전반 미확인 품목도 포함되어 있어요.','Includes unfinished morning tasks.')}`:''}</p>`:''}
     <div class="os-tools"><button data-os="one" aria-pressed="${s.view === 'one'}">${t('한 개씩', 'One by one')}</button><button data-os="list" aria-pressed="${s.view === 'list'}">✎ ${t('목록', 'List')}</button><button data-os="grid">▦ ${t('전체 목록', 'All items')}</button></div>`;
@@ -195,6 +195,9 @@ export function renderOrderSteps(host, c) {
     if(c.keepManual?.(p)&&s.order[p.id]==null)return {q:c.getQty(p)||0,auto:false,keep:true};
     if (s.order[p.id] != null) return {q: s.order[p.id], auto: false};
     const v = stored(p);
+    // 두쫀쿠: 충분히 많아요 / 반박스 주문 / 한박스 주문 → 고른 버튼이 바로 주문량
+    const chosen = v == null || v === undefined ? null : c.choiceOrder?.(p, v);
+    if (chosen != null) return {q: chosen, auto: true};
     // 포장·소모품(있다/없다)과 티백(1봉지/반봉지/없음): 모자라면 1개(박스·봉지) 주문.
     // 단, 이미 주문해서 오는 중(입고확인 전)이면 또 주문하지 않아요.
     if ((c.yesNo?.(p) || c.bagMode?.(p)) && v != null && v !== undefined) {
@@ -334,6 +337,7 @@ export function renderOrderSteps(host, c) {
       case 'one': s.view = 'one'; return draw();
       case 'list': s.view = 'list'; return draw();
       case 'grid': return c.showGrid();
+      case 'supplies': return c.openSupplies?.();
       case 'minus': return stepStock(-1);
       case 'plus': return stepStock(1);
       case 'qminus': return stepOrder(-1);
