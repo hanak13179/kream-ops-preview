@@ -14,8 +14,104 @@
 </main>
 <dialog id="cart"><h2>발주함</h2><ul id="basket-items" class="rows"></ul><form method="dialog"><button class="check">닫기</button></form></dialog>
 <script type="module">
-import {renderSupplies} from './supplies-order.mjs';
-import {isRequiredOrderItem} from './required-order-items.mjs';
+const compact = value => String(value ?? '').toLowerCase().replace(/[\s·%()_-]+/g, '');
+
+function isRequiredOrderItem(product) {
+  if (!product.unit_confirmed || product.category === '키친 발주') return false;
+  const ko = compact(product.name_ko);
+  const en = compact(product.name_en);
+  const group = compact(product.subgroup);
+  const dubai = /두바이쫀득|두쫀쿠/.test(ko) || /dubai.*(?:chewy|cookie)/.test(en);
+  if (dubai) return !/말차|녹차|쑥|matcha|greentea|mugwort/.test(ko + en) &&
+    (/초코|초콜릿|오리지널|choc|original/.test(ko + en) || /^(두바이쫀득쿠키|두쫀쿠)$/.test(ko));
+  return /^(우유(?:2)?|스패너크림|아몬드밀크|오트밀크|화채캔|리얼망고프루티캔|미숫가루캔)$/.test(ko) ||
+    /^(?:2milk|milk2|spannere?cream|almondmilk|oatmilk|hwachaecan|realmangofruitycan|misugarucan)$/.test(en) ||
+    /레어치즈케(이크|익)|치아[씨시]드|미니크로[와아]상|크로[와아]상미니|홀케(이크|익)/.test(ko + group) ||
+    /rarecheesecake|chiaseed|minicroissant|wholecake/.test(en) ||
+    (!/크림밤|치즈케(이크|익)|베이스|크림|음료제조용|kreambomb|cheesecake|base|cream/.test(ko + en) &&
+      /티라미수|tiramisu/.test(ko + en + group));
+}
+
+function isSupplyOrderItem(product) {
+  return /포장|소모품/.test(String(product.category ?? "") + String(product.subgroup ?? ""));
+}
+const STYLE_ID = 'supplies-order-style';
+const CSS = `
+.so{min-width:0;max-width:100%}.so-kinds{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.so-kinds button{border:1px solid #e4ddcc;border-radius:999px;padding:7px 10px;background:white;color:#443a2e;font:inherit;font-size:.85rem;min-height:40px}.so-kinds button[aria-pressed=true]{background:#3e4b33;color:white;border-color:#3e4b33}
+.so-top{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+.so-top button{border:0;border-radius:12px;padding:8px 12px;background:#fff;box-shadow:0 1px 4px #0001;font-weight:800}
+.so-top h3{margin:0;font-size:18px}
+.so-filters{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin:0 0 12px}.so-filters input,.so-filters select{width:100%;min-width:0;padding:10px;border:1px solid #e4ddcc;border-radius:9px;background:white;color:inherit;font:inherit}.so-filters [hidden],.so [hidden]{display:none}.so-basket{position:sticky;bottom:8px}.so-name{overflow-wrap:anywhere}@media(max-width:400px){.so-row{grid-template-columns:32px minmax(0,1fr) auto;gap:6px}.so-pic{width:32px;height:32px}.so-act{grid-column:2/4;justify-content:flex-end}.so-act .need{padding:8px;font-size:13px;min-height:44px}}
+.so-help{margin:0 0 10px;color:#6b6555;font-size:13px}
+.so-group{margin:12px 0 6px;padding:6px 10px;border-radius:10px;background:#efe9dc;font-weight:800;font-size:14px}
+.so-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;background:#fff;border-radius:14px;padding:8px 10px;margin:6px 0;box-shadow:0 1px 3px #0001}
+.so-row.on{outline:2px solid #e8583a;background:#fff6f2}
+.so-pic{width:44px;height:44px;border-radius:10px;overflow:hidden}
+.so-pic img{width:100%;height:100%;object-fit:cover}
+.so-name{font-weight:800;font-size:15px}
+.so-name small{display:block;font-weight:600;color:#6b6555;font-size:12px}
+.so-act{display:flex;align-items:center;gap:6px}
+.so-act .need{border:0;border-radius:12px;padding:10px 12px;background:#e8583a;color:#fff;font-weight:800;font-size:14px;white-space:nowrap}
+.so-act .less{border:0;border-radius:10px;width:34px;height:34px;background:#efe9dc;font-size:18px;font-weight:800}
+.so-act b{min-width:34px;text-align:center}
+.so-basket{margin-top:12px;width:100%;height:46px;border:0;border-radius:14px;background:#3e4b33;color:#fff;font-size:16px;font-weight:800}
+`;
+function ensureStyle() {
+  if (typeof document === 'undefined' || document.getElementById(STYLE_ID)) return;
+  const el = document.createElement('style'); el.id = STYLE_ID; el.textContent = CSS; document.head.appendChild(el);
+}
+function renderSupplies(host, c) {
+  ensureStyle();
+  const {t, esc} = c;
+  const categories = [...new Set(c.items.map(p => p.category).filter(Boolean))];
+  let search = '', category = '', kind = 'all';
+  const applyFilters = () => {
+    const query = search.trim().toLowerCase().replace(/\s/g, '');
+    let visible = 0;
+    host.querySelectorAll('[data-so-group]').forEach(group => {
+      let matches = 0;
+      group.querySelectorAll('[data-so-row]').forEach(row => {
+        row.hidden = (kind !== 'all' && kind !== row.dataset.kind) || Boolean(category && row.dataset.category !== category) || !row.dataset.search.includes(query);
+        if (!row.hidden) matches++;
+      });
+      group.hidden = matches === 0;
+      visible += matches;
+    });
+    host.querySelector('[data-so-empty]').hidden = visible > 0;
+  };
+  const draw = () => {
+    const groups = [];
+    c.items.forEach(p => { const k = [p.category, p.subgroup].filter(Boolean).join(' · '); let g = groups.find(x => x.k === k); if (!g) groups.push(g = {k, list: []}); g.list.push(p); });
+    const dis = c.locked || c.preview ? 'disabled' : '';
+    const n = c.items.filter(p => c.getQty(p) > 0).length;
+    host.innerHTML = `<div class="so"><div class="so-top"><h3>📦 ${t('추가 주문', 'Extra order')}</h3></div>
+      <p class="so-help">${t('필요한 품목만 골라 주세요. 버튼을 누를 때마다 발주 단위로 하나씩 담겨요.', 'Choose what you need. Each tap adds one ordering increment.')}</p>
+      <div class="so-kinds" role="group" aria-label="${t('품목 종류','Item type')}">${[['all',t('전체','All')],['food',t('식재료·메뉴','Food & ingredients')],['supply',t('소모품·포장','Supplies & packaging')]].map(([key,label])=>`<button data-so="kind" data-kind="${key}" aria-pressed="${kind===key}">${esc(label)}</button>`).join('')}</div><div class="so-filters"><input data-so-search type="search" aria-label="${t('품목 검색','Search items')}" placeholder="${t('품목 검색','Search items')}" value="${esc(search)}"><select data-so-category aria-label="${t('카테고리','Category')}"><option value="">${t('전체 카테고리','All categories')}</option>${categories.map(value => `<option value="${esc(value)}" ${category===value?'selected':''}>${esc(value)}</option>`).join('')}</select></div>
+      ${groups.map(g => `<section data-so-group><div class="so-group">${esc(g.k)} · ${g.list.length}</div>${g.list.map(p => { const q = c.getQty(p), way = c.onTheWay?.(p);
+        return `<div data-so-row data-kind="${isSupplyOrderItem(p)?'supply':'food'}" data-category="${esc(p.category || '')}" data-search="${esc(`${p.name_ko || ''} ${p.name_en || ''} ${c.name(p)}`.toLowerCase().replace(/\s/g, ''))}" class="so-row ${q > 0 ? 'on' : ''}"><div class="so-pic">${c.picture(p)}</div><div class="so-name">${esc(c.name(p))}<small>${esc(c.unitLabel(p))}${way ? ' · ' + esc(t(`${way.date} 도착 예정분 있음`, `arriving ${way.date}`)) : ''}</small></div>
+          <div class="so-act">${q > 0 ? `<button class="less" data-so="less" data-id="${esc(p.id)}" ${dis} aria-label="${t('하나 빼기', 'one less')}">−</button><b>${esc(c.qtyDisplay(p, q))}</b>` : ''}<button class="need" data-so="need" data-id="${esc(p.id)}" ${dis}>${t('더 필요해요!', 'Need more!')}</button></div></div>`;  }).join('')}</section>`).join('')}
+      <p data-so-empty hidden>${t('찾는 품목이 없어요.', 'No matching items.')}</p>
+      <button class="so-basket" data-so="basket">🛒 ${t(`발주함 보기${n ? ` · ${n}개` : ''}`, `Open basket${n ? ` · ${n}` : ''}`)}</button></div>`;
+    host.querySelector('[data-so-search]').oninput = event => { search = event.target.value; applyFilters(); };
+    host.querySelector('[data-so-category]').onchange = event => { category = event.target.value; applyFilters(); };
+    applyFilters();
+  };
+  host.onclick = e => {
+    const b = e.target.closest('button[data-so]'); if (!b || b.disabled) return;
+    if (b.dataset.so === 'kind') {
+      kind = b.dataset.kind;
+      host.querySelectorAll('[data-so="kind"]').forEach(button => button.setAttribute('aria-pressed', String(button === b)));
+      applyFilters();
+      return;
+    }
+    if (b.dataset.so === 'basket') return c.openBasket();
+    const p = c.items.find(x => x.id === b.dataset.id); if (!p) return;
+    const step = c.qtyStep(p) || 1, q = c.getQty(p);
+    c.setQty(p, Math.min(Math.floor(100000 / step) * step, Math.max(0, Math.round((q + (b.dataset.so === 'need' ? step : -step)) * 1000) / 1000)));
+    draw();
+  };
+  draw();
+}
 const inventory = {
   '원재료·음료': ['우유 2%','스패너 크림','아몬드 밀크','오트 밀크','화채 캔','리얼 망고 프루티 캔','미숫가루 캔','콜드브루','유자 페이스트','다이제스티브'],
   '디저트': ['딸기 레어 치즈케이크','망고 레어 치즈케이크','오레오 레어 치즈케이크','초코 레어 치즈케이크','딸기 치아시드 푸딩','망고 치아시드 푸딩','코코넛 치아시드 푸딩','클래식 티라미수','마차 티라미수','망고 티라미수','미니 크로와상','두바이쫀득쿠키 초코맛','딸기 홀케이크','초코 홀케이크','피칸쿠키','말차 두바이쫀득쿠키','플레인 사워도우'],
