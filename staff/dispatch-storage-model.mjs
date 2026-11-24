@@ -13,7 +13,7 @@ export function storageZone(p,store){
  if(storageLocationNote(p))return 'ambient';
  if(/포장|소모품|생일용품|주방및포장용품/.test(cat+' '+g)||['커피빈','판매용커피빈','스플렌다'].includes(n))return 'supplies';
  if(['죠리퐁','조리퐁','리얼레몬주스','딸기청'].includes(n))return 'ambient';
- if(['레몬','바나나','아몬드밀크','오트밀크','스패너크림','콜드브루','말차음료베이스','할라피뇨'].includes(n)||/페이스트/.test(n)||/^갈릭마요소스/.test(n)||/^티라미수크림/.test(n)||/^티라미수베이스/.test(n))return 'chilled-ingredients';
+ if(['레몬','바나나','아몬드밀크','오트밀크','스패너크림','콜드브루','말차음료베이스','할라피뇨','할라피뇨슬라이스피클'].includes(n)||/페이스트/.test(n)||/^갈릭마요소스/.test(n)||/^티라미수크림/.test(n)||/^티라미수베이스/.test(n))return 'chilled-ingredients';
  if(g==='캔음료'||/캔$/.test(n)||n==='화채')return 'chilled-ingredients';
  if(/홀케이크|홀케익/.test(n+' '+g)||['소세지빵','소시지빵','바나나푸딩'].includes(n))return 'chilled-desserts';
  if(/^베이글(?:\(|$)/.test(n)||['생지','유부'].includes(n)||(/두바이|두쫀쿠/.test(n)&&!g.includes('재료')))return 'frozen';

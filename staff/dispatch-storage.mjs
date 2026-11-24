@@ -1,4 +1,4 @@
-import {storageZones,storageLocationNote,storageUnit,numberedStore,storeNumber,buildStorageRows,storageGroups,rowEntryKey,checkedEntry,splitStorageEntries,displayQuantity,inputQuantity} from './dispatch-storage-model.mjs?v=20261124-storage-locations';
+import {storageZones,storageLocationNote,storageUnit,numberedStore,storeNumber,buildStorageRows,storageGroups,rowEntryKey,checkedEntry,splitStorageEntries,displayQuantity,inputQuantity} from './dispatch-storage-model.mjs?v=20261124-storage-jalapeno';
 import {halfBoxCount} from './packing.mjs?v=20261119-memo-items';
 import {orderReference} from './presentation.mjs?v=20261103-clean-confirmation';
 import {confirmDispatchSummary} from './dispatch-confirmation.mjs?v=20261105-dispatch-submit';
