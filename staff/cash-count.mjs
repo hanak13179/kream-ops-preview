@@ -73,6 +73,9 @@ const CSS = `
 .cc-crew input.h{width:64px;text-align:right}
 .cc-crew button{border:0;background:none;font-size:16px;color:#a0522d}
 .cc-crew tfoot td{font-weight:800;border-bottom:0}
+.cc-synced{margin:6px 0 0;padding:8px 10px;border-radius:12px;background:#e8f0fe;font-size:13px;font-weight:600}
+.cc-sched{display:block;margin-top:8px;padding:10px;border:1px dashed #b9b09a;border-radius:12px;font-size:14px;font-weight:700;text-align:center;cursor:pointer}
+.cc-sched input{display:none}
 .cc-add{margin-top:8px;width:100%;height:40px;border:1px dashed #b9b09a;border-radius:12px;background:#fff;font-size:15px;font-weight:700;color:#3b382f}
 .cc-diff{font-size:14px;font-weight:700}.cc-diff.over{color:#2f4a22}.cc-diff.short{color:#a0522d}
 `;
@@ -152,6 +155,24 @@ function load(store, date) {
     return {...blank(), ...(prev ? {open: cashPlan({...blank(), ...prev}).nextOpen} : {}), crew: lastCrew(store)};   // 지난번 근무자 이름을 미리 채워요 (시간은 비움)
   } catch { return blank(); }
 }
+// 시트 박스 → 앱 화면 값 (시트가 기준: 누가 시트에서 고치면 앱에도 그대로 보여요)
+export function fromSheetBox(box, base) {
+  const v = {...base, counts: {}};
+  DENOMS.forEach(([d], i) => { const n = Number(box.counts?.[i]) || 0; if (n) v.counts[String(d)] = n; });
+  const opt = x => (x === '' || x == null ? '' : money(x));
+  if (box.open !== '' && box.open != null) v.open = money(box.open);
+  v.cashSales = opt(box.pos); v.afterTax = opt(box.after); v.beforeTax = opt(box.before);
+  v.cashTips = opt(box.cashTips); v.cardTips = opt(box.cardTips);
+  v.crew = (box.crew || []).map(p => ({name: String(p.name || ''), hours: p.hours === '' || p.hours == null ? '' : Number(p.hours)}));
+  v.total = salesTotal(v.afterTax, v.beforeTax);
+  return v;
+}
+// 근무자 칸이 비었거나 이름만 있으면 Homebase 스케줄로 채워요
+export function crewFromSchedule(crew, schedule) {
+  if (!schedule?.length) return null;
+  if ((crew || []).some(p => p.hours !== '' && p.hours != null)) return null;
+  return schedule.map(p => ({name: p.name, hours: Number(p.hours) || ''}));
+}
 function keep(store, date, v) { try { localStorage.setItem(key(store, date), JSON.stringify(v)); } catch { /* 이 기기에 저장 못 해도 계산은 돼요 */ } }
 
 /** c: {stores:[{id,name}], store, t, esc, profile, preview} */
@@ -162,7 +183,18 @@ export function renderCashCount(host, c) {
   if (!stores.length) { host.innerHTML = `<p class="empty">${t('캐시 카운트는 1·3·4호점만 써요.', 'Cash count is for stores 1, 3 and 4 only.')}</p>`; return; }
   if (!stores.some(s => s.id === memory.store)) memory.store = stores.some(s => s.id === c.store) ? c.store : stores[0].id;
   if (!memory.date) memory.date = cashDate();
-  let v = load(memory.store, memory.date), saving = false;
+  let v = load(memory.store, memory.date), saving = false, synced = '', syncTok = 0, touched = false;
+  async function syncFromSheet() {
+    if (c.preview) return;
+    const tok = ++syncTok, store = memory.store, date = memory.date; touched = false;
+    try {
+      const got = await post({action: 'recordCash', op: 'getCash', store_id: store, count_date: date});
+      if (tok !== syncTok || touched) return;   // 그 사이 다른 날짜로 바꿨거나 이미 입력을 시작했어요
+      if (got.box) { v = fromSheetBox(got.box, v); synced = t('📋 시트에 저장된 값을 불러왔어요 (시트에서 고친 것도 보여요)', '📋 Loaded what is saved in the sheet (sheet edits show here too)'); }
+      else { const crew = crewFromSchedule(v.crew, got.schedule); if (crew) { v.crew = crew; synced = t(`📅 Homebase 스케줄로 근무자 ${crew.length}명을 채웠어요 · 고칠 수 있어요`, `📅 Filled ${crew.length} people from the Homebase schedule · you can edit`); } else synced = ''; }
+      draw();
+    } catch { /* 인터넷이 안 되면 이 기기 값으로 계속 써요 */ }
+  }
   const manager = MANAGERS.includes(c.profile?.role) || !!c.profile?.store_manager || !!c.profile?.general_manager;
   const split = memory.split || (memory.split = {from: shiftDate(cashDate(), -14), to: shiftDate(cashDate(), -1), csv: '', file: '', result: null, skipped: [], busy: false, msg: ''});
   const num = (id, label, val, hint) => `<span>${label}${hint ? `<small style="display:block;font-size:11px;color:#6b6555">${hint}</small>` : ''}</span><input id="${id}" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(val ?? '')}" placeholder="$">`;
@@ -250,10 +282,12 @@ export function renderCashCount(host, c) {
         <span>${t('팁 합계', 'Total tips')}<span class="cc-auto">${t('자동', 'auto')}</span></span><span class="big" id="ccTipTotal"></span>
       </div>
       <h3 style="margin-top:14px">👥 ${t('오늘 근무 (확인용)', 'Who worked today (to check)')}</h3>
+      ${synced ? `<p class="cc-synced">${esc(synced)}</p>` : ''}
       <table class="cc-crew"><thead><tr><th>${t('이름', 'Name')}</th><th>${t('시간', 'Hours')}</th><th>${t('현금', 'Cash')}</th><th>${t('카드', 'Card')}</th><th>${t('팁', 'Tip')}</th><th></th></tr></thead>
         <tbody>${(v.crew || []).map((p, i) => `<tr><td><input class="cc-in" data-crew="${i}" data-k="name" value="${esc(p.name || '')}" placeholder="${t('이름', 'Name')}" maxlength="40"></td><td><input class="h" type="number" inputmode="decimal" min="0" step="0.25" data-crew="${i}" data-k="hours" value="${esc(p.hours ?? '')}" placeholder="h"></td><td data-share="${i}c"></td><td data-share="${i}d"></td><td><b data-share="${i}t"></b></td><td><button data-cc="crewDel" data-i="${i}" aria-label="${t('빼기', 'Remove')}">✕</button></td></tr>`).join('')}</tbody>
         <tfoot><tr><td>${t('합계', 'Total')}</td><td id="ccCrewHours"></td><td id="ccCrewCash"></td><td id="ccCrewCard"></td><td id="ccCrewTip"></td><td></td></tr></tfoot></table>
       <button class="cc-add" data-cc="crewAdd">＋ ${t('사람 추가', 'Add person')}</button>
+      <label class="cc-sched">📅 ${t('Homebase 스케줄 올리기 (CSV)', 'Upload Homebase schedule (CSV)')}<input type="file" id="ccSchedFile" accept=".csv,text/csv"></label>
       <small style="display:block;margin-top:6px;color:#6b6555">${t('Homebase 스케줄을 보고 이름과 일한 시간을 적어요. 현금·카드 팁을 시간만큼 나눠요. 현금 팁은 봉투·시재와 따로 보관해요.', 'Check the Homebase schedule and enter names and hours. Cash and card tips are shared by hours. Keep cash tips separate from the envelope and float.')}</small></div>
       <div class="cc-card"><textarea id="ccNote" class="cc-note" maxlength="300" placeholder="${t('메모 (선택) · 예: 동전 롤 1개 따로 보관', 'Note (optional)')}">${esc(v.note || '')}</textarea></div>
       <div class="cc-actions"><button class="cc-clear" data-cc="clear">${t('다시 세기', 'Start over')}</button><button class="cc-save" data-cc="save" ${c.preview || saving ? 'disabled' : ''}>${saving ? t('저장 중…', 'Saving…') : t('시트에 저장 ✅', 'Save to sheet ✅')}</button></div>
@@ -300,7 +334,7 @@ export function renderCashCount(host, c) {
   const FIELDS = {ccOpen: 'open', ccCashSales: 'cashSales', ccAfterTax: 'afterTax', ccBeforeTax: 'beforeTax', ccCashTips: 'cashTips', ccCardTips: 'cardTips'};
 
   host.oninput = e => {
-    const el = e.target;
+    const el = e.target; touched = true;
     if (el.dataset.d) return setCount(el.dataset.d, el.value);
     if (el.dataset.crew != null) { const p = v.crew[Number(el.dataset.crew)]; if (p) { p[el.dataset.k] = el.dataset.k === 'hours' ? (el.value === '' ? '' : Number(el.value)) : el.value; refresh(); } return; }
     if (FIELDS[el.id]) { v[FIELDS[el.id]] = el.value === '' ? '' : money(el.value); refresh(); return; }
@@ -316,7 +350,14 @@ export function renderCashCount(host, c) {
     }
     if (el.id === 'ccStore' || el.id === 'ccDate') {
       if (el.id === 'ccStore') memory.store = el.value; else if (/^\d{4}-\d{2}-\d{2}$/.test(el.value)) memory.date = el.value;
-      v = load(memory.store, memory.date); draw();
+      v = load(memory.store, memory.date); synced = ''; draw(); syncFromSheet();
+    }
+    if (el.id === 'ccSchedFile') {
+      const f = el.files && el.files[0]; if (!f || c.preview) return;
+      say(t('스케줄 올리는 중…', 'Uploading schedule…'));
+      f.text().then(csv => post({action: 'recordCash', op: 'saveSchedule', csv, staff: c.profile?.display_name || ''}))
+        .then(r => { say(t(`스케줄 ${r.shifts}건을 올렸어요 · 시트 박스 ${r.filled}개에 근무자를 채웠어요`, `Uploaded ${r.shifts} shifts · filled ${r.filled} sheet boxes`)); syncFromSheet(); })
+        .catch(err => say(t('스케줄을 못 읽었어요. Homebase에서 CSV로 내보낸 파일인지 확인해 주세요.', 'Could not read the schedule. Make sure it is the CSV export from Homebase.') + ` (${err.message})`, true));
     }
   };
   host.onclick = async e => {
@@ -337,8 +378,10 @@ export function renderCashCount(host, c) {
         const out = await r.json().catch(() => ({}));
         if (!r.ok || out.ok === false) throw Error(out.error || 'SAVE_FAILED');
         try { localStorage.setItem(crewKey(memory.store), JSON.stringify(shareTips(0, 0, v.crew).people.map(p => p.name).filter(Boolean))); } catch {}
-        saving = false; draw();
-        say(t(`저장했어요 · 봉투 ${fmt(s.envelope)} · 내일 오픈시재 ${fmt(s.nextOpen)}`, `Saved · envelope ${fmt(s.envelope)} · tomorrow’s float ${fmt(s.nextOpen)}`));
+        saving = false; synced = ''; draw();
+        const changes = (out.data || out).changes || [];
+        say(t(`저장했어요 · 봉투 ${fmt(s.envelope)} · 내일 오픈시재 ${fmt(s.nextOpen)}`, `Saved · envelope ${fmt(s.envelope)} · tomorrow’s float ${fmt(s.nextOpen)}`)
+          + (changes.length ? ' · ' + t(`바뀐 것 ${changes.length}개를 시트 '변경 기록'에 남겼어요: `, `${changes.length} changes logged in the sheet: `) + changes.join(' · ') : ''));
       } catch (err) {
         saving = false; b.disabled = false; b.textContent = t('시트에 저장 ✅', 'Save to sheet ✅');
         say(t('저장하지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.', 'Could not save. Check the connection and try again.') + ` (${err.message})`, true);
@@ -346,4 +389,5 @@ export function renderCashCount(host, c) {
     }
   };
   draw();
+  syncFromSheet();
 }
