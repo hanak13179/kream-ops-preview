@@ -100,9 +100,9 @@ test('a real colleague addition requires another review and does not submit an u
  assert.equal(submissions,0);assert.equal(vm.runInContext('page',ctx),'order');assert.match(node('#message').textContent,/다른 직원/);assert.equal(vm.runInContext('quantities["colleague-item"]',ctx),2);
 });
 
-test('bread is ordered from Extra order (not a must-check count) and its category tab stays visible under Needs order',()=>{
+test('sourdough is a must-check count and its category tab stays visible under Needs order',()=>{
  const {ctx,node}=fixture();vm.runInContext("catalog.push({id:'sourdough',name_ko:'플레인 사워도우',category:'빵류',subgroup:'사워도우',order_unit:'개',unit_confirmed:true,active:true});filter='need';renderCategories();",ctx);
- assert.match(node('#categories').innerHTML,/data-cat="빵류"/);assert.equal(vm.runInContext("skipCount(catalog.find(p=>p.id==='sourdough'))",ctx),true);
+ assert.match(node('#categories').innerHTML,/data-cat="빵류"/);assert.equal(vm.runInContext("skipCount(catalog.find(p=>p.id==='sourdough'))",ctx),false);
 });
 test('completion state is rebuilt from saved daily counts rather than remembered browser ticks',()=>{
  const {ctx}=fixture();vm.runInContext("stepState=createStepState(store,countDate());stepState.done.add('milk');stock=[];stepStateFor();",ctx);assert.equal(vm.runInContext("stepState.done.has('milk')",ctx),false);

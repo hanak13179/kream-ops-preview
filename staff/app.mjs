@@ -314,11 +314,11 @@ function countInput(p,text){if(text==null||text==='')return '';const f=countFact
 // 발주 가능한 빵류도 다른 품목처럼 확인합니다. 카테고리만으로 누락시키지 않습니다.
 function supplyItem(p){return /포장|소모품/.test(String(p.category||''))||/포장|소모품/.test(String(p.subgroup||''));}
 // 발주게임 필수 확인: 주기가 짧아서 매번 세야 하는 품목만 (미들랜드는 예전 그대로). 나머지는 '📦 추가 주문'에서 '더 필요해요!'
-const REQUIRED_NAMES=new Set(['스패너크림','아몬드밀크','오트밀크','화채캔','리얼망고프루티캔','미숫가루캔']);
-const REQUIRED_SUBGROUPS=new Set(['레어치즈케이크','티라미수','미니크루아상','미니크로와상','홀케이크']);
+const REQUIRED_NAMES=new Set(['스패너크림','아몬드밀크','오트밀크','밀크폼','화채캔','리얼망고프루티캔','미숫가루캔']);
+const REQUIRED_SUBGROUPS=new Set(['레어치즈케이크','요거트쇼트케이크','티라미수','미니크루아상','미니크로와상','홀케이크']);
 function requiredItem(p){const n=String(p.name_ko||'').replace(/[\s·]/g,''),g=String(p.subgroup||'').replace(/\s/g,''),c=String(p.category||'');
  if(/포장|소모품/.test(c)||n.includes('예약케이크'))return false;
- return /^우유/.test(n)||REQUIRED_NAMES.has(n)||n.includes('치아시드')||n.includes('치아씨드')||(c==='디저트'&&REQUIRED_SUBGROUPS.has(g))||/^(초코|초콜릿)?두바이쫀득쿠키$/.test(n)||/^초코두쫀쿠$/.test(n);}
+ return /^우유/.test(n)||REQUIRED_NAMES.has(n)||n.includes('치아시드')||n.includes('치아씨드')||(c==='디저트'&&REQUIRED_SUBGROUPS.has(g))||(c==='디저트'&&n==='바나나푸딩')||/^티라미수크림\(?음료제조용/.test(n)||(c==='빵류'&&g==='사워도우')||/^(초코|초콜릿)?두바이쫀득쿠키$/.test(n)||/^초코두쫀쿠$/.test(n);}
 function skipCount(p){return store==='midland'?supplyItem(p):!requiredItem(p);}
 // 다이제스티브: 1박스 이상 있다/없다. 없으면 1박스, 3호점(빙수·티라미수·바나나푸딩에 많이 씀)은 2박스
 function digestive(p){return String(p.name_ko||'').trim()==='다이제스티브';}
