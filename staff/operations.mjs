@@ -1,5 +1,5 @@
-import {hasOrderRevisionEdits,clearOrderRevision} from './order-review.mjs?v=20261122-history-table';
-import {receivingLayout} from './receiving-layout.mjs?v=20261119-memo-items';
+import {hasOrderRevisionEdits,clearOrderRevision} from './order-review.mjs?v=20261123-note-english';
+import {receivingLayout} from './receiving-layout.mjs?v=20261123-no-carry';
 import {halfBoxCount,unitLabel,quantityLabel,displayQuantity,boxAmount} from './packing.mjs?v=20261119-memo-items';
 import {hasExternalEdits,clearExternalState} from './external-dispatch.mjs?v=20261122-pending-date';
 import {hasFinishedEdits,clearFinishedState} from './finished-stock.mjs?v=20261119-memo-items';
@@ -9,8 +9,8 @@ import {orderReference} from './presentation.mjs?v=20261103-clean-confirmation';
 import {hasAccountEdits,clearAccountState} from './accounts.mjs?v=20261104-compact-live';
 import {quantityStep} from './quantity-step.mjs?v=20261102-whole-quantity';
 import {hasSubcategoryEdits,clearSubcategoryState} from './subcategory-drag.mjs?v=20261119-garnish-sequence';
-import {renderReceiptReviews,hasReviewEdits,clearReviewState} from './receiving-review.mjs?v=20261102-drag';
-import {hasSettlementEdits,clearSettlementState} from './settlement.mjs?v=20261119-midland-history';
+import {renderReceiptReviews,hasReviewEdits,clearReviewState} from './receiving-review.mjs?v=20261123-memo-settlement';
+import {hasSettlementEdits,clearSettlementState} from './settlement.mjs?v=20261123-memo-settlement';
 import {hasMaterialEdits,clearMaterialState} from './materials.mjs?v=20261119-garnish-sequence';
 import {workTime} from './work-records.mjs?v=20261102-drag';
 import {hasCatalogEdits,clearCatalogState} from './catalog-editor.mjs?v=20261102-drag';
@@ -35,7 +35,6 @@ export function renderReceiving(host,c){
  const list=orders.filter(o=>o.status!=='cancelled'&&o.dispatch_finalized_at);if(!list.some(o=>o.id===receiptOrder)){receiptOrder=list[0]?.id||'';receiptValues={};receiptNote='';}
  const order=list.find(o=>o.id===receiptOrder),rows=order?sortProductRows(outstanding(order,receipts,c.dispatches||[]),c.catalog):[],writable=profile.role!=='factory',waiting=!!receiptAttempt;
  host.innerHTML=receivingLayout(c,{list,order,rows,writable,waiting,values:receiptValues,note:receiptNote,expanded:expandedReceiptStores,completed:receiptCompleted,outstanding});
- host.querySelectorAll('[data-reorder-receipt]').forEach(button=>button.onclick=()=>act(async()=>{if(hasModuleEdits()){say(t('작성 중인 입고 내용을 먼저 저장해 주세요.','Save receiving edits first.'),true);return;}const target=list.find(o=>o.id===button.dataset.reorderReceipt);if(!target)return;await c.reorderMissing(target.store_id,outstanding(target,receipts,c.dispatches||[]).filter(p=>p.unshipped>0).map(p=>({...p,remaining:p.unshipped})));}));
  const reviewPanel=document.createElement('details');reviewPanel.className='panel receiving-reviews';const reviewSummary=document.createElement('summary');reviewSummary.textContent=t('입고 차이 · 본사 확인 요망','Receiving differences · head office review');reviewPanel.append(reviewSummary);const reviewHost=document.createElement('section');reviewPanel.append(reviewHost);host.append(reviewPanel);renderReceiptReviews(reviewHost,c);
  function selectReceipt(id){if(id===receiptOrder)return true;if(receiptAttempt){say(t('저장 결과를 먼저 재확인해 주세요.','Retry the pending receipt first.'),true);return false;}if(hasModuleEdits()&&!confirm(t('현재 입력을 두고 다른 발주로 이동할까요?','Leave current entries and change order?')))return false;receiptOrder=id;receiptValues={};receiptNote='';renderReceiving(host,c);return true;}
  const selection=host.querySelector('#receiptOrder');if(selection)selection.onchange=e=>{if(!selectReceipt(e.target.value))e.target.value=receiptOrder;};

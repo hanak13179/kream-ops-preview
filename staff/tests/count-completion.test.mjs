@@ -36,9 +36,16 @@ test('preview cannot finish or create a saved stock record',async()=>{const s=sc
 test('actual basket submission blocks the game bypass and resumes the first unfinished category',async()=>{
  const app=fs.readFileSync(new URL('../app.mjs',import.meta.url),'utf8'),source=app.slice(app.indexOf('function submitCurrentBasket(){'),app.indexOf('function orderActionLabel(){'));
  const state={done:new Set(['a']),failed:new Set(),key:'dessert'},calls=[];
- const context={store:'finch',orderView:'steps',uncertain:true,stepStateFor:()=>state,orderCatalog:()=>[{id:'a',unit_confirmed:true,category:'디저트'},{id:'b',unit_confirmed:true,category:'포장·소모품'}],skipCount:()=>false,inShift:()=>true,shiftOf:()=> 'closing',countProgress,renderOrderArea:()=>calls.push('resume'),say:msg=>calls.push(msg),t:ko=>ko,run:async fn=>fn(),completeBasketSubmission:async()=>calls.push('submitted')};
+ const context={screenRole:()=>'employee',confirm:()=>true,store:'finch',orderView:'steps',uncertain:true,stepStateFor:()=>state,orderCatalog:()=>[{id:'a',unit_confirmed:true,category:'디저트'},{id:'b',unit_confirmed:true,category:'포장·소모품'}],skipCount:()=>false,inShift:()=>true,shiftOf:()=> 'closing',countProgress,renderOrderArea:()=>calls.push('resume'),say:msg=>calls.push(msg),t:ko=>ko,run:async fn=>fn(),completeBasketSubmission:async()=>calls.push('submitted')};
  vm.createContext(context);vm.runInContext(source,context);await vm.runInContext('submitCurrentBasket()',context);assert(!calls.includes('submitted'));assert.equal(context.category,'포장·소모품');assert.equal(state.key,'');assert.match(calls[1],/아직 1개/);
  state.done.add('b');await vm.runInContext('submitCurrentBasket()',context);assert.equal(calls.at(-1),'submitted');
+});
+test('a manager can submit before every item is counted, after confirming',async()=>{
+ const app=fs.readFileSync(new URL('../app.mjs',import.meta.url),'utf8'),source=app.slice(app.indexOf('function submitCurrentBasket(){'),app.indexOf('function orderActionLabel(){'));
+ const state={done:new Set(['a']),failed:new Set(),key:'dessert'},calls=[];let asked=0,answer=false;
+ const base={screenRole:()=>'manager',confirm:()=>{asked++;return answer;},store:'finch',orderView:'steps',uncertain:true,stepStateFor:()=>state,orderCatalog:()=>[{id:'a',unit_confirmed:true,category:'디저트'},{id:'b',unit_confirmed:true,category:'포장·소모품'}],skipCount:()=>false,inShift:()=>true,shiftOf:()=> 'closing',countProgress,renderOrderArea:()=>calls.push('resume'),say:msg=>calls.push(msg),t:ko=>ko,run:async fn=>fn()};
+ const src=app.slice(app.indexOf('function submitCurrentBasket(){'),app.indexOf('function orderActionLabel(){'));
+ assert.match(src,/'owner','manager','general_manager','manager_factory'/);assert.match(src,/confirm\(/);
 });
 test('game list distinguishes checked and pending rows without relying only on color',()=>{const s=screen({items:[{id:'a'},{id:'b'}],done:['a']});s.state.view='list';s.draw();assert.match(s.host.innerHTML,/os-row checked/);assert.match(s.host.innerHTML,/os-row pending/);assert.match(s.host.innerHTML,/確認|확인 완료/);assert.match(s.host.innerHTML,/미확인/);});
 test('partial progress shows encouragement and no completion trophy',()=>{const s=screen({done:['a']});assert.match(s.host.innerHTML,/os-cheer/);assert.doesNotMatch(s.host.innerHTML,/🏆/);});

@@ -1,9 +1,9 @@
 .midland-review-status{border-left:5px solid #b47646;background:#fff8ef}.midland-review-status p{margin:9px 0}.delivery-order-group>summary{cursor:pointer;padding:8px 0}.delivery-order-group .line{gap:12px}.delivery-order-group small{display:block;margin:8px 0}.order-revision-dialog{box-sizing:border-box;width:min(820px,calc(100% - 24px));max-width:820px;max-height:90dvh;overflow:auto;padding:24px;border:1px solid var(--line,#deded2);border-radius:20px;background:var(--bg,#fffaf3);color:var(--text,#32342d)}.order-revision-dialog::backdrop{background:#32342d88}.order-revision-dialog label{display:block;margin:16px 0}.order-revision-dialog input[type=date]{max-width:240px}.order-revision-dialog .revision-item{display:flex;align-items:center;gap:12px;border-bottom:1px solid #deded2;padding:12px 0}.revision-item>span{flex:1;min-width:0}.revision-item small{display:block;font-size:12px;opacity:.7}.revision-item input{max-width:100px}.order-revision-dialog textarea,.order-revision-dialog select{width:100%;box-sizing:border-box}.order-revision-dialog textarea{min-height:100px}@media(max-width:500px){.order-revision-dialog{padding:16px}.revision-item{font-size:13px}.revision-item input{max-width:72px}.revision-item button{padding:6px}}
 
-/* Approved compact order history: unit beside item name; numeric quantity in its own column. */
+/* Approved compact order history: unit directly beside quantity; compact two-column table. */
 .order-history-table-wrap{width:100%;margin:8px 0;overflow:visible}
 .order-history-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;background:#fff}
-.order-history-table .history-name-col{width:81%}.order-history-table .history-quantity-col{width:19%}
+.order-history-table .history-name-col{width:72%}.order-history-table .history-quantity-col{width:28%}
 .order-history-table th,.order-history-table td{padding:2.75px 10px;line-height:1.45;vertical-align:middle;border-bottom:1px solid #eee5dc;white-space:normal}
 .order-history-table th{padding-top:2.25px;padding-bottom:2.25px;font-size:11px;font-weight:600;color:#887869;text-align:left;background:#fcfaf6;border-top:1px solid #e9dfd4}
 .order-history-table td+td,.order-history-table th+th{border-left:1px solid #eee5dc}
@@ -14,5 +14,7 @@
 .delivery-order-group .order-history-table .history-item-unit{display:inline;flex:none;margin:0;font-size:11px;font-weight:400;color:#8c7e70;white-space:nowrap}
 .order-history-table .history-quantity,.order-history-table th:last-child{text-align:center}
 .order-history-table .history-quantity{font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.order-history-table .history-quantity b{font-weight:750}
+.order-history-table .history-quantity b{font-weight:500}
 @media(max-width:600px){.delivery-order-group.panel{padding:10px}.order-history-table th:last-child{padding-left:4px;padding-right:4px;white-space:nowrap}}
+
+.order-history-table .history-quantity{padding-left:6px;padding-right:6px}.delivery-order-group .order-history-table .history-quantity .history-item-unit{display:inline;margin:0;font-size:11px;font-weight:400;white-space:nowrap}
