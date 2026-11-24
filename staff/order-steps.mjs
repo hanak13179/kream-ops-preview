@@ -155,6 +155,7 @@ export function renderOrderSteps(host, c) {
   ensureStyle();
   const {state: s, items, t, esc} = c;
   if (s.key !== c.key) { s.key = c.key; s.index = firstUndone(); s.view = 'one'; s.streak = 0; s.startedAt = 0; s.counts = 0; s.finishedIn = 0; }
+  if (c.forceView) s.view = c.forceView;   // ▦ 전체 목록: 필수 확인은 늘 목록으로
   if (s.index > items.length) s.index = items.length;
 
   const progress = () => countProgress(c.getRequiredIds?.() || c.allIds || items.map(p=>p.id), s.done, s.failed);
@@ -167,7 +168,7 @@ export function renderOrderSteps(host, c) {
     doneCount = items.filter(p => s.done.has(p.id)).length;
     const full=progress(),pct=full.total?Math.round(full.completed/full.total*100):0;
     const sc = c.shiftCounts || {};
-    const shiftBar = c.openSupplies ? `<div class="os-shift"><button aria-pressed="true">🧚‍♀️ ${t('발주 요정', 'Order fairy')}<small>${t('전부 다 해요', 'Everything')} · ${sc.all ?? ''}</small></button><button data-os="supplies">📦 ${t('소모품 주문', 'Supplies order')}<small>${t('소모품·패키징 · 더 필요해요!', 'Supplies · packaging · need more!')}</small></button></div>` : c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">☀️ ${t('낮 요정', 'Day fairy')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🧚‍♀️ ${t('마감 요정', 'Closing fairy')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
+    const shiftBar = c.openSupplies ? `<div class="os-shift"><button aria-pressed="true">✅ ${t('필수 확인', 'Must check')}<small>${t('꼭 세는 품목', 'Count these')} · ${sc.all ?? ''}</small></button><button data-os="supplies">📦 ${t('추가 주문', 'Extra order')}<small>${t('나머지 · 더 필요해요!', 'Everything else · need more!')}</small></button></div>` : c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">☀️ ${t('낮 요정', 'Day fairy')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🧚‍♀️ ${t('마감 요정', 'Closing fairy')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
     return shiftBar + `<div class="os-head"><span class="os-count">${full.completed} / ${full.total}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${full.complete ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
     ${full.remaining.length?`<p class="os-cheer">${esc(t(...ENCOURAGEMENT[Math.floor(full.completed/3)%ENCOURAGEMENT.length]))}</p><p class="os-warn" role="status">${esc(pendingMessage(full.remaining.length))}${c.shift==='closing'&&c.carriedCount?` ${t('오전반 미확인 품목도 포함되어 있어요.','Includes unfinished morning tasks.')}`:''}</p>`:''}
     <div class="os-tools"><button data-os="one" aria-pressed="${s.view === 'one'}">${t('한 개씩', 'One by one')}</button><button data-os="list" aria-pressed="${s.view === 'list'}">✎ ${t('목록', 'List')}</button><button data-os="grid">▦ ${t('전체 목록', 'All items')}</button></div>`;
@@ -333,10 +334,10 @@ export function renderOrderSteps(host, c) {
     if (b.dataset.key) return press(b.dataset.key);
     if (b.dataset.shift) return c.setShift?.(b.dataset.shift);
     if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.edited.add(it.id);s.typed[it.id] = b.dataset.yn; b.classList.add('on'); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
-    if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = 'one'; return draw(); }
+    if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = 'one'; if (c.forceView && c.openOne) return c.openOne(); return draw(); }
     const p = items[s.index];
     switch (b.dataset.os) {
-      case 'one': s.view = 'one'; return draw();
+      case 'one': s.view = c.forceView || 'one'; return draw();
       case 'list': s.view = 'list'; return draw();
       case 'grid': return c.showGrid();
       case 'supplies': return c.openSupplies?.();

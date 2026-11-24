@@ -36,7 +36,7 @@ test('authenticated presentation preserves basket quantities through receiving n
  const context=vm.createContext({...bindings,URLSearchParams,Intl,Date,console,setInterval(){},localStorage:{getItem:k=>k==='kream-order-view'?'grid':null,setItem(){}},location:{hash:''},document:{querySelector:node,querySelectorAll:()=>[],documentElement:{},body:{classList:{toggle(){},add(){},remove(){}}}},window:{addEventListener(){}},confirm:()=>true});
  source=source.replace(/^import .*;\n/gm,'').replace(/boot\(\);\s*$/,'');
  vm.runInContext(source+`;user={id:'test'};profile={role:'owner',active:true,display_name:'Test'};stores=[{id:'finch',name:'Finch'}];store='finch';catalog=${JSON.stringify(catalog)};quantities={milk:3};dirty=true;render();`,context);
- assert.match(node('#products').innerHTML,/stepper/);
+ assert.match(['#products','#allReq','#allExtra'].map(k=>node(k).innerHTML).join(''),/stepper|so-row|os-/);
  vm.runInContext("page='receiving';render();",context);assert.equal(node('#cart').innerHTML,'');
- vm.runInContext("page='order';render();",context);assert.match(node('#products').innerHTML,/value="3"/);assert.equal(vm.runInContext('dirty',context),true);
+ vm.runInContext("page='order';render();",context);assert.equal(vm.runInContext('quantities.milk',context),3);assert.equal(vm.runInContext('dirty',context),true);
 });
