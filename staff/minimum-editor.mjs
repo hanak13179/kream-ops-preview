@@ -5,6 +5,9 @@
 
 const STYLE_ID = 'minimum-editor-style';
 const CSS = `
+.me-sheet{display:block;width:100%;height:44px;margin:4px 0 2px;border:1.5px dashed #8fb0e8;border-radius:12px;background:#eef4ff;color:#1d3f7a;font-size:15px;font-weight:800}
+.me-sheet-help{display:block;margin:0 0 10px;color:#6b6555;font-size:12px}
+
 .me{grid-column:1/-1;max-width:640px;width:100%;margin:0 auto 110px}
 .me *{box-sizing:border-box}
 .me-help{font-size:13px;color:#6b6555;margin:4px 0 10px}
@@ -63,7 +66,7 @@ export function renderMinimumEditor(host, c) {
     items.forEach(p => { let g = groups.find(x => x.cat === p.category); if (!g) groups.push(g = {cat: p.category, list: []}); g.list.push(p); });
     const n = changed().length;
     host.innerHTML = `<div class="me">
-      <p class="me-help">${t('늘 있어야 할 수량이에요. 직원이 재고를 세면 모자란 만큼 자동으로 주문돼요. 주말을 비워두면 주말에도 평일 수량을 써요 (회색 숫자).', 'How many should always be in store. Counting orders the shortfall automatically. Leave weekend blank to use the weekday number.')}</p>
+      <p class="me-help">${t('늘 있어야 할 수량이에요. 직원이 재고를 세면 모자란 만큼 자동으로 주문돼요. 주말을 비워두면 주말에도 평일 수량을 써요 (회색 숫자).', 'How many should always be in store. Counting orders the shortfall automatically. Leave weekend blank to use the weekday number.')}</p>${c.loadSheet && !c.preview ? `<button class="me-sheet" data-me="sheet" ${s.saving ? 'disabled' : ''}>📄 ${t('시트에서 가져오기', 'Load from sheet')}</button><small class="me-sheet-help">${t('최소재고량 시트 값을 채워 넣어요. 확인하고 업데이트 하기를 눌러야 저장돼요.', 'Fills in the 최소재고량 sheet values. Press Update to save.')}</small>` : ''}
       ${groups.map(g => `<div class="me-cat">${esc(g.cat)} · ${g.list.length}</div>${g.list.map(rowHtml).join('')}`).join('') || `<p class="empty">${t('해당 품목이 없어요.', 'No items here.')}</p>`}
       <div class="me-bar"><button class="undo" data-me="undo" ${n ? '' : 'disabled'}>${t('되돌리기', 'Undo')}</button><span>${n ? t(`${n}개 바뀜`, `${n} changed`) : t('바뀐 것 없음', 'No changes')}</span><button data-me="save" ${n && !s.saving && !c.preview ? '' : 'disabled'}>${s.saving ? t('저장 중…', 'Saving…') : t('업데이트 하기', 'Update')}</button></div>
       <p class="me-msg ${s.err ? 'err' : ''}">${esc(c.preview ? t('미리보기: 저장되지 않아요.', 'Preview: nothing is saved.') : s.msg)}</p>
@@ -98,6 +101,25 @@ export function renderMinimumEditor(host, c) {
       // 주말이 비어 있으면 평일 숫자에서 시작
       const start = get(p, k) ?? (k === 'we' ? get(p, 'wd') : null) ?? (k === 'wd' ? cur(p).sug : null) ?? 0;
       setVal(id, k, Number(start) + (b.dataset.me === '+' ? 1 : -1));
+      return;
+    }
+    if (b.dataset.me === 'sheet') {
+      s.saving = true; s.msg = t('시트를 읽는 중…', 'Reading the sheet…'); s.err = false; draw();
+      try {
+        const rows = await c.loadSheet();
+        let n = 0;
+        for (const r of rows) {
+          const p = items.find(x => x.id === r.id); if (!p) continue;
+          const o = cur(p), e = {};
+          if (r.wd != null && r.wd !== o.wd) e.wd = r.wd;
+          if (r.we != null && r.we !== o.we) e.we = r.we;
+          if (Object.keys(e).length) { s.edits[p.id] = {...(s.edits[p.id] || {}), ...e}; if (isChanged(p)) n++; else delete s.edits[p.id]; }
+        }
+        s.msg = n ? t(`시트에서 ${n}개 다른 값을 채웠어요. 색이 칠해진 품목을 확인하고 업데이트 하기를 눌러요.`, `Filled ${n} different values from the sheet. Check the highlighted items and press Update.`)
+          : t('시트 값이 지금 앱 값과 같아요.', 'The sheet matches the app.');
+      } catch (err) {
+        s.msg = t(`시트를 못 읽었어요 (${String(err?.message || err)}).`, `Could not read the sheet (${String(err?.message || err)}).`); s.err = true;
+      } finally { s.saving = false; draw(); }
       return;
     }
     if (b.dataset.me === 'undo') { s.edits = {}; s.msg = ''; draw(); return; }
