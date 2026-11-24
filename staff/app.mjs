@@ -148,7 +148,8 @@ function renderEvening(){
  const remaining=list.filter(p=>!countedToday(p)).length,cashPage=EVENING_CASH_STORES.includes(store)&&!!document.querySelector('#navigation [data-page="cash"]');
  const draw=cashDone=>{
   document.querySelector('.evening-warn')?.remove();if(store!==s0)return;
-  const items=eveningItems({remaining,total:list.length,submitted:!!draft?.submitted_order_id,cashDone,cashPage}).filter(i=>i.key!==page);
+  const sent=!!draft?.submitted_order_id||(orders||[]).some(o=>o.store_id===s0&&o.delivery_date===defaultReceiptDate()&&o.status!=='cancelled');   // 오늘 발주 이미 보냈으면 발주 경고는 안 해요
+  const items=eveningItems({remaining:sent?0:remaining,total:sent?0:list.length,submitted:sent,cashDone,cashPage}).filter(i=>i.key!==page);
   const html=eveningHtml(items,t,esc),view=$('#view');if(!html||!view)return;
   view.insertAdjacentHTML('beforebegin',html);
   document.querySelectorAll('[data-evening]').forEach(b=>b.onclick=()=>document.querySelector(`#navigation [data-page="${b.dataset.evening}"]`)?.click());
