@@ -44,7 +44,7 @@ export function filterItems(items, {kind = 'all', cat = '', q = ''}, name = p =>
 const view = {kind: 'all', cat: '', q: ''};
 export function renderSupplies(host, c) {
   ensureStyle();
-  const {t, esc} = c, kitchen = c.mode === 'kitchen';
+  const {t, esc} = c, kitchen = c.mode === 'kitchen', embedded = c.mode === 'embedded';
   const cats = [...new Set(c.items.map(p => p.category).filter(Boolean))];
   if (view.cat && !cats.includes(view.cat)) view.cat = '';
   const rows = () => {
@@ -67,9 +67,9 @@ export function renderSupplies(host, c) {
     <div class="so-find" style="grid-template-columns:minmax(0,1fr)"><input type="search" id="soSearch" placeholder="${t('품목 검색', 'Search')}" value="${esc(view.q)}"></div>
     <div id="soRows">${rows()}</div>
     <button class="so-basket" data-so="basket">${basketLabel()}</button></div>` : `<div class="so">
-    <div class="so-tabs"><button data-so="back">✅ ${t('필수 확인', 'Must check')}</button><button aria-pressed="true">📦 ${t('추가 주문', 'Extra order')}</button><button data-so="basket">🛒 ${t('발주함', 'Basket')}</button></div>
+    ${embedded ? '' : `<div class="so-tabs"><button data-so="back">✅ ${t('필수 확인', 'Must check')}</button><button aria-pressed="true">📦 ${t('추가 주문', 'Extra order')}</button><button data-so="basket">🛒 ${t('발주함', 'Basket')}</button></div>`}
     <h3>📦 ${t('추가 주문', 'Extra order')}</h3>
-    <p class="so-help">${t('필수 확인에 없는 품목이에요. 세지 않아도 돼요. 필요한 것만 "더 필요해요!"를 누르면 발주 단위로 하나씩 담겨요.', 'Items not in Must check. No counting. Tap "Need more!" to add one order unit at a time.')}</p>
+    <p class="so-help">${embedded ? t('세지 않는 품목이에요. 필요한 것만 "더 필요해요!"', 'No counting. Tap "Need more!" for what you need.') + '<span hidden>' : ''}${t('필수 확인에 없는 품목이에요. 세지 않아도 돼요. 필요한 것만 "더 필요해요!"를 누르면 발주 단위로 하나씩 담겨요.', 'Items not in Must check. No counting. Tap "Need more!" to add one order unit at a time.')}${embedded ? '</span>' : ''}</p>
     <div class="so-chips">${[['all', t('전체', 'All')], ['food', t('식재료·메뉴', 'Food & menu')], ['supplies', t('소모품·포장', 'Supplies')]].map(([k, l]) => `<button data-kind="${k}" aria-pressed="${view.kind === k}">${l}</button>`).join('')}</div>
     <div class="so-find"><input type="search" id="soSearch" placeholder="${t('품목 검색', 'Search')}" value="${esc(view.q)}"><select id="soCat"><option value="">${t('전체 카테고리', 'All categories')}</option>${cats.map(k => `<option ${view.cat === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
     <div id="soRows">${rows()}</div>

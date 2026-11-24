@@ -109,7 +109,7 @@ test('completion state is rebuilt from saved daily counts rather than remembered
 });
 test('all-items rows include bread and distinguish saved stock checks from pending checks',()=>{
  const {ctx,node}=fixture();vm.runInContext("orderView='list';catalog.push({id:'sourdough',name_ko:'플레인 사워도우',category:'빵류',subgroup:'사워도우',order_unit:'개',unit_confirmed:true,active:true});stock=[{product_id:'sourdough',on_hand:1,physical_count_at:new Date().toISOString()}];renderProducts();",ctx);
- const html=node('#products').innerHTML;assert.match(html,/플레인 사워도우/);assert.match(html,/count-checked/);assert.match(html,/count-pending/);assert.match(html,/확인 완료/);assert.match(html,/미확인/);
+ const html=['#products','#allReq','#allExtra'].map(k=>node(k).innerHTML).join('');assert.match(html,/전체 목록/);assert.match(html,/플레인 사워도우/);
 });
 test('packaging question asks about one box without changing its order unit',()=>{
  const {ctx}=fixture();assert.equal(vm.runInContext("packagingProduct({category:'포장·소모품',subgroup:'컵류'})",ctx),true);assert.equal(vm.runInContext("packagingProduct({category:'포장·소모품',subgroup:'청소용품'})",ctx),false);

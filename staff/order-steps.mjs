@@ -155,6 +155,7 @@ export function renderOrderSteps(host, c) {
   ensureStyle();
   const {state: s, items, t, esc} = c;
   if (s.key !== c.key) { s.key = c.key; s.index = firstUndone(); s.view = 'one'; s.streak = 0; s.startedAt = 0; s.counts = 0; s.finishedIn = 0; }
+  if (c.forceView) s.view = c.forceView;   // ▦ 전체 목록: 필수 확인은 늘 목록으로
   if (s.index > items.length) s.index = items.length;
 
   const progress = () => countProgress(c.getRequiredIds?.() || c.allIds || items.map(p=>p.id), s.done, s.failed);
@@ -333,10 +334,10 @@ export function renderOrderSteps(host, c) {
     if (b.dataset.key) return press(b.dataset.key);
     if (b.dataset.shift) return c.setShift?.(b.dataset.shift);
     if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.edited.add(it.id);s.typed[it.id] = b.dataset.yn; b.classList.add('on'); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
-    if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = 'one'; return draw(); }
+    if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = c.forceView || 'one'; return draw(); }
     const p = items[s.index];
     switch (b.dataset.os) {
-      case 'one': s.view = 'one'; return draw();
+      case 'one': s.view = c.forceView || 'one'; return draw();
       case 'list': s.view = 'list'; return draw();
       case 'grid': return c.showGrid();
       case 'supplies': return c.openSupplies?.();
