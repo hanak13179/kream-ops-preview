@@ -334,7 +334,7 @@ export function renderOrderSteps(host, c) {
     if (b.dataset.key) return press(b.dataset.key);
     if (b.dataset.shift) return c.setShift?.(b.dataset.shift);
     if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.edited.add(it.id);s.typed[it.id] = b.dataset.yn; b.classList.add('on'); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
-    if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = c.forceView || 'one'; return draw(); }
+    if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = 'one'; if (c.forceView && c.openOne) return c.openOne(); return draw(); }
     const p = items[s.index];
     switch (b.dataset.os) {
       case 'one': s.view = c.forceView || 'one'; return draw();
