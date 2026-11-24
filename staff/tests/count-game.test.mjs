@@ -34,3 +34,11 @@ test('두쫀쿠: 반박스·한박스를 골라도 다음으로 넘어가고 주
  const app=(await import('node:fs')).readFileSync(new URL('../app.mjs',import.meta.url),'utf8');
  assert.doesNotMatch(app,/'-1',t\('반박스 주문'/);assert.match(app,/'32':0,'16':32,'0':64/);
 });
+
+test('개수로만 세는 품목(크로와상 3개/봉 등)은 소수점 키가 없고, 잘못된 숫자는 알맞은 안내', ()=>{
+ const p={id:'w'},state=createStepState('finch','2026-11-24');state.key='all';
+ const host={innerHTML:'',contains:()=>true,querySelector:()=>null};
+ const base={state,items:[p],key:'all',t:ko=>ko,esc:String,name:()=> '스윗 크로와상 쿠키',unitLabel:()=> 'Bag',picture:()=>'',lastStock:()=>3,parse:(_,s)=>{const n=Number(s);if(!Number.isInteger(n)||n<0)throw Error('X');return n/3;},getQty:()=>0,setQty:()=>{},qtyStep:()=>1,qtyDisplay:(_,q)=>q,yesNo:()=>false,suggest:()=>null,saveStock:async()=>{},saveAvailability:async()=>{}};
+ renderOrderSteps(host,{...base,wholeOnly:()=>true});assert.doesNotMatch(host.innerHTML,/data-key="\."/);
+ renderOrderSteps(host,{...base,wholeOnly:()=>false});assert.match(host.innerHTML,/data-key="\."/);
+});
