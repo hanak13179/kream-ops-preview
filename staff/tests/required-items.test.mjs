@@ -21,3 +21,9 @@ test('추가 주문 필터', () => {
   assert.deepEqual(filterItems(items,{kind:'all',q:'핫 컵'}).map(p=>p.name_ko),['12oz 핫컵']);
   assert.deepEqual(filterItems(items,{kind:'all',cat:'디저트'}).map(p=>p.name_ko),['피칸쿠키']);
 });
+test('키친 발주는 목록 + 수량 입력 (전체 목록은 예전 카드)', () => {
+  assert.match(app,/category==='키친 발주'\)\{document\.body\.classList\.add\('steps-mode'\)/);
+  assert.match(app,/renderSupplies\(host,\{mode:'kitchen'/);
+  const so=fs.readFileSync(new URL('../supplies-order.mjs',import.meta.url),'utf8');
+  assert.match(so,/data-qty=/);
+});
