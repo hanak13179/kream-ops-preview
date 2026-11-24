@@ -18,7 +18,9 @@ begin
     select id, revision, store_id, updated_by from public.kream_store_baskets
      where submitted_order_id is null and store_id <> 'midland' and delivery_date = target
        and jsonb_typeof(items) = 'array' and jsonb_array_length(items) > 0
-     order by store_id
+     -- Lock each eligible basket before reading its revision for submission.
+     order by store_id, id
+     for update
   loop
     who := coalesce(b.updated_by, fallback);
     if who is null then continue; end if;
