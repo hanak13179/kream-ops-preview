@@ -22,7 +22,7 @@ import {halfBoxCount,packingHint,unitLabel,quantityLabel,boxAmount,displayQuanti
 import {productOrderView,productOrderTools,bindProductOrder} from './product-drag.mjs?v=20261119-garnish-sequence';
 import {renderClassification} from './classification.mjs?v=20261119-garnish-sequence';
 import {workplaceChoices,renderWorkplaces} from './workplaces.mjs?v=20261103-workplace-pending-fix';
-import {renderAccounts} from './accounts.mjs?v=20261118-midland-sheet';
+import {renderAccounts} from './accounts.mjs?v=20261124-account-groups';
 import {quantityStep} from './quantity-step.mjs?v=20261102-whole-quantity';
 import {availableForStore,storeCatalog} from './store-availability.mjs?v=20261119-midland-label-price';
 import {subcategoryMarkup,bindSubcategoryDrag} from './subcategory-drag.mjs?v=20261119-garnish-sequence';
