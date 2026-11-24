@@ -104,12 +104,21 @@ export function renderMinimumEditor(host, c) {
     if (b.dataset.me === 'save') {
       const list = changed().map(p => ({p, weekday: get(p, 'wd'), weekend: get(p, 'we')}));
       if (!list.length) return;
+      const n0 = list.length;
       s.saving = true; draw();
       try {
         await c.save(list);
         s.msg = t(`${list.length}개 최소수량을 업데이트했어요.`, `Updated ${list.length} minimums.`); s.err = false;
       } catch (err) {
-        s.msg = t('일부 저장이 안 됐어요. 색이 남은 품목을 다시 업데이트해 주세요.', 'Some did not save. Update the highlighted items again.'); s.err = true;
+        const why = r => /permission|denied|not allowed|42501|forbidden|권한/i.test(r) ? t('권한이 없어요', 'no permission')
+          : /revision|conflict|stale|changed|modified/i.test(r) ? t('다른 사람이 방금 바꿨어요', 'someone just changed it')
+          : /STOCK_PIECES_REQUIRED/.test(r) ? t('낱개는 정수로 적어요', 'use whole pieces') : (r || t('알 수 없는 오류', 'unknown error'));
+        const list = (err?.failures || []).map(f => `${f.name} (${why(f.reason)})`);
+        const ok = Math.max(0, n0 - list.length);
+        s.msg = list.length
+          ? t(`${ok ? ok + '개는 저장했어요. ' : ''}저장 안 된 품목: ${list.join(', ')}. 색이 남은 품목을 다시 업데이트해 주세요.`, `${ok ? ok + ' saved. ' : ''}Not saved: ${list.join(', ')}. Update the highlighted items again.`)
+          : t(`저장이 안 됐어요 (${why(String(err?.message || err))}). 다시 업데이트해 주세요.`, `Not saved (${why(String(err?.message || err))}). Please try again.`);
+        s.err = true;
       } finally { s.saving = false; draw(); }
     }
   };
