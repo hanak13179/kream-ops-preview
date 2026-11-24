@@ -3,7 +3,7 @@
 // c: {items, t, esc, name, unitLabel, picture, getQty(p), setQty(p,q), qtyStep(p), qtyDisplay(p,q), onTheWay(p) → {date}|null, back(), locked, preview, openBasket()}
 const STYLE_ID = 'supplies-order-style-v2';
 const CSS = `
-.so{max-width:720px}
+.so{grid-column:1/-1;width:100%;max-width:760px;min-width:0;box-sizing:border-box}
 .so-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0 0 12px}
 .so-tabs button{min-width:0;border:0;border-radius:12px;padding:10px 6px;background:#fff;box-shadow:0 1px 4px #0001;font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .so-tabs button[aria-pressed="true"]{background:#3e4b33;color:#fff}
