@@ -32,6 +32,7 @@ import {renderCatalogTools,openProduct,signedPhotos,canManageProducts} from './c
 import {renderDailyLog} from './daily-log.mjs?v=20261102-whole-quantity';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
 import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261123-together';
+import {isEvening,eveningItems,eveningHtml,cashSaved,CASH_STORES as EVENING_CASH_STORES,EVENING_CSS} from './evening-warning.mjs?v=20261123-evening';
 import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261123-minsave3';
 import {renderSupplies} from './supplies-order.mjs?v=20261123-fairy';
 import {renderProductionLog} from './production-log.mjs?v=20261119-memo-items';
@@ -138,11 +139,29 @@ const pages=[['clover','🍀','판매·재고 연결','Sales & stock sync'],['ga
 function renderWorkplaceBadge(){const host=$('#navigation');if(!profile?.active||isPreview())return;const html=workplaceBadge({store:stores.find(s=>s.id===store),factory:entryFactory,lang});if(!html)return;host.insertAdjacentHTML('afterbegin',html);bindWorkplaceSwitch(host,()=>{if(busy||uncertain)return;if((dirty||hasModuleEdits())&&!confirm(t('저장하지 않은 변경을 두고 근무지를 바꿀까요?','Leave unsaved changes and switch workplaces?')))return;cancelBasketSave();run(async()=>{clearWorkplaceChoice(user.id);clearModuleState();await loadIdentity();});});}
 function renderNav(){const host=$('#navigation'),vp=screenProfile(),role=screenRole();const button=p=>navigationTile(p,page,t);host.innerHTML=profile?.active?`<p class="tagline">${t('우리 매장과 공장을 잇는 곳','Connecting our stores and factory')}</p><nav class="nav-tiles ${['owner','manager_factory'].includes(role)?'owner-navigation':''}">${navigationGroups(pages.filter(p=>!['galleria','galleriaHistory','galleriaSop'].includes(p[0])||canUseGalleria({...vp,store_ids:screenStores().map(s=>s.id)})),role).map(g=>g.key==='overview'?g.pages.map(button).join(''):g.ko?`<section class="nav-group" aria-label="${t(g.ko,g.en)}"><h2>${t(g.ko,g.en)}</h2>${g.pages.map(button).join('')}</section>`:g.pages.map(button).join('')).join('')}</nav><p class="account">${esc(vp.display_name)}<br><small>${isPreview()?t('최종관리자 전용 미리보기','Owner-only preview'):t('계정 권한에 따라 자료가 표시됩니다.','Data follows your account permissions.')}</small></p>`:'';host.insertAdjacentHTML('afterbegin',`<label class="mobile-page-picker">${t('메뉴 이동','Go to menu')}<select id="mobilePage" aria-label="${t('메뉴 선택','Choose menu')}">${[...host.querySelectorAll('[data-page]')].map(b=>`<option value="${esc(b.dataset.page)}" ${b.dataset.page===page?'selected':''}>${esc(b.textContent.trim())}</option>`).join('')}</select></label>`);host.querySelector('#mobilePage').onchange=e=>host.querySelector(`[data-page="${e.target.value}"]`)?.click();host.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{if(!isPreview()&&hasModuleEdits()&&!confirm(t('저장하지 않은 입력을 두고 이동할까요?','Leave unsaved module entries?')))return;if(hasModuleEdits())clearModuleState();page=b.dataset.page;render();requestAnimationFrame(()=>document.querySelector('main')?.scrollIntoView({block:'start',behavior:'instant'}));});}
 
+// 저녁에 그 매장 로그인: 오늘 안 끝난 발주 게임·캐시 카운트를 맨 위에 (미들랜드·공장 제외)
+function renderEvening(){
+ document.querySelector('.evening-warn')?.remove();
+ if(!document.getElementById('evening-style')){const st=document.createElement('style');st.id='evening-style';st.textContent=EVENING_CSS;document.head.appendChild(st);}
+ if(!profile?.active||isPreview()||!store||store==='midland'||isFactoryRole(screenRole())||!isEvening())return;
+ const s0=store,day=countDate(),list=orderCatalog().filter(p=>p.unit_confirmed&&p.category!=='키친 발주'&&!skipCount(p));
+ const remaining=list.filter(p=>!countedToday(p)).length,cashPage=EVENING_CASH_STORES.includes(store)&&!!document.querySelector('#navigation [data-page="cash"]');
+ const draw=cashDone=>{
+  document.querySelector('.evening-warn')?.remove();if(store!==s0)return;
+  const items=eveningItems({remaining,total:list.length,submitted:!!draft?.submitted_order_id,cashDone,cashPage}).filter(i=>i.key!==page);
+  const html=eveningHtml(items,t,esc),view=$('#view');if(!html||!view)return;
+  view.insertAdjacentHTML('beforebegin',html);
+  document.querySelectorAll('[data-evening]').forEach(b=>b.onclick=()=>document.querySelector(`#navigation [data-page="${b.dataset.evening}"]`)?.click());
+ };
+ draw(null);
+ if(cashPage)cashSaved(MIN_SHEET_URL,MIN_SHEET_KEY,s0,day).then(done=>{if(store===s0&&done!=null)draw(done);});
+}
 function renderPortal(){
  document.body.classList.toggle('order-list-mode',page==='order'&&orderView==='list'&&store!=='midland'&&orderTab!=='minimum');document.body.classList.toggle('steps-mode',page==='order'&&orderView==='steps'&&store!=='midland');
  const vp=screenProfile(),shownStores=screenStores();const factory=isFactoryRole(screenRole());if(factory&&page==='order')page='production';
  const title=page==='orderSaved'?['orderSaved','','발주함 저장 완료','Basket saved']:page==='orderComplete'?['orderComplete','','발주 완료','Order submitted']:pages.find(p=>p[0]===page)||pages[0];renderNav();renderWorkplaceBadge();
  $('#portal').innerHTML=`${previewControls()}<div class="section-title"><div>${page==='order'?'':`<small>KREAM / ${t(title[2],title[3])}</small>`}<h1>${t(title[2],title[3])}</h1></div><span class="live">${isPreview()?t('권한 미리보기','Role preview'):t('공유 저장 연결됨','Cloud connected')}</span></div>${page==='order'&&!isPreview()?'':`<p class="muted">${isPreview()?t('선택한 권한·매장 기준의 화면입니다. 실제 계정 접근 권한을 검증하는 기능은 아닙니다.','Interface filtered to the selected role/location. This does not impersonate or test another account’s server permissions.'):t('로그인한 계정의 실제 자료입니다.','Live data for your signed-in account.')}</p>`}${!stores.length?`<p class="empty">${t('배정된 활성 매장이 없어요.','No active store assigned.')}</p>`:''}${screenRole()==='manager_factory'&&['waste','sop'].includes(page)?`<div class="chips" id="combinedArea"><button data-area="store" class="${combinedArea==='store'?'active':''}">${t('매장','Store')}</button><button data-area="factory" class="${combinedArea==='factory'?'active':''}">${t('공장','Factory')}</button></div>`:''}<div id="view"></div>`;
+ try{renderEvening();}catch{}   // 경고가 안 떠도 화면은 그대로
  bindPreview();document.querySelectorAll('[data-area]').forEach(b=>b.onclick=()=>{if(hasModuleEdits()&&!confirm(t('작성 중인 내용을 두고 전환할까요?','Leave unsaved entries?')))return;clearModuleState();combinedArea=b.dataset.area;render();});const view=$('#view');
  if(['orderSaved','orderComplete'].includes(page)){renderOrderConfirmation(view);return;}
  if(!['factoryreservations','reservations','clover','galleria','galleriaHistory','galleriaSop','factorymanual','order','history','production','receiving','sop','manual','waste','dispatch','overview','productionlog','finishedstock','costs','externaldispatch','daily','inventory','purchases','materialreceiving','settlement','accounts','workplaces','catalogreview'].includes(page)){view.innerHTML=`<div class="panel pending"><h2>${t('실제 자료 연결 준비 중','Shared data connection pending')}</h2><p>${t('기존 초안에서 구성한 메뉴입니다. 이 기능은 아직 로그인 계정의 공유 자료와 연결되지 않았습니다. 지금은 매장 발주·초안 저장·발주 내역·생산 합계를 사용할 수 있어요.','This module is part of the original design. It is not connected to shared account data yet. Store ordering, cloud drafts, order history and production totals are available.')}</p><a href="../" target="_blank" rel="noopener">${t('기존 디자인 미리보기 열기 ↗','Open original design preview ↗')}</a></div>`;return;}
