@@ -18,9 +18,14 @@ const MANAGERS = ['owner', 'manager', 'general_manager', 'manager_factory'];
 const CSS = `
 .cc{max-width:560px;margin:0 auto 96px}
 .cc *{box-sizing:border-box}
-.cc-top{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-.cc-top label{flex:1;min-width:140px;font-size:12px;font-weight:700;color:#6b6555}
-.cc-top select,.cc-top input{display:block;width:100%;margin-top:4px;height:42px;border-radius:12px;border:1px solid #e4ddcc;padding:0 10px;font-size:16px;background:#fff}
+.cc-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-bottom:10px}
+.cc-top label{min-width:0;font-size:12px;font-weight:700;color:#6b6555}
+.cc-top select,.cc-top input,.cc-tipsplit input[type=date]{display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;margin-top:4px;height:42px;line-height:40px;border-radius:12px;border:1px solid #e4ddcc;padding:0 10px;font-size:16px;font-weight:700;color:#2b2a26;background:#fff;-webkit-appearance:none;appearance:none}
+.cc-top select{padding-right:28px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236b6555' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 10px center;text-overflow:ellipsis}
+/* 아이폰 사파리: 날짜 칸이 위로 붕 뜨거나 옆으로 삐져나가지 않게 */
+.cc input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0;line-height:40px}
+.cc input[type=date]::-webkit-datetime-edit{padding:0;line-height:40px}
+.cc input[type=date]::-webkit-calendar-picker-indicator{margin:0}
 .cc-card{background:#fff;border-radius:22px;padding:14px;box-shadow:0 3px 10px #0001;margin-bottom:12px}
 .cc-card h3{margin:0 0 8px;font-size:18px}
 .cc-row{display:grid;grid-template-columns:96px 1fr 92px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f0ebe0}
