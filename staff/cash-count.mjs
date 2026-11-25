@@ -17,6 +17,8 @@ export async function fetchTips(from, to) {
   return (out.data ?? out).tips || [];
 }
 export const CASH_STORES = ['downtown', 'richmond-hill', 'finch'];
+// 4호점: 현금이 아주 조금이라 시재·봉투가 없어요 → 매출(After/Before Tax)·현금 매출·팁만 적어요 (시트 박스도 같게)
+export const SIMPLE_CASH_STORES = ['finch'];
 export const DENOMS = [
   [100, '$100'], [50, '$50'], [20, '$20'], [10, '$10'], [5, '$5'],
   [2, '$2'], [1, '$1'], [0.25, '25¢'], [0.1, '10¢'], [0.05, '5¢']
@@ -283,10 +285,14 @@ export function renderCashCount(host, c) {
   }
 
   function draw() {
+    const simple = SIMPLE_CASH_STORES.includes(memory.store);
     host.innerHTML = `<div class="cc">
       <div class="cc-top"><label>${t('매장', 'Store')}<select id="ccStore">${stores.map(x => `<option value="${esc(x.id)}" ${x.id === memory.store ? 'selected' : ''}>${esc(x.name || x.id)}</option>`).join('')}</select></label>
       <label>${t('마감 날짜', 'Closing date')}<input id="ccDate" type="date" value="${esc(memory.date)}"></label></div>
       <p class="cc-legend">🔵 ${t('파란 칸만 입력해요 · 나머지는 자동 계산', 'Fill in the blue boxes only · the rest is calculated')}</p>
+      ${simple ? `<div class="cc-card"><p class="cc-legend" style="margin:0 0 8px">ℹ️ ${t('4호점은 시재가 없어요. 오늘 매출·현금 매출·팁만 적어요.', 'Store 4 has no float. Just record sales, cash sales and tips.')}</p><div class="cc-sum">
+        ${num('ccCashSales', t('현금 매출 (POS)', 'Cash sales (POS)'), v.cashSales, t('Clover 리포트의 현금 매출', 'Cash sales on the Clover report'))}
+      </div></div>` : `
       <div class="cc-card"><h3>💵 ${t('지폐·동전 몇 개?', 'How many of each?')}</h3>
       ${DENOMS.map(([d, label]) => { const n = Number(v.counts[String(d)]) || 0; return `<div class="cc-row"><b>${esc(label)}</b><div class="cc-step"><button data-cc="-" data-d="${d}" aria-label="${esc(label)} −">−</button><input data-d="${d}" type="number" inputmode="numeric" min="0" step="1" value="${n || ''}" placeholder="0" aria-label="${esc(label)}"><button data-cc="+" data-d="${d}" aria-label="${esc(label)} +">＋</button></div><em data-line="${d}">${fmt(money(n * d))}</em></div>`; }).join('')}
       </div>
@@ -300,6 +306,7 @@ export function renderCashCount(host, c) {
       </div>
       <div class="cc-env">✉️ ${t('봉투에 넣을 돈', 'Put in the envelope')}: <b id="ccEnv"></b><small id="ccBills"></small></div>
       <div class="cc-next">🌅 ${t('내일 오픈시재', 'Tomorrow’s opening float')}: <b id="ccNext"></b></div></div>
+      `}
       <div class="cc-card"><h3>🧾 ${t('오늘 매출', 'Today’s sales')}</h3><div class="cc-sum">
         ${num('ccAfterTax', 'After Tax Sales', v.afterTax, t('영수증 보고 적어요', 'From the receipt'))}
         ${num('ccBeforeTax', 'Before Tax', v.beforeTax, t('영수증 보고 적어요', 'From the receipt'))}
@@ -325,7 +332,7 @@ export function renderCashCount(host, c) {
     refresh();
   }
   function refresh() {
-    const s = cashPlan(v), q = id => host.querySelector(id);
+    const s = cashPlan(v), dummy = {textContent: '', classList: {toggle() {}}}, q = id => host.querySelector(id) || dummy;   // 4호점은 시재 칸이 없어요
     DENOMS.forEach(([d]) => { const el = host.querySelector(`[data-line="${d}"]`); if (el) el.textContent = fmt(money((Number(v.counts[String(d)]) || 0) * d)); });
     q('#ccTotal').textContent = fmt(s.total);
     q('#ccExtra').textContent = fmt(s.extra); q('#ccExtra').classList.toggle('neg', s.extra < 0);
@@ -395,16 +402,17 @@ export function renderCashCount(host, c) {
     if (b.dataset.cc === 'save') {
       if (c.preview || saving) return;
       const s = cashPlan(v);
-      if (!s.total && !confirm(t('합계가 $0이에요. 그래도 저장할까요?', 'Total is $0. Save anyway?'))) return;
+      const simple = SIMPLE_CASH_STORES.includes(memory.store);
+      if (!simple && !s.total && !confirm(t('합계가 $0이에요. 그래도 저장할까요?', 'Total is $0. Save anyway?'))) return;
       saving = true; b.disabled = true; b.textContent = t('저장 중…', 'Saving…');
       try {
-        const r = await fetch(SHEET_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({action: 'recordCash', key: SYNC_KEY, store_id: memory.store, count_date: memory.date, counts: v.counts, open_float: s.open, cash_sales: s.reported, after_tax: v.afterTax === '' ? null : v.afterTax, before_tax: v.beforeTax === '' ? null : v.beforeTax, total_sales: v.total === '' ? null : v.total, crew: shareTips(v.cashTips, v.cardTips, v.crew).people, cash_tips: v.cashTips === '' ? null : v.cashTips, card_tips: v.cardTips === '' ? null : v.cardTips, staff: c.profile?.display_name || '', note: v.note || ''})});
+        const r = await fetch(SHEET_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({action: 'recordCash', key: SYNC_KEY, store_id: memory.store, count_date: memory.date, counts: simple ? {} : v.counts, open_float: simple ? null : s.open, simple, cash_sales: s.reported, after_tax: v.afterTax === '' ? null : v.afterTax, before_tax: v.beforeTax === '' ? null : v.beforeTax, total_sales: v.total === '' ? null : v.total, crew: shareTips(v.cashTips, v.cardTips, v.crew).people, cash_tips: v.cashTips === '' ? null : v.cashTips, card_tips: v.cardTips === '' ? null : v.cardTips, staff: c.profile?.display_name || '', note: v.note || ''})});
         const out = await r.json().catch(() => ({}));
         if (!r.ok || out.ok === false) throw Error(out.error || 'SAVE_FAILED');
         try { localStorage.setItem(crewKey(memory.store), JSON.stringify(shareTips(0, 0, v.crew).people.map(p => p.name).filter(Boolean))); } catch {}
         saving = false; synced = ''; draw();
         const changes = (out.data || out).changes || [];
-        say(t(`저장했어요 · 봉투 ${fmt(s.envelope)} · 내일 오픈시재 ${fmt(s.nextOpen)}`, `Saved · envelope ${fmt(s.envelope)} · tomorrow’s float ${fmt(s.nextOpen)}`)
+        say((simple ? t(`저장했어요 · 현금 매출 ${s.reported == null ? '—' : fmt(s.reported)} · 팁 ${fmt(money((Number(v.cashTips) || 0) + (Number(v.cardTips) || 0)))}`, `Saved · cash sales ${s.reported == null ? '—' : fmt(s.reported)} · tips ${fmt(money((Number(v.cashTips) || 0) + (Number(v.cardTips) || 0)))}`) : t(`저장했어요 · 봉투 ${fmt(s.envelope)} · 내일 오픈시재 ${fmt(s.nextOpen)}`, `Saved · envelope ${fmt(s.envelope)} · tomorrow’s float ${fmt(s.nextOpen)}`))
           + (changes.length ? ' · ' + t(`바뀐 것 ${changes.length}개를 시트 '변경 기록'에 남겼어요: `, `${changes.length} changes logged in the sheet: `) + changes.join(' · ') : ''));
       } catch (err) {
         saving = false; b.disabled = false; b.textContent = t('시트에 저장 ✅', 'Save to sheet ✅');
