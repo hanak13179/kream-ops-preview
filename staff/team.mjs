@@ -7,10 +7,11 @@ import {TEAM_STORES, STORE_COLORS, storeLabel, today, addDays, weekStart, weekDa
   lateRecord, clockOutReminder, payPeriod, payrollSummary, tipShiftsFromTimecards, LATE_STRONG, wantHours} from './team-logic.mjs?v=20261125-team2';
 import {splitTips} from './tip-split.mjs?v=20261123-tips1';
 import {fetchTips} from './cash-count.mjs?v=20261125-team1';
+import {pushState, enablePush, disablePush, PUSH_TOPICS} from './push.mjs?v=20261125-hr1';
 import {teamBackend, friendlyError, SCHEDULE_SHEET_URL, SCHEDULE_SHEET_LINK, newId} from './team-data.mjs?v=20261125-team2';
 
 const S = {tab: 'week', week: weekStart(today()), filter: 'all', mine: true, build: false, buildStore: null, edit: null, swapFor: null, punchMsg: null,
-  msg: '', err: false, busy: false, data: null, api: null, clockStore: null, tsFrom: null, tsTo: null, tsStore: 'all', tcEdit: null, av: null, setStore: null, setDraft: null, fix: null, pay: null};
+  msg: '', err: false, busy: false, data: null, api: null, clockStore: null, tsFrom: null, tsTo: null, tsStore: 'all', tcEdit: null, av: null, setStore: null, setDraft: null, fix: null, pay: null, push: null};
 const MANAGER_ROLES = ['owner', 'manager', 'general_manager', 'manager_factory'];
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
@@ -186,6 +187,18 @@ export async function renderTeam(host, c) {
     return out.join('');
   }
 
+  // ── 🔔 알림 (직원) ───────────────────────────────────
+  function pushCard() {
+    const P = S.push;
+    if (!P) { pushState(c).then(x => { S.push = x; if (S.tab === 'mytime') draw(); }).catch(() => { S.push = {supported: false}; }); return ''; }
+    const mine = PUSH_TOPICS.filter(x => x.roles.includes('staff'));
+    return `<div class="tm-card"><h4>🔔 ${t('폰 알림', 'Phone notifications')}</h4><p class="tm-muted">${t('근무 2시간 전, 퇴근 안 찍었을 때, 쉬프트 마켓에 새 근무, 새 스케줄, 내 요청 결과를 알려줘요.', 'Shift in 2 hours, forgot to clock out, new market shifts, new schedule, request results.')}</p>
+      ${!P.supported ? `<p class="tm-msg warn">${esc(P.why || t('이 기기·브라우저는 알림을 못 받아요.', 'This device/browser cannot receive notifications.'))}</p>` : P.enabled
+        ? `${mine.map(x => `<label style="display:flex;gap:8px;align-items:center;padding:3px 0"><input type="checkbox" data-topic="${x.key}" ${P.topics?.includes(x.key) ? 'checked' : ''} style="width:auto"> ${t(x.ko, x.en)}</label>`).join('')}<div class="tm-row" style="margin-top:8px"><button class="tm-btn small" data-act="pushSave">${t('저장', 'Save')}</button><button class="tm-btn alt small" data-act="pushOff">${t('끄기', 'Turn off')}</button></div>`
+        : `<button class="tm-btn" data-act="pushOn">🔔 ${t('이 폰에서 알림 켜기', 'Turn on for this phone')}</button>`}
+      <p class="tm-muted">${t('아이폰은 사파리 → 공유 → “홈 화면에 추가”로 앱을 설치한 뒤, 그 앱에서 켜 주세요.', 'iPhone: Safari → Share → Add to Home Screen, then turn on inside that app.')}</p></div>`;
+  }
+
   // ── 내 출퇴근 · 시간 고치기 요청 ─────────────────────
   const fixStatus = {pending: t('⏳ 매니저 확인 중', '⏳ Manager reviewing'), approved: t('✅ 적용됨', '✅ Applied'), denied: t('❌ 거절', '❌ Denied'), cancelled: t('취소됨', 'Cancelled')};
   function myTimeHtml() {
@@ -207,6 +220,7 @@ export async function renderTeam(host, c) {
       <div class="tm-card">${cards.map(tc => { const late = lateMinutes(tc, D().shifts), pend = fixes.find(x => x.timecard_id === tc.id && x.status === 'pending'); return `<div class="tm-row" style="justify-content:space-between;border-left:4px solid ${colorOf(tc.store_id).line};background:${colorOf(tc.store_id).bg};border-radius:8px;padding:6px 8px;margin:4px 0">
         <span>${esc(fmtDate(tcDate(tc), lang))} · ${esc(storeLabel(tc.store_id, lang))} · ${esc(tm(tc.clock_in))}–${esc(tm(tc.clock_out))} · <b>${workedHours(tc)}h</b>${late ? ` <span class="tm-tag late">⚠ ${late}${t('분 늦음', 'm late')}</span>` : ''}${tc.edited_at || tc.source === 'manager' ? ` <span class="tm-tag">${t('수정됨', 'Edited')}</span>` : ''}</span>
         ${pend ? `<span class="tm-tag">${fixStatus.pending}</span>` : `<button class="tm-btn alt small" data-act="fixFor" data-id="${esc(tc.id)}">${t('시간 고치기 요청', 'Request fix')}</button>`}</div>`; }).join('') || `<p class="tm-muted">${t('최근 31일 기록이 없어요', 'No punches in the last 31 days')}</p>`}</div>
+      ${pushCard()}
       <div class="tm-card"><h4>${t('내 고치기 요청', 'My fix requests')}</h4>${fixes.map(x => `<div class="tm-row" style="justify-content:space-between;border-top:1px solid #efe9da;padding:6px 0"><span>${esc(fmtDate(localParts(x.new_in).date, lang))} · ${esc(storeLabel(x.store_id, lang))} · ${esc(tm(x.new_in))}–${esc(tm(x.new_out))}${x.break_min ? ` · ☕${x.break_min}${t('분', 'm')}` : ''} · “${esc(x.reason)}”</span><span>${fixStatus[x.status] || x.status}${x.status === 'pending' ? ` <button class="tm-btn alt small" data-act="fixCancel" data-id="${x.id}">${t('취소', 'Cancel')}</button>` : ''}</span></div>`).join('') || `<p class="tm-muted">${t('아직 없어요', 'None yet')}</p>`}</div>`;
   }
 
@@ -613,6 +627,12 @@ export async function renderTeam(host, c) {
       if (f.in == null || (f.out != null && f.out <= f.in)) { say(t('퇴근 시간이 출근보다 늦어야 해요', 'Clock-out must be after clock-in'), true); return; }
       const body = {timecard_id: f.timecard_id, store_id: f.store_id, new_in: zonedToISO(f.date, f.in), new_out: f.out == null ? null : zonedToISO(f.date, f.out), break_min: f.brk, reason: f.reason};
       S.fix = null; run(() => api.requestFix(body), t('요청을 보냈어요. 매니저가 확인한 뒤에 적용돼요.', 'Request sent. Management will verify it before it is applied.')); return;
+    }
+    if (act === 'pushOn' || act === 'pushSave' || act === 'pushOff') {
+      const topics = [...host.querySelectorAll('[data-topic]')].filter(x => x.checked).map(x => x.dataset.topic);
+      try { if (act === 'pushOff') await disablePush(c); else await enablePush(c, act === 'pushOn' ? null : topics); S.push = await pushState(c); say(act === 'pushOff' ? t('알림을 껐어요', 'Notifications off') : t('🔔 알림이 켜졌어요', '🔔 Notifications on')); }
+      catch (e) { say(e.message === 'DENIED' ? t('알림 권한이 꺼져 있어요. 설정에서 이 앱 알림을 허용해 주세요.', 'Notifications are blocked; allow them in settings.') : e.message === 'NOT_READY' ? t('알림 서버 준비 중이에요.', 'Notification server is not ready yet.') : String(e.message || e), true); }
+      return;
     }
     if (act === 'fixCancel') { run(() => api.cancelFix(id), t('취소했어요', 'Cancelled')); return; }
     if (act === 'decideFix') { run(() => api.decideFix(id, b.dataset.yes === '1'), b.dataset.yes === '1' ? t('확인했어요 · 근무기록에 적용됐어요', 'Verified · applied to the timesheet') : t('거절했어요', 'Denied')); return; }
