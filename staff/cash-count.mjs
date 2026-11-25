@@ -1,11 +1,11 @@
-import {parseHomebaseShifts, splitTips, tipStoreLabel} from './tip-split.mjs?v=20261123-tips1';
+import {splitTips, tipStoreLabel} from './tip-split.mjs?v=20261123-tips1';
 import {tipShiftsFromTimecards, crewForDay} from './team-logic.mjs?v=20261125-team2';
 import {teamBackend} from './team-data.mjs?v=20261125-team2';
 // 캐시 카운트 (1·3·4호점): 마감 때 지폐·동전 개수를 세면 합계, 오픈시재를 뺀 당일 현금매출이 바로 계산돼요.
 // 오픈시재를 빼고 남는 현금 중 지폐로 딱 떨어지는 만큼만 봉투에 넣고, 남은 돈이 내일 오픈시재예요 (예: 남는 돈 $121 → 봉투 $120, $1은 남김).
 // "시트에 저장"을 누르면 Cash Count 시트에 매장별·날짜별로 기록돼요 (오늘이 맨 위, 같은 날 다시 저장하면 그 줄을 고쳐요). 앱 데이터베이스는 바꾸지 않아요.
 // 세는 중인 숫자는 이 기기에 매장·날짜별로 임시 저장돼서, 화면을 나갔다 와도 그대로예요.
-// 팁: 마감 직원이 그날 현금 팁·카드 팁을 적어서 같이 저장해요 (시트 'Tips' 탭). 매니저는 맨 아래 '팁 나누기'에서 Homebase 타임시트로 나눠요 (tip-split.mjs).
+// 팁: 마감 직원이 그날 현금 팁·카드 팁을 적어서 같이 저장해요 (시트 'Tips' 탭). 매니저는 맨 아래 '팁 나누기'에서 📅 스케줄의 출퇴근 기록(일한 시간)으로 나눠요 (tip-split.mjs). Homebase는 안 써요.
 
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwjnrGRDkR_qX7AmNq2S3oDVveSR1QbjED0FFga11Au1NcHWNNlPLQlZNwL7EpIlu6x/exec';
 const SYNC_KEY = 'kream-stock-sync';
@@ -186,7 +186,7 @@ export function fromSheetBox(box, base) {
   v.total = salesTotal(v.afterTax, v.beforeTax);
   return v;
 }
-// 근무자 칸이 비었거나 이름만 있으면 Homebase 스케줄로 채워요
+// 근무자 칸이 비었거나 이름만 있으면 📅 스케줄(출퇴근 기록, 없으면 게시된 스케줄)로 채워요
 export function crewFromSchedule(crew, schedule) {
   if (!schedule?.length) return null;
   if ((crew || []).some(p => p.hours !== '' && p.hours != null)) return null;
@@ -212,16 +212,16 @@ export function renderCashCount(host, c) {
       if (got.box) { v = fromSheetBox(got.box, v); synced = t('📋 시트에 저장된 값을 불러왔어요 (시트에서 고친 것도 보여요)', '📋 Loaded what is saved in the sheet (sheet edits show here too)'); }
       else {
         const app = await crewFromApp(store, date);
-        const crew = crewFromSchedule(v.crew, app.length ? app : got.schedule);
+        const crew = crewFromSchedule(v.crew, app);
         if (tok !== syncTok || touched) return;
-        if (crew) { v.crew = crew; synced = app.length ? t(`⏱ 앱 출퇴근 기록으로 근무자 ${crew.length}명을 채웠어요 · 고칠 수 있어요`, `⏱ Filled ${crew.length} people from app punches · you can edit`) : t(`📅 Homebase 스케줄로 근무자 ${crew.length}명을 채웠어요 · 고칠 수 있어요`, `📅 Filled ${crew.length} people from the Homebase schedule · you can edit`); } else synced = '';
+        if (crew) { v.crew = crew; synced = t(`📅 스케줄(출퇴근 기록)로 근무자 ${crew.length}명을 채웠어요 · 고칠 수 있어요`, `📅 Filled ${crew.length} people from the schedule (punches) · you can edit`); } else synced = '';
       }
       draw();
     } catch { /* 인터넷이 안 되면 이 기기 값으로 계속 써요 */ }
   }
   // 📅 스케줄 페이지의 출퇴근 기록(없으면 게시된 스케줄)으로 오늘 근무자·시간
-  async function crewFromApp(store, date) {
-    try { const api = await teamBackend(c, stores.map(s => s.id)); if (api.mode !== 'live') return []; const d = await api.load({from: date, to: date}); return crewForDay({...d, store, date}); }
+  async function crewFromApp(store, date, anyMode = false) {
+    try { const api = await teamBackend(c, stores.map(s => s.id)); if (api.mode !== 'live' && !anyMode) return []; const d = await api.load({from: date, to: date}); return crewForDay({...d, store, date}); }
     catch { return []; }
   }
   const manager = MANAGERS.includes(c.profile?.role) || !!c.profile?.store_manager || !!c.profile?.general_manager;
@@ -240,20 +240,16 @@ export function renderCashCount(host, c) {
   }
   function tipWarnings(r) {
     const out = [];
-    if (r && r.unsplit.length) out.push(`<b>${t('팁은 있는데 Homebase에 일한 사람이 없는 날 (나누지 않았어요):', 'Tips with no one clocked in at that store (not split):')}</b><ul>${r.unsplit.map(u => `<li>${esc(u.date)} ${esc(tipStoreLabel(u.store))} · ${t('현금', 'cash')} ${fmt(u.cash)} · ${t('카드', 'card')} ${fmt(u.card)}</li>`).join('')}</ul>`);
-    if (split.skipped.length) out.push(`<b>${t('빠진 근무 (Homebase에서 고치고 다시 내보내 주세요):', 'Shifts left out (fix in Homebase and export again):')}</b><ul>${split.skipped.slice(0, 30).map(k => `<li>${esc(k.name ? `${k.date} · ${k.name} · ${k.hours}h${k.role ? ' · ' + k.role : ''}` : `${t('줄', 'line')} ${k.line}: ${k.text}`)} — ${esc(t(...(REASONS[k.reason] || [k.reason, k.reason])))}</li>`).join('')}${split.skipped.length > 30 ? `<li>… +${split.skipped.length - 30}</li>` : ''}</ul>`);
+    if (r && r.unsplit.length) out.push(`<b>${t('팁은 있는데 그 매장 출퇴근 기록이 없는 날 (나누지 않았어요 · 📅 스케줄 → 근무기록에서 빠진 기록을 넣어 주세요):', 'Tips with no one clocked in at that store (not split · add missing punches in 📅 Schedule → Timesheets):')}</b><ul>${r.unsplit.map(u => `<li>${esc(u.date)} ${esc(tipStoreLabel(u.store))} · ${t('현금', 'cash')} ${fmt(u.cash)} · ${t('카드', 'card')} ${fmt(u.card)}</li>`).join('')}</ul>`);
+    if (split.skipped.length) out.push(`<b>${t('빠진 근무:', 'Shifts left out:')}</b><ul>${split.skipped.slice(0, 30).map(k => `<li>${esc(k.name ? `${k.date} · ${k.name} · ${k.hours}h${k.role ? ' · ' + k.role : ''}` : `${t('줄', 'line')} ${k.line}: ${k.text}`)} — ${esc(t(...(REASONS[k.reason] || [k.reason, k.reason])))}</li>`).join('')}${split.skipped.length > 30 ? `<li>… +${split.skipped.length - 30}</li>` : ''}</ul>`);
     return out.length ? `<div class="cc-warn">${out.join('')}</div>` : '';
   }
   function tipSplitHtml() {
     const r = split.result;
     return `<details class="cc-card cc-tipsplit" ${split.open ? 'open' : ''} id="ccSplit"><summary>🧮 ${t('팁 나누기 (매니저)', 'Split tips (managers)')}</summary>
-      <p style="font-size:13px;color:#6b6555;margin:8px 0 0">${t('Homebase → 타임시트 → 기간을 고르고 CSV로 내보낸 파일을 올려 주세요. 매장마다, 날마다 그날 일한 사람끼리 일한 시간만큼 나눠요 (현금·카드 따로).', 'In Homebase, export Timesheets for the pay period as CSV and upload it here. Each store’s tips for each day are shared by hours among the people who worked (cash and card separately).')}</p>
+      <p style="font-size:13px;color:#6b6555;margin:8px 0 0">${t('📅 스케줄의 출퇴근 기록으로 나눠요. 매장마다, 날마다 그날 일한 사람끼리 일한 시간만큼 나눠요 (현금·카드 따로). 빠진 출퇴근은 📅 스케줄 → 근무기록에서 먼저 넣어 주세요.', 'Split by clocked hours from 📅 Schedule. Each store’s tips for each day are shared by hours among the people who worked (cash and card separately). Add missing punches in 📅 Schedule → Timesheets first.')}</p>
       <div class="cc-two"><label>${t('시작', 'From')}<input type="date" id="ccSplitFrom" value="${esc(split.from)}"></label><label>${t('끝', 'To')}<input type="date" id="ccSplitTo" value="${esc(split.to)}"></label></div>
-      <label>${t('Homebase 타임시트 CSV', 'Homebase timesheet CSV')}<input type="file" id="ccSplitFile" accept=".csv,text/csv"></label>
-      ${split.file ? `<small style="display:block;margin-top:4px">📄 ${esc(split.file)}</small>` : ''}
-      <button data-cc="splitClock" ${split.busy ? 'disabled' : ''}>⏱ ${t('앱 출퇴근 기록으로 계산 (CSV 필요 없음)', 'Calculate from app punches (no CSV)')}</button>
-      <p style="font-size:12px;color:#6b6555;margin:6px 0 0;text-align:center">${t('— 또는 Homebase CSV —', '— or a Homebase CSV —')}</p>
-      <button data-cc="split" ${split.busy || !split.csv ? 'disabled' : ''}>${split.busy ? t('계산 중…', 'Working…') : t('나누기 계산', 'Calculate split')}</button>
+      <button data-cc="splitClock" ${split.busy ? 'disabled' : ''}>${split.busy ? t('계산 중…', 'Working…') : '⏱ ' + t('출퇴근 기록으로 나누기 계산', 'Calculate split from punches')}</button>
       ${r ? tipTable(r) : ''}${tipWarnings(r)}
       ${r && r.lines.length ? `<button data-cc="splitSave" ${split.busy || c.preview ? 'disabled' : ''}>${t('시트에 저장 (Tip Split 탭)', 'Save to sheet (Tip Split tab)')}</button>` : ''}
       <p class="cc-msg ${split.err ? 'err' : ''}">${esc(split.msg || '')}</p></details>`;
@@ -276,13 +272,6 @@ export function renderCashCount(host, c) {
         split.skipped = []; split.file = '';
         split.result = splitTips(got.tips || [], shifts, {from: split.from, to: split.to});
         split.msg = t(`앱 출퇴근 ${shifts.length}개 · 팁 기록 ${(got.tips || []).length}개${api.mode === 'demo' ? ' · (예시 모드)' : ''}`, `${shifts.length} app punches · ${(got.tips || []).length} tip records${api.mode === 'demo' ? ' · (demo)' : ''}`);
-      } else if (!save) {
-        const parsed = parseHomebaseShifts(split.csv, {year: Number(split.to.slice(0, 4)) || undefined});
-        if (parsed.error) throw Error(t('CSV에서 이름·날짜 칸을 못 찾았어요', 'Could not find name/date columns in the CSV'));
-        const got = await post({action: 'recordCash', op: 'getTips', from: split.from, to: split.to});
-        split.skipped = parsed.skipped.filter(k => !k.date || (k.date >= split.from && k.date <= split.to));
-        split.result = splitTips(got.tips || [], parsed.shifts, {from: split.from, to: split.to});
-        split.msg = t(`근무 ${parsed.shifts.length}개 · 팁 기록 ${(got.tips || []).length}개`, `${parsed.shifts.length} shifts · ${(got.tips || []).length} tip records`);
       } else {
         const r = split.result;
         await post({action: 'recordCash', op: 'saveTipSplit', from: r.from, to: r.to, people: r.people, lines: r.lines, unsplit: r.unsplit, skipped: split.skipped.length, staff: c.profile?.display_name || ''});
@@ -325,8 +314,8 @@ export function renderCashCount(host, c) {
       <div class="cc-crew">${(v.crew || []).map((p, i) => `<div class="cc-cr"><div class="cc-cr1"><input class="cc-in" data-crew="${i}" data-k="name" value="${esc(p.name || '')}" placeholder="${t('이름', 'Name')}" maxlength="40"><input class="h" type="number" inputmode="decimal" min="0" step="0.25" data-crew="${i}" data-k="hours" value="${esc(p.hours ?? '')}" placeholder="${t('시간', 'h')}"><button data-cc="crewDel" data-i="${i}" aria-label="${t('빼기', 'Remove')}">✕</button></div><div class="cc-cr2" data-shareline="${i}">${t('현금', 'Cash')} <span data-share="${i}c"></span> + ${t('카드', 'Card')} <span data-share="${i}d"></span> = <b data-share="${i}t"></b></div></div>`).join('')}
         <div class="cc-ctot" id="ccCrewTot">${t('합계', 'Total')} <span id="ccCrewHours"></span> · ${t('현금', 'Cash')} <span id="ccCrewCash"></span> · ${t('카드', 'Card')} <span id="ccCrewCard"></span> · ${t('팁', 'Tips')} <b id="ccCrewTip"></b></div></div>
       <button class="cc-add" data-cc="crewAdd">＋ ${t('사람 추가', 'Add person')}</button>
-      <label class="cc-sched">📅 ${t('Homebase 스케줄 올리기 (CSV)', 'Upload Homebase schedule (CSV)')}<input type="file" id="ccSchedFile" accept=".csv,text/csv"></label>
-      <small style="display:block;margin-top:6px;color:#6b6555">${t('Homebase 스케줄을 보고 이름과 일한 시간을 적어요. 현금·카드 팁을 시간만큼 나눠요. 현금 팁은 봉투·시재와 따로 보관해요.', 'Check the Homebase schedule and enter names and hours. Cash and card tips are shared by hours. Keep cash tips separate from the envelope and float.')}</small></div>
+      <button class="cc-sched" data-cc="crewApp" style="width:100%;border:0;border-radius:12px;padding:10px;font-size:15px;font-weight:700;background:#e9efe2;color:#3e4b33">📅 ${t('스케줄에서 근무자 불러오기', 'Fill from the schedule')}</button>
+      <small style="display:block;margin-top:6px;color:#6b6555">${t('📅 스케줄의 오늘 출퇴근 기록(없으면 게시된 스케줄)으로 이름과 일한 시간을 채워요. 고칠 수 있어요. 현금·카드 팁을 시간만큼 나눠요. 현금 팁은 봉투·시재와 따로 보관해요.', 'Fills names and hours from today’s punches in 📅 Schedule (or the published schedule). You can edit. Cash and card tips are shared by hours. Keep cash tips separate from the envelope and float.')}</small>
       <div class="cc-card"><textarea id="ccNote" class="cc-note" maxlength="300" placeholder="${t('메모 (선택) · 예: 동전 롤 1개 따로 보관', 'Note (optional)')}">${esc(v.note || '')}</textarea></div>
       <div class="cc-actions"><button class="cc-clear" data-cc="clear">${t('다시 세기', 'Start over')}</button><button class="cc-save" data-cc="save" ${c.preview || saving ? 'disabled' : ''}>${saving ? t('저장 중…', 'Saving…') : t('시트에 저장 ✅', 'Save to sheet ✅')}</button></div>
       <p class="cc-msg" id="ccMsg">${c.preview ? t('미리보기: 저장되지 않아요.', 'Preview: nothing is saved.') : ''}</p>
@@ -383,21 +372,9 @@ export function renderCashCount(host, c) {
   host.onchange = e => {
     const el = e.target;
     if (el.id === 'ccSplitFrom' || el.id === 'ccSplitTo') { if (/^\d{4}-\d{2}-\d{2}$/.test(el.value)) { split[el.id === 'ccSplitFrom' ? 'from' : 'to'] = el.value; split.result = null; split.open = true; draw(); } return; }
-    if (el.id === 'ccSplitFile') {
-      const f = el.files && el.files[0]; if (!f) return;
-      f.text().then(txt => { split.csv = txt; split.file = f.name; split.result = null; split.skipped = []; split.msg = ''; split.open = true; draw(); });
-      return;
-    }
     if (el.id === 'ccStore' || el.id === 'ccDate') {
       if (el.id === 'ccStore') memory.store = el.value; else if (/^\d{4}-\d{2}-\d{2}$/.test(el.value)) memory.date = el.value;
       v = load(memory.store, memory.date); synced = ''; draw(); syncFromSheet();
-    }
-    if (el.id === 'ccSchedFile') {
-      const f = el.files && el.files[0]; if (!f || c.preview) return;
-      say(t('스케줄 올리는 중…', 'Uploading schedule…'));
-      f.text().then(csv => post({action: 'recordCash', op: 'saveSchedule', csv, staff: c.profile?.display_name || ''}))
-        .then(r => { say(t(`스케줄 ${r.from} ~ ${r.to} (${r.shifts}건)을 올렸어요. 그 날짜마다 근무자가 미리 떠요 · 다른 날짜 스케줄은 그대로예요`, `Uploaded ${r.from} – ${r.to} (${r.shifts} shifts). Each day will show its crew · other dates are kept`)); syncFromSheet(); })
-        .catch(err => say(t('스케줄을 못 읽었어요. Homebase에서 CSV로 내보낸 파일인지 확인해 주세요.', 'Could not read the schedule. Make sure it is the CSV export from Homebase.') + ` (${err.message})`, true));
     }
   };
   host.onclick = async e => {
@@ -405,8 +382,13 @@ export function renderCashCount(host, c) {
     if (b.dataset.cc === '+' || b.dataset.cc === '-') return setCount(b.dataset.d, (Number(v.counts[b.dataset.d]) || 0) + (b.dataset.cc === '+' ? 1 : -1));
     if (b.dataset.cc === 'crewAdd') { v.crew = v.crew || []; v.crew.push({name: '', hours: ''}); draw(); const ins = host.querySelectorAll('[data-k="name"]'); if (ins.length) ins[ins.length - 1].focus(); return; }
     if (b.dataset.cc === 'crewDel') { v.crew.splice(Number(b.dataset.i), 1); return draw(); }
-    if (b.dataset.cc === 'split') return runSplit(false);
     if (b.dataset.cc === 'splitClock') return runSplit(false, 'clock');
+    if (b.dataset.cc === 'crewApp') {
+      const crew = await crewFromApp(memory.store, memory.date, true);
+      if (!crew.length) return say(t('이 날 이 매장 출퇴근 기록이나 스케줄이 없어요', 'No punches or shifts for this store on this day'), true);
+      touched = true; v.crew = crew; keep(memory.store, memory.date, v); draw();
+      return say(t(`📅 스케줄에서 근무자 ${crew.length}명을 불러왔어요`, `📅 Filled ${crew.length} people from the schedule`));
+    }
     if (b.dataset.cc === 'splitSave') return runSplit(true);
     if (b.dataset.cc === 'clear') { if (!confirm(t('센 숫자와 입력한 매출을 모두 지울까요?', 'Clear everything?'))) return; v = blank(); keep(memory.store, memory.date, v); return draw(); }
     if (b.dataset.cc === 'save') {

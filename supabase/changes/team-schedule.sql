@@ -211,7 +211,7 @@ begin
  delete from public.kream_team_shifts where id=any(coalesce(delete_ids,'{}')) and store_id=target_store;
  for r in select * from jsonb_array_elements(rows) loop
   who:=nullif(r->>'user_id','')::uuid;
-  if who is not null and not exists(select 1 from public.kream_memberships where user_id=who and store_id=target_store) then raise exception 'Person is not on this store' using errcode='22023'; end if;
+  if who is not null and not kream_private.team_any_user(who) then raise exception 'Person is not on a team store' using errcode='22023'; end if;   -- 1·3·4호점 사람은 어느 지점이든 배정 가능
   if exists(select 1 from public.kream_team_shifts where id=(r->>'id')::uuid and store_id<>target_store) then raise exception 'Shift belongs to another store' using errcode='42501'; end if;
   insert into public.kream_team_shifts as s(id,store_id,shift_date,start_min,end_min,position,user_id,note,published,updated_by,updated_at)
   values((r->>'id')::uuid,target_store,(r->>'date')::date,(r->>'start_min')::int,(r->>'end_min')::int,coalesce(r->>'position',''),who,coalesce(r->>'note',''),coalesce((r->>'published')::boolean,false),auth.uid(),now())
