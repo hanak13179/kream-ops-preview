@@ -18,6 +18,7 @@ test('geofence: only within 100m of the POS',()=>{
  assert.equal(geoCheck({lat:43.66497,lng:-79.38466},{lat:43.66600,lng:-79.38466}).ok,false);   // default radius 100
  assert.equal(geoCheck(store,null).reason,'no_location');
  assert.equal(geoCheck({},{lat:1,lng:1}).reason,'store_unset');
+ assert.equal(geoCheck({},{lat:1,lng:1}).ok,false);   // 위치 없는 매장은 출근 막음 (서버와 같게)
 });
 const people=[{id:'a',name:'Amy',stores:['downtown']},{id:'b',name:'Ben',stores:['downtown']},{id:'c',name:'Cho',stores:['downtown','finch']}];
 const week=['2026-11-30','2026-12-01','2026-12-02','2026-12-03','2026-12-04','2026-12-05','2026-12-06'];

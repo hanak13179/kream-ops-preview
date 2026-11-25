@@ -2,8 +2,8 @@
 // 맨 위: 지금 해야 할 것 (발주 안 함 · 캐시 카운트 안 함 · 퇴근 안 찍음 · 미출근)
 // 사람: 지각·미출근, 스케줄 문제 / 재고: 지점별 품절, 오래 품절, 오래 안 센 재고, 발주 누락, 입고확인 안 함 / 공장: 완제품 재고 없음, 원재료 부족
 // 직원 관리: 초대 링크, 가입·근무지 요청 승인, 매장 지정 (Sora의 accounts 화면을 그대로 써요) / 🔔 알림 설정
-import {TEAM_STORES, STORE_COLORS, today, addDays, fmtDate, fmtRange, fmtTime, localParts} from './team-logic.mjs?v=20261125-pr789';
-import {teamBackend} from './team-data.mjs?v=20261125-pr789';
+import {TEAM_STORES, STORE_COLORS, today, addDays, fmtDate, fmtRange, fmtTime, localParts} from './team-logic.mjs?v=20261125-loc1';
+import {teamBackend} from './team-data.mjs?v=20261125-loc1';
 import {readAllRows} from './read-rows.mjs';
 import {carriedSet, ORDER_DUE_MIN, CASH_DUE_MIN, orderStatus, missedOrders, soldOut, longSoldOut, staleCounts, factoryOut, lowMaterials, notReceived, attendance, openPunches, scheduleProblems, headline, ORDER_STORES, LONG_OUT_DAYS, STALE_COUNT_DAYS, MISSED_ORDER_DAYS, PEOPLE_DAYS} from './hr-logic.mjs?v=20261125-pr789';
 import {renderAccounts} from './accounts.mjs?v=20261124-account-folders';

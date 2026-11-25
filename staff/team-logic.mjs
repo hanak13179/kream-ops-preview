@@ -74,7 +74,7 @@ export function distanceM(a, b) {
  *  GPS가 부정확하면(정확도 > 반경) 'fuzzy' → 창가에서 다시 눌러 달라고 안내해요. */
 export function geoCheck(store, pos) {
   if (!pos || !Number.isFinite(pos.lat) || !Number.isFinite(pos.lng)) return {ok: false, reason: 'no_location'};
-  if (!store || !Number.isFinite(store.lat) || !Number.isFinite(store.lng)) return {ok: true, reason: 'store_unset', dist: null};
+  if (!store || !Number.isFinite(store.lat) || !Number.isFinite(store.lng)) return {ok: false, reason: 'store_unset', dist: null};   // 서버도 위치가 없으면 출근을 막아요 (Store location not configured)
   const dist = Math.round(distanceM(store, pos)), acc = Math.round(Math.max(0, Number(pos.acc) || 0)), radius = Number(store.radius_m) || DEFAULT_RADIUS;
   const ok = dist <= radius;
   return {ok, dist, acc, radius, reason: ok ? 'near' : acc > radius ? 'fuzzy' : 'far'};

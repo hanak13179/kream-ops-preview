@@ -1,6 +1,6 @@
 // 📊 HR Management — 화면 없이 계산만 (테스트: tests/hr-logic.test.mjs)
 // 발주·캐시·품절·공장 재고·입고확인 + 사람(지각·미출근·퇴근 안 찍음·스케줄) 문제를 한곳에 모아요.
-import {today as torontoToday, addDays, weekStart, weekDates, localParts, lateMinutes, shiftStatus, shiftIssues, tcDate, TEAM_STORES} from './team-logic.mjs?v=20261125-pr789';
+import {today as torontoToday, addDays, weekStart, weekDates, localParts, lateMinutes, shiftStatus, shiftIssues, tcDate, TEAM_STORES} from './team-logic.mjs?v=20261125-loc1';
 
 export const ORDER_STORES = ['downtown', 'midland', 'richmond-hill', 'finch'];   // 발주·재고는 2호점도 봐요 (스케줄·캐시는 1·3·4만)
 export const LONG_OUT_DAYS = 4, STALE_COUNT_DAYS = 4, MISSED_ORDER_DAYS = 7, PEOPLE_DAYS = 14;

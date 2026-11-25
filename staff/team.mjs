@@ -4,11 +4,11 @@
 import {TEAM_STORES, STORE_COLORS, storeLabel, today, addDays, weekStart, weekDates, weekday, fmtTime, fmtRange, fmtDate, dayName, timeValue, parseTime,
   shiftHours, shiftIssues, autoSchedule, copyWeek, availability, onTimeOff, geoCheck, workedHours, onBreak, localParts, timesheet, timesheetCsv,
   lateMinutes, shiftStatus, zonedToISO, breakMinutes, DEFAULT_RADIUS, DEFAULT_NOTICE_DAYS, DEFAULT_MAX_HOURS, tcDate,
-  lateRecord, clockOutReminder, payPeriod, payrollSummary, tipShiftsFromTimecards, LATE_STRONG, wantHours} from './team-logic.mjs?v=20261125-pr789';
+  lateRecord, clockOutReminder, payPeriod, payrollSummary, tipShiftsFromTimecards, LATE_STRONG, wantHours} from './team-logic.mjs?v=20261125-loc1';
 import {splitTips} from './tip-split.mjs?v=20261123-tips1';
 import {fetchTips} from './cash-count.mjs?v=20261125-pr789';
 import {pushState, enablePush, disablePush, PUSH_TOPICS} from './push.mjs?v=20261125-live-push';
-import {teamBackend, friendlyError, SCHEDULE_SHEET_URL, SCHEDULE_SHEET_LINK, newId} from './team-data.mjs?v=20261125-pr789';
+import {teamBackend, friendlyError, SCHEDULE_SHEET_URL, SCHEDULE_SHEET_LINK, newId} from './team-data.mjs?v=20261125-loc1';
 
 const S = {tab: 'week', week: weekStart(today()), filter: 'all', mine: true, build: false, buildStore: null, edit: null, swapFor: null, punchMsg: null,
   msg: '', err: false, busy: false, data: null, api: null, clockStore: null, tsFrom: null, tsTo: null, tsStore: 'all', tcEdit: null, av: null, setStore: null, setDraft: null, fix: null, pay: null, push: null};
@@ -141,7 +141,7 @@ export async function renderTeam(host, c) {
     const pm = S.punchMsg;
     return `<div class="tm-card" style="border-left:6px solid ${colorOf(st).line}"><h3>⏱ ${t('출퇴근', 'Time clock')}</h3>${body}
       <p class="tm-rule">📍 ${t(`출근은 ${storeLabel(st, lang)} POS에서 ${radius}m 안에서만 돼요. 멀리 있으면 출근이 안 되고 경고가 떠요.`, `Clock-in only works within ${radius} m of the ${storeLabel(st, lang)} POS. If you are too far, it is blocked with a warning.`)}</p>
-      ${unset ? `<p class="tm-msg warn">${manager ? t('⚠ 이 매장 POS 위치가 아직 없어요. ⚙ 설정에서 POS 옆에 서서 “지금 여기로 정하기”를 눌러 주세요. 그 전에는 위치 확인 없이 출근돼요.', '⚠ This store’s POS location is not set yet. In ⚙ Settings, stand next to the POS and tap “Use my location”. Until then clock-in is not location-checked.') : t('이 매장 위치가 아직 정해지지 않아서 지금은 위치 확인 없이 출근돼요.', 'Store location is not set yet, so clock-in is not location-checked for now.')}</p>` : ''}
+      ${unset ? `<p class="tm-msg warn">${manager ? t('⚠ 이 매장 POS 위치가 아직 없어서 아무도 출근을 못 찍어요. ⚙ 설정에서 POS 옆에 서서 “지금 여기로 정하기”를 눌러 주세요.', '⚠ This store’s POS location is not set, so nobody can clock in yet. In ⚙ Settings, stand next to the POS and tap “Use my location”.') : t('⚠ 이 매장 POS 위치가 아직 설정되지 않아서 출근을 찍을 수 없어요. 매니저에게 설정을 요청해 주세요.', '⚠ This store’s POS location is not set, so clock-in is not available yet. Please ask your manager to set it.')}</p>` : ''}
       ${pm ? `<div class="tm-alert ${pm.kind}">${esc(pm.text)}</div>` : ''}</div>`;
   }
   async function punch(kind) {
@@ -157,7 +157,9 @@ export async function renderTeam(host, c) {
       const g = geoCheck(settingsOf(st), pos);
       if (!g.ok) {
         S.busy = false;
-        S.punchMsg = {kind: 'far', text: g.reason === 'fuzzy'
+        S.punchMsg = {kind: 'far', text: g.reason === 'store_unset'
+          ? t('🚫 이 매장 POS 위치가 아직 설정되지 않아서 출근을 찍을 수 없어요. 매니저에게 ⚙ 설정에서 위치를 정해 달라고 해 주세요.', '🚫 This store’s POS location is not set, so you cannot clock in yet. Ask your manager to set it in ⚙ Settings.')
+          : g.reason === 'fuzzy'
           ? t(`🚫 GPS가 부정확해요 (±${g.acc}m, 지금 ${g.dist}m로 보여요). 창가나 문 쪽으로 가서 다시 눌러 주세요. 출근은 POS에서 ${g.radius}m 안에서만 돼요.`, `🚫 GPS is inaccurate (±${g.acc} m, shows ${g.dist} m away). Move near a window or the door and try again. Clock-in only works within ${g.radius} m of the POS.`)
           : t(`🚫 너무 멀어요! 매장 POS에서 ${g.dist}m 떨어져 있어요. 출근은 ${g.radius}m 안에서만 돼요. 매장에 도착해서 다시 눌러 주세요.`, `🚫 Too far! You are ${g.dist} m from the store POS. Clock-in only works within ${g.radius} m. Please try again when you arrive.`)};
         draw(); return;
