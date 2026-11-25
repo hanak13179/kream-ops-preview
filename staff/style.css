@@ -419,3 +419,14 @@ body.order-list-mode #products .card.count-checked .count-check-status{color:#3e
 body.order-list-mode #products .card.count-pending .count-check-status{color:#8b571b}
 body.order-list-mode #products .card .stepper{grid-row:1/span 4}
 body.order-list-mode #products .card{width:100%;min-width:0;align-self:stretch}
+
+/* 사이드바 메뉴: 창 크기를 줄이거나 화면을 확대해도 글자와 아이콘이 겹치지 않게.
+   칸 수는 사이드바 폭에 맞춰 자동(3칸 → 2칸), 타일 높이는 글자에 맞춰 늘어나요. (폰 화면 규칙은 그대로) */
+@media(min-width:701px){
+ #navigation nav.nav-tiles,#navigation .nav-tiles>.nav-group{grid-template-columns:repeat(auto-fill,minmax(56px,1fr))}
+ #navigation .nav-tiles .nav-tile{aspect-ratio:auto;height:auto;min-height:66px;padding:8px 4px;grid-template-rows:22px auto;align-content:center;overflow:visible}
+ #navigation .nav-tile .nav-label{font-size:11px;line-height:1.25;word-break:keep-all;overflow-wrap:break-word}
+ .workplace-badge{flex-wrap:wrap;row-gap:6px}
+ .workplace-badge>span{flex:1 1 110px;min-width:0;overflow-wrap:anywhere}
+ .workplace-badge button{flex:0 0 auto;white-space:nowrap}
+}

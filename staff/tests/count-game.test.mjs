@@ -19,3 +19,26 @@ test('owner-confirmed retail portions and financier pack sizes differ correctly'
 test('list view shows today’s saved count instead of last time',()=>{const state=createStepState('finch','2026-11-22');state.key='all';state.view='list';const host={innerHTML:'',contains:()=>true,querySelector:()=>null};renderOrderSteps(host,{state,items:[{id:'a'},{id:'b'}],key:'all',t:ko=>ko,esc:String,name:p=>p.id,unitLabel:()=>'',picture:()=>'',lastStock:p=>p.id==='a'?7:4,todayValue:p=>p.id==='a'?7:null,parse:(_,s)=>Number(s),getQty:()=>0,setQty(){},qtyStep:()=>1,qtyDisplay:(_,q)=>q,suggest:()=>null,saveStock:async()=>{},allIds:[]});const rows=host.innerHTML.split('os-row').slice(1);assert.match(rows[0],/<em>7<\/em><small>오늘/);assert.match(rows[1],/<em>4<\/em><small>지난번/);});
 
 test('a delivery that already arrived on the count day is not counted again as on the way',()=>{const orders=[order('today','2026-11-22',5),order('tomorrow','2026-11-23',3)];assert.equal(incomingQuantity({orders,store:'finch',today:'2026-11-23',date:'2026-11-23',product:'p'}),3);});
+
+test('두쫀쿠: 반박스·한박스를 골라도 다음으로 넘어가고 주문이 들어가요 (음수 값 없음)',async()=>{
+ for(const [pick,order] of [['32',0],['16',32],['0',64]]){
+  const p={id:'d'},state=createStepState('finch','2026-11-24'),saved=[],basket=[];state.typed.d=pick;state.edited.add('d');
+  const host={innerHTML:'',contains:()=>true,querySelector:()=>null};
+  const strict=(_,s)=>{const n=Number(s);if(!Number.isFinite(n)||n<0)throw Error('STOCK');return n;};
+  renderOrderSteps(host,{state,items:[p],key:'all',t:ko=>ko,esc:String,name:()=> '두바이쫀득쿠키',unitLabel:()=> 'box',picture:()=>'',lastStock:()=>0,parse:strict,getQty:()=>0,setQty:(_,q)=>basket.push(q),qtyStep:()=>32,qtyDisplay:(_,q)=>q,yesNo:()=>false,suggest:()=>null,saveStock:async(_,v)=>saved.push(v),saveAvailability:async()=>{},
+   choices:()=>[['32','충분'],['16','반박스'],['0','한박스']],choiceOrder:(_,v)=>({'32':0,'16':32,'0':64})[String(v)]??null});
+  await host.onclick({target:{closest:()=>({dataset:{os:'prev'}})}});
+  assert.equal(state.done.has('d'),true,pick);assert.deepEqual(saved,[Number(pick)]);
+  if(order)assert.deepEqual(basket,[order]);
+ }
+ const app=(await import('node:fs')).readFileSync(new URL('../app.mjs',import.meta.url),'utf8');
+ assert.doesNotMatch(app,/'-1',t\('반박스 주문'/);assert.match(app,/'32':0,'16':32,'0':64/);
+});
+
+test('개수로만 세는 품목(크로와상 3개/봉 등)은 소수점 키가 없고, 잘못된 숫자는 알맞은 안내', ()=>{
+ const p={id:'w'},state=createStepState('finch','2026-11-24');state.key='all';
+ const host={innerHTML:'',contains:()=>true,querySelector:()=>null};
+ const base={state,items:[p],key:'all',t:ko=>ko,esc:String,name:()=> '스윗 크로와상 쿠키',unitLabel:()=> 'Bag',picture:()=>'',lastStock:()=>3,parse:(_,s)=>{const n=Number(s);if(!Number.isInteger(n)||n<0)throw Error('X');return n/3;},getQty:()=>0,setQty:()=>{},qtyStep:()=>1,qtyDisplay:(_,q)=>q,yesNo:()=>false,suggest:()=>null,saveStock:async()=>{},saveAvailability:async()=>{}};
+ renderOrderSteps(host,{...base,wholeOnly:()=>true});assert.doesNotMatch(host.innerHTML,/data-key="\."/);
+ renderOrderSteps(host,{...base,wholeOnly:()=>false});assert.match(host.innerHTML,/data-key="\."/);
+});
