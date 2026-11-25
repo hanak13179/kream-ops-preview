@@ -147,7 +147,8 @@ export function shareTips(cash, card, crew) {
   const c1 = part(cash), c2 = part(card);
   return {hours: money(hours), people: people.map((p, i) => ({...p, cash: c1[i], card: c2[i], total: money(c1[i] + c2[i])}))};
 }
-export function salesTotal(after, before) { return after === '' && before === '' ? '' : money((Number(after) || 0) + (Number(before) || 0)); }
+// After Tax(세금 포함)와 Before Tax(세금 전)는 더하지 않아요. 차이 = 세금 → 영수증 확인용
+export function salesTotal(after, before) { return after === '' || before === '' || after == null || before == null ? '' : money((Number(after) || 0) - (Number(before) || 0)); }
 
 const memory = {store: '', date: ''};
 const blank = () => ({counts: {}, open: DEFAULT_FLOAT, cashSales: '', afterTax: '', beforeTax: '', total: '', cashTips: '', cardTips: '', crew: [], note: ''});
@@ -284,7 +285,7 @@ export function renderCashCount(host, c) {
       <div class="cc-card"><h3>🧾 ${t('오늘 매출', 'Today’s sales')}</h3><div class="cc-sum">
         ${num('ccAfterTax', 'After Tax Sales', v.afterTax, t('영수증 보고 적어요', 'From the receipt'))}
         ${num('ccBeforeTax', 'Before Tax', v.beforeTax, t('영수증 보고 적어요', 'From the receipt'))}
-        <span>Total<span class="cc-auto">${t('자동', 'auto')}</span></span><span class="big" id="ccSalesTotal"></span>
+        <span>${t('세금 (After − Before)', 'Tax (After − Before)')}<span class="cc-auto">${t('자동', 'auto')}</span></span><span class="big" id="ccSalesTotal"></span>
       </div></div>
       <div class="cc-card"><h3>💝 ${t('오늘 팁', 'Today’s tips')}</h3><div class="cc-sum">
         ${num('ccCashTips', t('현금 팁', 'Cash tips'), v.cashTips, t('팁 통에 있는 돈 전부', 'Everything in the tip jar'))}
@@ -315,7 +316,7 @@ export function renderCashCount(host, c) {
     q('#ccNext').textContent = fmt(s.nextOpen);
     q('#ccTipTotal').textContent = fmt(money((Number(v.cashTips) || 0) + (Number(v.cardTips) || 0)));
     v.total = salesTotal(v.afterTax, v.beforeTax);
-    q('#ccSalesTotal').textContent = v.total === '' ? '—' : fmt(v.total);
+    q('#ccSalesTotal').textContent = v.total === '' ? '—' : fmt(v.total) + (Number(v.total) < 0 ? ' ⚠️ ' + t('After와 Before가 바뀐 것 같아요', 'After/Before look swapped') : '');
     const sh = shareTips(v.cashTips, v.cardTips, v.crew), rows = (v.crew || []).map(p => ({name: String(p.name || '').trim(), hours: Math.max(0, Number(p.hours) || 0)}));
     let k = 0;
     rows.forEach((p, i) => {
