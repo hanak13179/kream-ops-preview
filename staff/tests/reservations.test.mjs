@@ -22,7 +22,7 @@ test('manufacturing totals combine equivalent sizes across branches and exclude 
  assert.deepEqual(manufacturingTotals(rows).map(i=>[i.options[0].value,i.quantity]),[['4 inch',3],['6 inch',1]]);
 });
 test('factory reads cake requests without changing the store written marker',()=>{
- const html=messageCard({...row,reviewed_hash:'new'},{...c,factory:true});assert.match(html,/제조 대상/);assert.match(html,/고객 요청 원문/);assert.doesNotMatch(html,/data-reservation-review|문구 작성완료/);
+ const html=messageCard({...row,reviewed_hash:'new'},{...c,factory:true});assert.match(html,/준비 대상/);assert.match(html,/고객 요청 원문/);assert.doesNotMatch(html,/data-reservation-review|문구 작성완료/);
  const groups=navigationGroups([['reservations'],['factoryreservations']],'owner');assert.equal(groups.find(g=>g.key==='factory').pages[0][0],'factoryreservations');
 });
 test('factory queries all branches for the selected date while stores remain branch scoped',async()=>{
@@ -35,7 +35,14 @@ test('factory queries all branches for the selected date while stores remain bra
    await renderReservations(host,{...c,factory,store:'midland',profile:{active:true,role:factory?'factory':'employee'},db});
    assert.ok(queries[0].filters.some(([k,v])=>k==='pickup_date'&&v===reservationDefaultDate(factory)));
    assert.equal(queries[0].filters.some(([k,v])=>k==='store_id'&&v==='midland'),!factory);
-   assert.equal(host.innerHTML.includes('제조 수량 합계'),factory);
+   assert.equal(host.innerHTML.includes('준비 수량 합계'),factory);
   }
  }finally{globalThis.setInterval=savedInterval;}
 });
+
+ test('all pickup products, including future gift sets, render and count without cake classification',()=>{
+ const items=[{name:'Dubai cookie set',quantity:2},{name:'Future gift set',quantity:3,options:[{label:'Selection',value:'Assorted'}]}];
+ const order={...row,customer_note:'',items};
+ for(const factory of [false,true]){const html=messageCard(order,{...c,factory});assert.match(html,/Dubai cookie set × 2/);assert.match(html,/Future gift set × 3/);assert.match(html,/Selection: Assorted/);}
+ assert.deepEqual(manufacturingTotals([order]).map(i=>[i.name,i.quantity]),[['Dubai cookie set',2],['Future gift set',3]]);
+ });

@@ -1,4 +1,4 @@
-/* Kream: forward only cake pickup details and customer messages to Ops. */
+/* Kream: forward every pickup product and customer request to Ops. */
 if (!defined('ABSPATH')) { return; }
 function kream_ops_preorder_send($orders) {
     if (!$orders) { return true; }
@@ -16,27 +16,15 @@ function kream_ops_preorder_send($orders) {
     }
     return $ok;
 }
-function kream_ops_preorder_is_cake($item) {
-    $product = $item->get_product();
-    if (!$product) { return (bool) preg_match('/cake|케이크|케익/i', $item->get_name()); }
-    $id = $product->get_parent_id() ?: $product->get_id();
-    $cakes = get_term_by('slug', 'cakes', 'product_cat');
-    if (!$cakes || is_wp_error($cakes)) { return (bool) preg_match('/cake|케이크|케익/i', $item->get_name()); }
-    foreach (wp_get_post_terms($id, 'product_cat', array('fields' => 'ids')) as $term) {
-        if ((int) $term === (int) $cakes->term_id || term_is_ancestor_of($cakes->term_id, $term, 'product_cat')) { return true; }
-    }
-    return false;
-}
 function kream_ops_preorder_payload($id, $forced_status = '') {
     $order = wc_get_order($id);
     if (!$order || $order->get_type() !== 'shop_order') { return null; }
     $items = array();
     foreach ($order->get_items('line_item') as $item) {
-        if (!kream_ops_preorder_is_cake($item)) { continue; }
         $options = array();
         foreach ($item->get_formatted_meta_data('_', true) as $meta) {
             $label = wp_strip_all_tags((string) $meta->display_key);
-            if (preg_match('/size|flavo[u]?r|message|letter|inscription|text|크기|사이즈|맛|문구|메시지|메세지/iu', $label)) {
+            if (preg_match('/size|flavo[u]?r|message|letter|inscription|text|assortment|selection|option|variant|pack|set|크기|사이즈|맛|문구|메시지|메세지|구성|선택|옵션|세트/iu', $label)) {
                 $options[] = array('label' => $label, 'value' => wp_strip_all_tags((string) $meta->display_value));
             }
         }

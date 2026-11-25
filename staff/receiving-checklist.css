@@ -1,0 +1,28 @@
+.receiving-checklist{width:100%;min-width:0;color:#352e29}
+.receiving-checklist *{box-sizing:border-box;min-width:0}
+.receiving-checklist .receipt-section-title{font-size:13px;font-weight:600;margin:8px 0 5px}
+.receiving-checklist .receipt-check-table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;background:#fffdf9;font-size:12px;margin:0}
+.receiving-checklist .receipt-check-table .receipt-action-col{width:150px}
+.receiving-checklist .receipt-check-table th,.receiving-checklist .receipt-check-table td{border:1px solid #e0d5c8;padding:5px 6px;vertical-align:middle;text-align:left;line-height:1.3;overflow-wrap:anywhere}
+.receiving-checklist .receipt-check-table thead{background:#fbf7f0;color:#756653;font-size:11px}
+.receiving-checklist .receipt-check-table thead th{font-weight:500}
+.receiving-checklist .receipt-check-table tbody tr:nth-child(even){background:#fbf7f0}
+.receiving-checklist .receipt-check-table td>strong{font-size:12px;font-weight:600}
+.receiving-checklist .receipt-check-table td>small{display:block;font-size:11px;color:#756653;margin-top:3px}
+.receiving-checklist .receipt-check-actions{display:flex;align-items:center;justify-content:flex-end;gap:3px;flex-wrap:nowrap}
+.receiving-checklist .receipt-check-actions input[data-receive]{width:36px;min-width:0;height:29px;min-height:29px;padding:0;margin:0;border:1px solid #e0d5c8;border-radius:5px;background:#fffdf9;color:#352e29;text-align:center;font:500 14px system-ui;appearance:textfield}
+.receiving-checklist input::-webkit-inner-spin-button{appearance:none}
+.receiving-checklist .receipt-check-actions button,.receiving-checklist [data-receive-undo]{min-height:29px;padding:3px 4px;margin:0;border:1px solid #e0d5c8;border-radius:5px;background:#fffdf9;color:#352e29;font:500 11px/1.25 system-ui;white-space:nowrap}
+.receiving-checklist .receipt-check-actions .receipt-check-full{background:#ed522e;border-color:#ed522e;color:white}
+.receiving-checklist .receipt-checked-list{border:1px solid #e0d5c8;border-radius:7px;margin-top:12px;padding:0;overflow:hidden;background:#fffdf9}
+.receiving-checklist .receipt-checked-list>summary{padding:8px;font-size:13px;font-weight:600;background:#e9efdf}
+.receiving-checklist .receipt-check-result{display:flex;align-items:center;justify-content:flex-end;gap:7px;font-size:12px}
+.receiving-checklist .receipt-difference{color:#ab4028}
+.receiving-checklist .receipt-check-empty{padding:10px 8px;margin:0;font-size:12px;color:#756653;background:#fffdf9}
+.receiving-checklist .receipt-check-help{font-size:12px;color:#756653;margin:7px 0}
+.receiving-checklist .receipt-check-footer{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.receiving-checklist .receipt-check-footer button{flex:1;min-height:37px;font-size:12px;padding:6px}
+.receiving-checklist .receiving-note{font-size:12px;margin-top:10px}
+.receiving-checklist input:focus{font-size:16px}
+@media(max-width:400px){.receiving-checklist .receipt-check-table .receipt-action-col{width:139px}.receiving-checklist .receipt-check-table th,.receiving-checklist .receipt-check-table td{padding:5px 4px}}
+@media(pointer:coarse){.receiving-checklist .receipt-check-actions input[data-receive],.receiving-checklist .receipt-check-actions button,.receiving-checklist [data-receive-undo]{min-height:44px}.receiving-checklist .receipt-check-actions input[data-receive]{font-size:16px}}

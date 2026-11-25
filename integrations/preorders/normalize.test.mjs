@@ -7,3 +7,8 @@ test('only operational fields survive; contact, payment and address fields never
 test('cancellations and unknown store records remain explicit',()=>{assert.equal(normalizeOrder({...order,status:'cancelled'}).status,'cancelled');assert.equal(normalizeOrder({...order,pickup_location:'Delivery',pickup_date:''}).store_id,null);});
 test('impossible pickup dates, invalid times, quantities and oversized messages are rejected',()=>{for(const bad of [{pickup_date:'2026-02-30'},{pickup_time:'24:15'},{customer_note:'a'.repeat(10001)},{items:[{name:'Cake',quantity:0}]}])assert.throws(()=>normalizeOrder({...order,...bad}));});
 test('batches are bounded and duplicate order IDs are rejected',()=>{assert.equal(normalizeBatch({version:1,orders:[order]}).length,1);assert.throws(()=>normalizeBatch({version:1,orders:[order,order]}));assert.throws(()=>normalizeBatch({version:1,orders:Array(51).fill(order)}));});
+
+test('pickup cookie sets, future gift sets and mixed orders retain every product and option',()=>{
+ const items=[{name:'Dubai cookie gift set',quantity:2,options:[{label:'Selection',value:'Original / Matcha'}]},{name:'Future seasonal gift',quantity:1},{name:'Strawberry cake',quantity:1}];
+ const row=normalizeOrder({...order,items});assert.deepEqual(row.items,items.map(i=>({...i,options:i.options||[]})));
+});
