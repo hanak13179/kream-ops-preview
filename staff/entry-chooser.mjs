@@ -44,7 +44,7 @@ export function chooseWorkplace({stores = [], factory = false, lang = 'ko', user
     wrap.setAttribute('role', 'dialog');
     wrap.innerHTML = `<div class="entry-box"><div class="entry-logo">kream</div>
       <p class="entry-sub">${lang === 'ko' ? '오늘 어디에서 일하나요?' : 'Where are you working today?'}</p>
-      <div class="entry-grid">${options.map(o => `<button type="button" data-entry="${esc(o.id)}" class="${o.id === 'factory' ? 'entry-factory' : ''}" style="--c:${o.color};${o.dark ? 'color:#fff' : ''}">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</button>`).join('')}</div></div>`;
+      <div class="entry-grid">${options.map((o, i, all) => `<button type="button" data-entry="${esc(o.id)}" class="${o.id === 'factory' ? 'entry-factory' : wideLast(all, i) ? 'entry-wide' : ''}" style="--c:${o.color};${o.dark ? 'color:#fff' : ''}">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</button>`).join('')}</div></div>`;
     if (!document.getElementById?.('entry-chooser-style')) {
       const css = document.createElement('style');
       css.id = 'entry-chooser-style';
@@ -56,7 +56,10 @@ export function chooseWorkplace({stores = [], factory = false, lang = 'ko', user
         .entry-grid button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:700 24px system-ui,sans-serif;min-height:104px;border-radius:20px;border:0;background:var(--c);color:#2f3129;box-shadow:0 3px 0 #0002;cursor:pointer}
         .entry-grid button small{font:500 12px system-ui,sans-serif;opacity:.75}
         .entry-grid button:active{transform:translateY(2px);box-shadow:0 1px 0 #0002}
-        .entry-grid .entry-factory{grid-column:1/-1;min-height:88px}`;
+        .entry-grid .entry-factory{grid-column:1/-1;min-height:88px}
+        .entry-grid .entry-wide{grid-column:1/-1}
+        .entry-grid button{min-width:0;padding:12px 14px;text-align:center;overflow-wrap:anywhere;word-break:keep-all}
+        @media(max-width:420px){.entry-grid{gap:10px}.entry-grid button{font-size:20px;min-height:92px}}`;
       document.head.appendChild(css);
     }
     document.body.appendChild(wrap);
@@ -75,6 +78,11 @@ export function clearWorkplaceChoice(userId='') { try { sessionStorage.removeIte
 
 // Label shown above the menu: "3호점 · Richmond Hill" or "공장".
 const FACTORY_PAGES = new Set(['factorymanual', 'production', 'dispatch', 'galleria', 'galleriaHistory', 'galleriaSop', 'externaldispatch', 'productionlog', 'finishedstock', 'costs', 'inventory', 'purchases', 'materialreceiving']);
+// 매장 수가 홀수면 마지막 매장 버튼을 한 줄 전체로 (반쪽만 떠 보이지 않게)
+export function wideLast(options, i) {
+  const stores = options.filter(o => o.id !== 'factory');
+  return stores.length % 2 === 1 && options[i] === stores[stores.length - 1];
+}
 export function workplaceBadge({store, factory=false, lang = 'ko'} = {}) {
   if (!factory && !store) return '';
   const l = store ? labelFor(store) : null;
