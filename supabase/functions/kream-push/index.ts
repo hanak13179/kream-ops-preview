@@ -9,7 +9,15 @@ import {addDays, weekStart, localParts} from '../../../staff/team-logic.mjs';
 
 const base = Deno.env.get('SUPABASE_URL')!, key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const anon = Deno.env.get('SUPABASE_ANON_KEY') || '';
-webpush.setVapidDetails(Deno.env.get('VAPID_SUBJECT') || 'mailto:ops@kreamtoronto.com', Deno.env.get('VAPID_PUBLIC_KEY')!, Deno.env.get('VAPID_PRIVATE_KEY')!);
+let configuration: Promise<any> | null = null;
+async function runtimeConfig() {
+  if (!configuration) configuration = db('rpc/kream_push_runtime_config', {method:'POST', body:'{}'}).catch(e=>{configuration=null;throw e});
+  return configuration;
+}
+const origin = 'https://ops.kreamtoronto.com';
+const cors = {'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization,content-type,apikey','Access-Control-Allow-Methods':'POST,GET,OPTIONS','Vary':'Origin'};
+const json=(body:unknown,status=200)=>Response.json(body,{status,headers:cors});
+async function equalSecret(a:string,b:string){if(!a||!b)return false;const hash=async(s:string)=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)));const[x,y]=await Promise.all([hash(a),hash(b)]);let diff=0;for(let i=0;i<x.length;i++)diff|=x[i]^y[i];return diff===0;}
 const TEAM = ['downtown', 'richmond-hill', 'finch'];
 
 async function db(path: string, init: RequestInit = {}) {
@@ -27,7 +35,7 @@ async function send(sub: any, msg: any) {
   }
 }
 async function cashDone(store: string, date: string) {
-  const url = Deno.env.get('CASH_SHEET_URL'), k = Deno.env.get('CASH_SHEET_KEY');
+  const url = Deno.env.get('CASH_SHEET_URL') || 'https://script.google.com/macros/s/AKfycbwjnrGRDkR_qX7AmNq2S3oDVveSR1QbjED0FFga11Au1NcHWNNlPLQlZNwL7EpIlu6x/exec', k = Deno.env.get('CASH_SHEET_KEY') || 'kream-stock-sync';
   if (!url || !k) return null;
   try {
     const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({action: 'recordCash', key: k, op: 'getCash', store_id: store, count_date: date}), redirect: 'follow'});
@@ -70,32 +78,44 @@ async function snapshot(now: Date) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== 'POST') return new Response('Method not allowed', {status: 405});
+  if(req.headers.get('Origin') && req.headers.get('Origin')!==origin) return json({ok:false,error:'Origin denied'},403);
+  if(req.method==='OPTIONS') return new Response(null,{status:204,headers:cors});
+  if(req.method!=='POST' && req.method!=='GET') return json({ok:false,error:'Method not allowed'},405);
+  let stage='configuration';
   try {
-    const body = await req.json().catch(() => ({}));
-    // 1) 테스트 알림 (로그인한 본인 기기만)
-    if (body.test) {
-      const u = await fetch(`${base}/auth/v1/user`, {headers: {apikey: anon || key, Authorization: req.headers.get('Authorization') || ''}});
-      if (!u.ok) return new Response('Unauthorized', {status: 401});
-      const me = (await u.json()).id;
-      const subs = await db(`kream_push_subscriptions?select=*&user_id=eq.${me}`);
-      let n = 0; for (const s of subs) if (await send(s, {title: '🔔 Kream 알림이 켜졌어요', body: '이제 이 기기로 알림이 와요.', url: './'})) n++;
-      return Response.json({ok: true, sent: n});
+    const cfg=await runtimeConfig();
+    if(!cfg?.public_key || !cfg?.private_key || !cfg?.cron_secret) return json({ok:false,ready:false},503);
+    if(req.method==='GET') return json({ok:true,ready:true,version:'20261125-live'});
+    stage='vapid';
+    webpush.setVapidDetails(cfg.subject,cfg.public_key,cfg.private_key);
+    const body=await req.json().catch(()=>({}));
+    if(body.test){
+      const user=await fetch(`${base}/auth/v1/user`,{headers:{apikey:anon||key,Authorization:req.headers.get('Authorization')||''}});
+      if(!user.ok) return json({ok:false,error:'Unauthorized'},401);
+      const me=(await user.json()).id;
+      const approved=await db(`kream_profiles?select=user_id&user_id=eq.${me}&active=eq.true&access_blocked=eq.false`);
+      if(!approved.length) return json({ok:false,error:'Access denied'},403);
+      const subs=await db(`kream_push_subscriptions?select=*&user_id=eq.${me}`);
+      let sent=0;for(const sub of subs)if(await send(sub,{title:'Kream 알림이 켜졌어요',body:'이 기기로 근무 및 운영 알림을 받을 수 있어요.',url:'./'}))sent++;
+      return json({ok:true,sent});
     }
-    // 2) 5분마다
-    if ((req.headers.get('x-kream-cron-secret') || '') !== (Deno.env.get('PUSH_CRON_SECRET') || '\u0000')) return new Response('Unauthorized', {status: 401});
-    const now = new Date(), plan = pushPlan(await snapshot(now));
-    if (!plan.length) return Response.json({ok: true, planned: 0, sent: 0});
-    const sent = new Set((await db(`kream_push_sent?select=key&key=in.(${plan.map(p => `"${p.key.replace(/"/g, '')}"`).join(',')})`)).map((r: any) => r.key));
-    const subs = await db(`kream_push_subscriptions?select=*&user_id=in.(${[...new Set(plan.map(p => p.user_id))].join(',')})`);
-    let n = 0; const done: string[] = [];
-    for (const p of plan) {
-      if (sent.has(p.key)) continue;
-      const mine = subs.filter((s: any) => s.user_id === p.user_id && (s.topics || []).includes(p.topic));
-      done.push(p.key);   // 알림을 꺼 둔 사람도 '보낸 것'으로 기록 → 나중에 켜도 지난 알림이 몰려오지 않아요
-      for (const s of mine) if (await send(s, {title: p.title, body: p.body, url: p.url, tag: p.topic})) n++;
+    if(!await equalSecret(req.headers.get('x-kream-cron-secret')||'',cfg.cron_secret)) return json({ok:false,error:'Unauthorized'},401);
+    stage='snapshot';
+    const plan=pushPlan(await snapshot(new Date()));
+    if(!plan.length)return json({ok:true,planned:0,sent:0,dry_run:!!body.dry_run});
+    const users=[...new Set(plan.map(p=>p.user_id))];
+    const subs=await db(`kream_push_subscriptions?select=*&user_id=in.(${users.join(',')})`);
+    if(body.dry_run)return json({ok:true,planned:plan.length,eligible_devices:subs.length,sent:0,dry_run:true});
+    let sent=0;
+    for(const p of plan){
+      const mine=subs.filter((s:any)=>s.user_id===p.user_id&&(s.topics||[]).includes(p.topic));
+      if(!mine.length)continue;
+      const claimed=await db('rpc/kream_push_claim',{method:'POST',body:JSON.stringify({alert_key:p.key})});
+      if(!claimed)continue;
+      let delivered=false;
+      for(const sub of mine)if(await send(sub,{title:p.title,body:p.body,url:p.url,tag:p.topic})){sent++;delivered=true;}
+      if(!delivered)await db(`kream_push_sent?key=eq.${encodeURIComponent(p.key)}`,{method:'DELETE'});
     }
-    if (done.length) await db('kream_push_sent', {method: 'POST', headers: {Prefer: 'resolution=ignore-duplicates,return=minimal'}, body: JSON.stringify(done.map(k => ({key: k})))});
-    return Response.json({ok: true, planned: plan.length, sent: n});
-  } catch (e) { return Response.json({ok: false, error: String((e as Error).message || e)}, {status: 500}); }
+    return json({ok:true,planned:plan.length,sent});
+  } catch (e) { console.error('push failure',stage,e instanceof Error ? e.message.replace(/DB ([0-9]+):[\s\S]*/, 'DB $1') : 'unknown'); return json({ok:false,error:'Push service unavailable',stage},500); }
 });

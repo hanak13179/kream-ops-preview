@@ -1,7 +1,7 @@
 // 🔔 폰 알림 (Web Push). 앱을 홈 화면에 설치한 아이폰(iOS 16.4+)·안드로이드 크롬·컴퓨터 브라우저에서 돼요.
 // 서버: supabase/functions/kream-push (5분마다 확인해서 보내요) · 표: supabase/changes/push.sql
 // PUSH_PUBLIC_KEY: `npx web-push generate-vapid-keys` 로 만든 공개 키 (개인 키는 Supabase 비밀값으로만, 코드에 넣지 않아요)
-export const PUSH_PUBLIC_KEY = '';
+export const PUSH_PUBLIC_KEY = 'BDsLCG6n37Od2k8isl9IG2VMAV2I3k-Ed9p3RYHuaiDKYxdTgF3t6RtuB_vbCB8BcQ_oFuSx3o_45S073188MEw';
 const FUNCTION_URL = 'https://imkhosgnkgwchoyrqczw.supabase.co/functions/v1/kream-push';
 
 // roles: 이 알림을 고를 수 있는 사람 ('manager' = 운영진·매니저·공장 매니저, 'staff' = 모든 직원)
@@ -56,5 +56,8 @@ export async function disablePush(c) {
 export async function testPush(c) {
   const {data} = await c.db.auth.getSession(), token = data?.session?.access_token;
   if (!token) return;
-  await fetch(FUNCTION_URL, {method: 'POST', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify({test: true})});
+  const response = await fetch(FUNCTION_URL, {method: 'POST', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify({test: true})});
+  const result = await response.json();
+  if (!response.ok || !result.ok || !result.sent) throw Error('TEST_NOT_DELIVERED');
+  return result;
 }
