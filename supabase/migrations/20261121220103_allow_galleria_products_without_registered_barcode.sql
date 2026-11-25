@@ -1,0 +1,3 @@
+alter table public.kream_galleria_products drop constraint kream_galleria_products_barcode_check;
+alter table public.kream_galleria_products add constraint kream_galleria_products_barcode_check check (barcode ~ '^[0-9]{12,14}$' or barcode ~ '^internal:[a-z0-9][a-z0-9-]{0,95}$');
+comment on column public.kream_galleria_products.barcode is 'Stable product key: a verified 12–14 digit barcode, or an internal: prefixed key when no barcode has been registered. Internal keys must not be printed as barcodes.';

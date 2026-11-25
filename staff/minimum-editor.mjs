@@ -5,6 +5,9 @@
 
 const STYLE_ID = 'minimum-editor-style';
 const CSS = `
+.me-sheet{display:block;width:100%;height:44px;margin:4px 0 2px;border:1.5px dashed #8fb0e8;border-radius:12px;background:#eef4ff;color:#1d3f7a;font-size:15px;font-weight:800}
+.me-sheet-help{display:block;margin:0 0 10px;color:#6b6555;font-size:12px}
+
 .me{grid-column:1/-1;max-width:640px;width:100%;margin:0 auto 110px}
 .me *{box-sizing:border-box}
 .me-help{font-size:13px;color:#6b6555;margin:4px 0 10px}
@@ -53,7 +56,7 @@ export function renderMinimumEditor(host, c) {
 
   function rowHtml(p) {
     const wd = get(p, 'wd'), we = get(p, 'we');
-    const step = (k, label, v, ph) => `<div class="me-step"><label>${label}</label><button data-me="-" data-k="${k}" data-id="${esc(p.id)}" aria-label="${label} ${t('줄이기', 'less')}">−</button><input data-me-input="${esc(p.id)}" data-k="${k}" type="number" inputmode="numeric" min="0" max="100000" step="1" value="${esc(fmt(v))}" placeholder="${esc(ph)}" aria-label="${esc(c.name(p))} ${label}"><button data-me="+" data-k="${k}" data-id="${esc(p.id)}" aria-label="${label} ${t('늘리기', 'more')}">＋</button></div>`;
+    const step = (k, label, v, ph) => `<div class="me-step"><label>${label}</label><button data-me="-" data-k="${k}" data-id="${esc(p.id)}" aria-label="${label} ${t('줄이기', 'less')}">−</button><input data-me-input="${esc(p.id)}" data-k="${k}" type="number" inputmode="decimal" min="0" max="100000" step="any" value="${esc(fmt(v))}" placeholder="${esc(ph)}" aria-label="${esc(c.name(p))} ${label}"><button data-me="+" data-k="${k}" data-id="${esc(p.id)}" aria-label="${label} ${t('늘리기', 'more')}">＋</button></div>`;
     return `<div class="me-row ${isChanged(p) ? 'changed' : ''}" data-row="${esc(p.id)}"><b>${esc(c.name(p))}</b><small>${esc(c.unitLabel(p))}${cur(p).wd == null && cur(p).we == null ? ' · ' + (cur(p).sug != null ? t(`아직 안 정함 · 지금은 추천값 ${cur(p).sug} 으로 발주`, `not set · ordering with suggested ${cur(p).sug}`) : t('아직 안 정함', 'not set')) : ''}</small>
       <div class="me-pair">${step('wd', t('평일', 'Wkday'), wd, cur(p).sug != null && wd == null ? `(${cur(p).sug})` : '—')}${step('we', t('주말', 'Wkend'), we, wd == null ? '—' : `(${wd})`)}</div></div>`;
   }
@@ -63,7 +66,7 @@ export function renderMinimumEditor(host, c) {
     items.forEach(p => { let g = groups.find(x => x.cat === p.category); if (!g) groups.push(g = {cat: p.category, list: []}); g.list.push(p); });
     const n = changed().length;
     host.innerHTML = `<div class="me">
-      <p class="me-help">${t('늘 있어야 할 수량이에요. 직원이 재고를 세면 모자란 만큼 자동으로 주문돼요. 주말을 비워두면 주말에도 평일 수량을 써요 (회색 숫자).', 'How many should always be in store. Counting orders the shortfall automatically. Leave weekend blank to use the weekday number.')}</p>
+      <p class="me-help">${t('늘 있어야 할 수량이에요. 직원이 재고를 세면 모자란 만큼 자동으로 주문돼요. 주말을 비워두면 주말에도 평일 수량을 써요 (회색 숫자).', 'How many should always be in store. Counting orders the shortfall automatically. Leave weekend blank to use the weekday number.')}</p>${c.loadSheet && !c.preview ? `<button class="me-sheet" data-me="sheet" ${s.saving ? 'disabled' : ''}>📄 ${t('시트에서 가져오기', 'Load from sheet')}</button><small class="me-sheet-help">${t('최소재고량 시트 값을 채워 넣어요. 확인하고 업데이트 하기를 눌러야 저장돼요.', 'Fills in the 최소재고량 sheet values. Press Update to save.')}</small>` : ''}
       ${groups.map(g => `<div class="me-cat">${esc(g.cat)} · ${g.list.length}</div>${g.list.map(rowHtml).join('')}`).join('') || `<p class="empty">${t('해당 품목이 없어요.', 'No items here.')}</p>`}
       <div class="me-bar"><button class="undo" data-me="undo" ${n ? '' : 'disabled'}>${t('되돌리기', 'Undo')}</button><span>${n ? t(`${n}개 바뀜`, `${n} changed`) : t('바뀐 것 없음', 'No changes')}</span><button data-me="save" ${n && !s.saving && !c.preview ? '' : 'disabled'}>${s.saving ? t('저장 중…', 'Saving…') : t('업데이트 하기', 'Update')}</button></div>
       <p class="me-msg ${s.err ? 'err' : ''}">${esc(c.preview ? t('미리보기: 저장되지 않아요.', 'Preview: nothing is saved.') : s.msg)}</p>
@@ -73,7 +76,8 @@ export function renderMinimumEditor(host, c) {
   function setVal(id, k, v, fromTyping) {
     const p = items.find(x => x.id === id); if (!p) return;
     const e = s.edits[id] || (s.edits[id] = {});
-    e[k] = v === '' || v == null ? null : Math.max(0, Math.min(100000, Math.round(Number(v))));
+    // 반 단위(예: 스패너 크림 1.5통, 우유 2.5백)도 그대로 둬요. 소수 둘째 자리까지.
+    e[k] = v === '' || v == null || !Number.isFinite(Number(v)) ? null : Math.max(0, Math.min(100000, Math.round(Number(v) * 100) / 100));
     if (!isChanged(p)) delete s.edits[id];
     s.msg = ''; s.err = false;
     // 그 줄과 아래 막대만 고치기 (화면이 튀지 않게)
@@ -89,6 +93,17 @@ export function renderMinimumEditor(host, c) {
     if (bar) { bar.querySelector('span').textContent = n ? t(`${n}개 바뀜`, `${n} changed`) : t('바뀐 것 없음', 'No changes'); bar.querySelector('[data-me="save"]').disabled = !n || s.saving || c.preview; bar.querySelector('[data-me="undo"]').disabled = !n; }
   }
 
+  // 새 최소수량을 발주함에 반영한 결과
+  const basketNote = res => {
+    if (!res) return '';
+    if (res.error) return ' ' + t(`(발주함 반영은 실패했어요: ${res.error})`, `(Could not update the basket: ${res.error})`);
+    let out = '';
+    if (res.applied?.length) out += ' ' + (res.additional
+      ? t(`이미 발주완료된 것 말고 더 필요한 만큼 ${res.applied.length}개를 새 발주함(추가발주)에 넣었어요: ${res.applied.map(a => `${a.name} ${a.to}`).join(', ')}. 발주함 확인 → 발주완료를 눌러야 공장에 가요.`, `Added the extra needed for ${res.applied.length} items to a new basket (additional order): ${res.applied.map(a => `${a.name} ${a.to}`).join(', ')}. Press Submit to send it.`)
+      : t(`발주함에도 반영했어요: ${res.applied.map(a => `${a.name} ${a.from}→${a.to}`).join(', ')}.`, `Basket updated: ${res.applied.map(a => `${a.name} ${a.from}→${a.to}`).join(', ')}.`));
+    if (res.over?.length) out += ' ' + t(`이미 보낸 양이 새 최소수량보다 많아요 (줄이지 않았어요): ${res.over.map(o => `${o.name} ${o.already}`).join(', ')}.`, `Already sent more than the new minimum (not reduced): ${res.over.map(o => `${o.name} ${o.already}`).join(', ')}.`);
+    return out;
+  };
   host.onclick = async e => {
     const b = e.target.closest('button'); if (!b || !host.contains(b)) return;
     const id = b.dataset.id, k = b.dataset.k;
@@ -99,19 +114,49 @@ export function renderMinimumEditor(host, c) {
       setVal(id, k, Number(start) + (b.dataset.me === '+' ? 1 : -1));
       return;
     }
+    if (b.dataset.me === 'sheet') {
+      s.saving = true; s.msg = t('시트를 읽는 중…', 'Reading the sheet…'); s.err = false; draw();
+      try {
+        const rows = await c.loadSheet();
+        let n = 0;
+        for (const r of rows) {
+          const p = items.find(x => x.id === r.id); if (!p) continue;
+          const o = cur(p), e = {};
+          if (r.wd != null && r.wd !== o.wd) e.wd = r.wd;
+          if (r.we != null && r.we !== o.we) e.we = r.we;
+          if (Object.keys(e).length) { s.edits[p.id] = {...(s.edits[p.id] || {}), ...e}; if (isChanged(p)) n++; else delete s.edits[p.id]; }
+        }
+        s.msg = n ? t(`시트에서 ${n}개 다른 값을 채웠어요. 색이 칠해진 품목을 확인하고 업데이트 하기를 눌러요.`, `Filled ${n} different values from the sheet. Check the highlighted items and press Update.`)
+          : t('시트 값이 지금 앱 값과 같아요.', 'The sheet matches the app.');
+      } catch (err) {
+        s.msg = t(`시트를 못 읽었어요 (${String(err?.message || err)}).`, `Could not read the sheet (${String(err?.message || err)}).`); s.err = true;
+      } finally { s.saving = false; draw(); }
+      return;
+    }
     if (b.dataset.me === 'undo') { s.edits = {}; s.msg = ''; draw(); return; }
     if (b.dataset.me === 'save') {
       const list = changed().map(p => ({p, weekday: get(p, 'wd'), weekend: get(p, 'we')}));
       if (!list.length) return;
+      const n0 = list.length;
       s.saving = true; draw();
       try {
-        await c.save(list);
-        s.msg = t(`${list.length}개 최소수량을 업데이트했어요.`, `Updated ${list.length} minimums.`); s.err = false;
+        const res = await c.save(list);
+        s.msg = t(`${list.length}개 최소수량을 업데이트했어요.`, `Updated ${list.length} minimums.`) + basketNote(res); s.err = false;
       } catch (err) {
-        s.msg = t('일부 저장이 안 됐어요. 색이 남은 품목을 다시 업데이트해 주세요.', 'Some did not save. Update the highlighted items again.'); s.err = true;
+        const why = r => /permission|denied|not allowed|42501|forbidden|권한/i.test(r) ? t('권한이 없어요', 'no permission')
+          : /revision|conflict|stale|changed|modified/i.test(r) ? t('다른 사람이 방금 바꿨어요', 'someone just changed it')
+          : /STOCK_PIECES_REQUIRED/.test(r) ? t('낱개는 정수로 적어요', 'use whole pieces') : (r || t('알 수 없는 오류', 'unknown error'));
+        const list = (err?.failures || []).map(f => `${f.name} (${why(f.reason)})`);
+        const ok = Math.max(0, n0 - list.length);
+        s.msg = list.length
+          ? t(`${ok ? ok + '개는 저장했어요. ' : ''}저장 안 된 품목: ${list.join(', ')}. 색이 남은 품목을 다시 업데이트해 주세요.`, `${ok ? ok + ' saved. ' : ''}Not saved: ${list.join(', ')}. Update the highlighted items again.`)
+          : t(`저장이 안 됐어요 (${why(String(err?.message || err))}). 다시 업데이트해 주세요.`, `Not saved (${why(String(err?.message || err))}). Please try again.`);
+        s.msg += basketNote(err?.applied);
+        s.err = true;
       } finally { s.saving = false; draw(); }
     }
   };
   host.oninput = e => { const el = e.target.closest('[data-me-input]'); if (el) setVal(el.dataset.meInput, el.dataset.k, el.value, true); };
   draw();
 }
+

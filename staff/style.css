@@ -261,3 +261,161 @@ body.steps-mode .section-title{border-top:0;padding-top:0}
 .order-tabs button{border:0;border-radius:14px;padding:11px 8px;font-size:15px;font-weight:800;background:#fff;color:#3b382f;box-shadow:0 1px 4px #0001}
 .order-tabs button small{font-size:11px;font-weight:600;opacity:.7}
 .order-tabs button[aria-pressed=true]{background:#ed522e;color:#fff}
+.workplace-badge{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:14px;background:var(--c);font:700 17px system-ui,sans-serif;color:#2f3129}
+      .workplace-badge.dark{color:#fff}.workplace-badge span small{display:block;font:500 11px system-ui,sans-serif;opacity:.75}
+      .workplace-badge button{font:600 13px system-ui,sans-serif;border:0;border-radius:20px;padding:6px 12px;background:#fff9;color:inherit;cursor:pointer;min-height:auto}
+
+/* Compact three-column rectangular navigation. */
+#navigation nav.nav-tiles,#navigation .nav-tiles>.nav-group{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+#navigation .nav-tiles .nav-tile{aspect-ratio:3/1;min-height:48px;height:auto;padding:4px;grid-template-columns:minmax(0,1fr);grid-template-rows:20px auto;gap:2px;border-radius:12px}
+#navigation .nav-tile .nav-emoji{font-size:22px;line-height:1}
+#navigation .nav-tile .nav-emoji svg{display:block;width:20px;height:20px}
+#navigation .nav-tile .nav-label{font-size:11px;line-height:1.25;word-break:keep-all;overflow-wrap:anywhere}
+
+/* Keep delivery date and refresh together on all screens. */
+.toolbar.controls.order-controls{grid-template-columns:minmax(0,1fr) minmax(100px,160px)}
+.order-controls #refresh{grid-column:auto;width:100%;min-width:0}
+
+/* Compact phone header and ordering controls. */
+@media(max-width:700px){
+ .signed-in aside{padding:6px 10px}
+ .workplace-badge{padding:6px 10px;margin-bottom:6px;font-size:14px;border-radius:10px}
+ .workplace-badge span small{font-size:10px}
+ .mobile-page-picker{gap:6px;font-size:11px}
+ .mobile-page-picker select{min-height:34px;height:34px;padding:4px 8px;font-size:13px}
+ #navigation nav.nav-tiles{margin-top:6px;gap:5px;max-height:18svh;overflow-y:auto;overscroll-behavior:contain}
+ #navigation .nav-tiles>.nav-group{gap:5px}
+ #navigation .nav-tiles .nav-tile{aspect-ratio:auto;height:40px;min-height:40px;padding:4px;grid-template-columns:18px minmax(0,1fr);grid-template-rows:auto;gap:4px;align-items:center}
+ #navigation .nav-tile .nav-emoji svg{width:18px;height:18px}
+ #navigation .nav-tile .nav-label{font-size:10px;line-height:1.15}
+ #navigation .nav-group h2{margin:3px 0;font-size:11px}
+ .signed-in header{padding:4px 10px;gap:5px}
+ .signed-in header button{min-height:32px;padding:5px 9px;font-size:12px}
+ .signed-in header>.brand{font-size:12px}
+ .section-title{padding-top:7px}
+ .section-title small{font-size:10px}
+ .section-title h1{font-size:21px;margin:4px 0}
+ #portal>.muted{margin:3px 0;font-size:11px}
+ .toolbar.controls.order-controls{padding:7px 9px;margin:7px 0;gap:8px;grid-template-columns:minmax(0,1fr) minmax(90px,120px)}
+ .order-controls>label{gap:3px;grid-template-rows:auto 40px;font-size:11px}
+ .order-controls .date-wrap,.order-controls #refresh{height:40px;min-height:40px;max-height:40px;padding:5px 9px;font-size:13px}
+ .order-controls .date-wrap input{height:100%;min-height:0}
+ .role-preview{padding:7px 9px;margin:4px 0 7px;max-height:90px;overflow:auto}
+ .preview-fields{gap:5px}
+ .preview-fields>label{min-width:100px;font-size:10px}
+ .preview-fields select,.preview-fields>button{min-height:32px;padding:4px;font-size:11px}
+ .role-preview p{margin:4px 0 0;font-size:10px}
+}
+
+/* Explicit mobile grid placement avoids inherited one-column tile rules. */
+@media(max-width:700px){
+ #navigation nav.nav-tiles{grid-auto-rows:max-content;align-content:start}
+ #navigation .nav-tiles>.nav-group{padding-top:5px;margin-top:0;align-content:start}
+ #navigation .nav-tiles .nav-tile{grid-template-rows:1fr;align-content:center;justify-items:stretch;overflow:hidden}
+ #navigation .nav-tile .nav-emoji{grid-column:1;grid-row:1;width:18px;justify-self:center;align-self:center}
+ #navigation .nav-tile .nav-label{grid-column:2;grid-row:1;width:100%;min-width:0;align-self:center;text-align:center}
+ .toolbar.controls.order-controls{align-items:end}
+ .order-controls>label{min-width:0}
+ .order-controls #refresh{align-self:end}
+}
+
+/* One-line order date label, date and compact refresh action. */
+.toolbar.controls.order-controls{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.order-controls>label{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto;align-items:center;gap:8px;align-self:center}
+.order-controls>label>span{white-space:nowrap}
+.order-controls #refresh{width:auto;min-width:0;padding-left:12px;padding-right:12px;white-space:nowrap;align-self:center}
+@media(max-width:700px){
+ .toolbar.controls.order-controls{grid-template-columns:minmax(0,1fr) auto;gap:7px}
+ .order-controls>label{grid-template-columns:auto minmax(0,1fr);grid-template-rows:40px;gap:6px;font-size:11px}
+ .order-controls .date-wrap{padding-left:7px;padding-right:7px}
+ .order-controls #refresh{font-size:12px;padding-left:9px;padding-right:9px}
+}
+
+/* Use the same sizing for every quick action. */
+.chips.order-quick-actions>button,.chips.order-quick-actions #applyRecommendations{
+ box-sizing:border-box;height:40px;min-height:40px;margin:0;padding:8px 14px;font-size:13px;line-height:20px;border:1px solid var(--line);border-radius:30px;display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap
+}
+.order-quick-actions .recommendation-tools{align-items:center}
+@media(max-width:700px){
+ .chips.order-quick-actions>button,.chips.order-quick-actions #applyRecommendations{height:36px;min-height:36px;padding:6px 10px;font-size:12px;line-height:20px}
+}
+
+/* Center the icon and label together inside each menu button. */
+@media(max-width:700px){
+ #navigation .nav-tiles .nav-tile{display:flex;flex-direction:row;justify-content:center;align-items:center;gap:6px}
+ #navigation .nav-tile .nav-emoji{flex:0 0 18px;width:18px;align-self:center}
+ #navigation .nav-tile .nav-label{flex:0 1 auto;width:auto;max-width:calc(100% - 24px);text-align:center;align-self:center}
+}
+
+/* Daily cake box-window messages. */
+.reservation-controls{display:grid;grid-template-columns:150px minmax(130px,240px) auto;gap:8px;align-items:end;margin:12px 0}
+.reservation-controls>label{display:grid;grid-template-rows:18px 44px;gap:6px;align-self:end;min-width:0;margin:0;padding:0;font-size:12px;line-height:18px}.reservation-controls input,.reservation-controls select,.reservation-controls button{display:block;box-sizing:border-box;height:44px;min-height:44px;max-height:44px;min-width:0;max-width:100%;width:100%;margin:0;padding:8px 9px;font-size:14px;line-height:normal}.reservation-controls input[type=date]{min-inline-size:0;-webkit-min-logical-width:0;overflow:hidden}.reservation-controls input[type=date]::-webkit-date-and-time-value{min-height:1.2em;text-align:center}.reservation-controls button{align-self:end;justify-self:stretch;width:100%;white-space:nowrap}
+.reservation-card{border:1px solid var(--line);border-radius:13px;padding:14px;background:#fff;margin:10px 0}.reservation-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}.reservation-card>small{display:block;color:#8b7462;margin-top:4px}.reservation-badge{font-size:12px;color:#b84326;white-space:nowrap}.reservation-items{padding-left:18px;margin:12px 0}.reservation-items li{margin:5px 0}.reservation-items small{display:block;color:#8b7462;line-height:1.6}.reservation-message{padding:12px 14px;background:#fff3e9;border-left:3px solid #f07852;border-radius:8px}.reservation-message small{font-size:11px;color:#8b7462}.reservation-message p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:18px;line-height:1.6;margin:7px 0 0}.reservation-actions{display:flex;align-items:center;gap:10px;margin-top:12px}.reservation-actions small{color:#8b7462}.reservation-card.done .reservation-badge{color:#557245}.reservation-card.done .reservation-message{background:#f2f6ec;border-color:#7c9567}.reservation-card.cancelled{opacity:.65}.reservation-card.cancelled .reservation-heading strong{text-decoration:line-through}
+@media(max-width:700px){.reservation-controls{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) 70px;gap:6px}.reservation-controls button{padding:6px 8px;font-size:12px}.reservation-card{padding:12px}.reservation-heading{font-size:14px}.reservation-message p{font-size:17px}}
+
+/* Keep native date text readable on the narrowest phones. */
+@media(max-width:360px){.reservation-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.reservation-controls button{grid-column:1/-1}}
+
+/* A fixed visual date field avoids iOS native date-control intrinsic sizing. */
+.reservation-controls>label{grid-template-rows:18px 44px;gap:6px;align-content:end;overflow:hidden}
+.reservation-controls>label>span:first-child{display:block;line-height:18px;white-space:nowrap}
+.reservation-controls .reservation-date-box{position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;height:44px;min-height:44px;max-height:44px;width:100%;min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 6px;font-size:13px;line-height:20px;color:inherit}
+.reservation-controls .reservation-date-box>span{white-space:nowrap;pointer-events:none}
+.reservation-controls .reservation-date-box input[type=date]{position:absolute;inset:0;display:block;width:100%;height:100%;min-height:0;max-height:none;min-width:0;padding:0;margin:0;border:0;opacity:0;cursor:pointer;font-size:16px}
+.reservation-controls .reservation-date-box input[type=date]::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;cursor:pointer}
+.reservation-controls .reservation-date-box:focus-within{outline:2px solid var(--orange);outline-offset:2px}
+
+/* Account settings use a vertical form, not the app-install action row. */
+dialog.account-dialog{width:min(420px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);padding:20px;overflow:auto}
+.account-dialog form{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;justify-content:stretch;width:100%;min-width:0;margin:0}
+.account-dialog h2{margin:0;font-size:22px;line-height:1.3;white-space:nowrap}
+.account-dialog label{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;width:100%;min-width:0;margin:0;font-size:14px;line-height:1.5}
+.account-dialog input,.account-dialog select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;height:44px;min-height:44px;margin:0;padding:9px 12px;font-size:16px;line-height:24px}
+.account-dialog [role=alert]{margin:0;font-size:13px;overflow-wrap:anywhere}
+.account-dialog [role=alert]:empty{display:none}
+.account-dialog .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:2px 0 0}
+.account-dialog .actions button{width:100%;min-width:0;height:44px;min-height:44px;padding:8px 12px;font-size:16px;line-height:24px;white-space:nowrap}
+
+
+/* 발주게임: 추가 요청사항(목록에 없는 것)을 게임 카드처럼 */
+.note-game-title{display:none}
+body.steps-mode .os{margin-bottom:14px}
+body.steps-mode .note-game{display:block;max-width:520px;margin:0 auto 96px;background:#fff;border-radius:22px;padding:16px;box-shadow:0 3px 10px #0001;font-size:13px;color:#6b6555}
+body.steps-mode .note-game .note-game-title{display:block;font-size:20px;font-weight:800;color:#3b382f;margin-bottom:4px}
+body.steps-mode .note-game .note-plain{display:none}
+body.steps-mode .note-game textarea{display:block;width:100%;margin-top:10px;min-height:96px;border:0;border-radius:16px;background:#f7f3ea;padding:12px;font-size:16px}
+body.steps-mode .note-game textarea:focus{outline:3px solid #3e4b33}
+@media(min-width:900px){body.steps-mode .note-game{max-width:760px}}
+
+
+/* All items: compact ordering rows instead of large product cards. */
+body.order-list-mode #products.grid{display:flex;flex-direction:column;gap:7px}
+body.order-list-mode #products .card{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:start;min-height:0;gap:0;border-radius:12px}
+body.order-list-mode #products .card .symbol{width:64px;height:64px;aspect-ratio:1;margin:8px 0 8px 8px;border-radius:8px}
+body.order-list-mode #products .card .symbol i{font-size:15px;padding:3px;max-width:60px}
+body.order-list-mode #products .card .card-body{display:grid;grid-template-columns:minmax(0,1fr) 132px;gap:3px 8px;min-width:0;padding:8px 10px 8px 16px}
+body.order-list-mode #products .card .item-heading{grid-column:1;min-width:0;padding-right:22px}
+body.order-list-mode #products .card .item-heading strong{font-size:14px;min-height:0;overflow-wrap:anywhere}
+body.order-list-mode #products .card .card-body>small{grid-column:1;font-size:11px;line-height:1.25;min-height:0;overflow-wrap:anywhere}
+body.order-list-mode #products .card .stepper{grid-column:2;grid-row:1/span 3;align-self:center;margin:0;height:40px;min-width:0;width:100%}
+body.order-list-mode #products .card .stepper button{min-width:34px;min-height:38px}
+body.order-list-mode #products .card .stepper input{min-width:0;font-size:16px}
+body.order-list-mode #products .card .favorite-star{position:static;float:right;width:22px;height:22px;min-width:22px;min-height:22px;font-size:22px!important;margin-right:-22px;margin-top:-18px}
+body.order-list-mode #products .card .item-edit{top:49px;left:49px;width:24px;height:24px;min-width:24px;min-height:24px}
+body.order-list-mode #products .card .item-edit:before{font-size:17px}
+body.order-list-mode #products .card .stock-editor{grid-column:1/-1;padding:5px 0 0;margin:2px 0 0;min-width:0}
+body.order-list-mode #products .card .stock-editor summary{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px}
+body.order-list-mode #products .card .stock-editor summary .stock-current{font-size:12px;gap:8px}
+body.order-list-mode #products .card .stock-editor summary .stock-current b{font-size:18px}
+body.order-list-mode #products .card .stock-editor summary .stock-minimum{font-size:10px;gap:6px}
+body.order-list-mode #products .card .stock-editor>label,body.order-list-mode #products .card .stock-editor>div{min-width:0;max-width:100%}
+@media(max-width:420px){body.order-list-mode #products .card{grid-template-columns:44px minmax(0,1fr)}body.order-list-mode #products .card .symbol{width:44px;height:44px;margin:8px 0 8px 6px}body.order-list-mode #products .card .card-body{grid-template-columns:minmax(0,1fr) 106px;padding:8px 7px 8px 12px;gap:3px 6px}body.order-list-mode #products .card .item-heading strong{font-size:12px}body.order-list-mode #products .card .stepper button{min-width:28px}body.order-list-mode #products .card .item-edit{left:30px;top:37px}body.order-list-mode #products .card .stock-editor summary{gap:3px 6px}}
+body.order-list-mode #products .card.count-checked{border-left:4px solid #6b9259}
+body.order-list-mode #products .card.count-pending{border-left:4px solid #d49345}
+body.order-list-mode #products .card.count-checked .card-body{background:#edf6e9}
+body.order-list-mode #products .card.count-pending .card-body{background:#fff2e4}
+body.order-list-mode #products .card .count-check-status{grid-column:1;font-size:10px;font-weight:700;line-height:1.2}
+body.order-list-mode #products .card.count-checked .count-check-status{color:#3e6b31}
+body.order-list-mode #products .card.count-pending .count-check-status{color:#8b571b}
+body.order-list-mode #products .card .stepper{grid-row:1/span 4}
+body.order-list-mode #products .card{width:100%;min-width:0;align-self:stretch}

@@ -26,3 +26,29 @@ test('store manager can approve a requested location and remove access without r
  renderAccounts(host,c);await new Promise(r=>setImmediate(r));await block.onclick();await new Promise(r=>setImmediate(r));assert.deepEqual(calls.find(c=>c.name==='kream_block_access').args,{target_user:'employee',expected_revision:3});
  }finally{globalThis.confirm=oldConfirm;clearAccountState();}
 });
+
+import {accountStatus,accountLocation,groupAccounts} from '../accounts.mjs';
+test('access status separates disabled accounts from pending requests and keeps each person in one workplace group',()=>{
+ const base={role:'employee',active:true,requests:[]};
+ const accounts=[
+  {...base,user_id:'one',display_name:'Single',store_ids:['finch','finch']},
+  {...base,user_id:'two',display_name:'Multiple',store_ids:['finch','downtown']},
+  {...base,user_id:'combined',role:'manager_factory',store_ids:['finch']},
+  {...base,user_id:'factory',role:'factory_staff',store_ids:[]},
+  {...base,user_id:'all',role:'manager',general_manager:true,store_ids:[]},
+  {...base,user_id:'midland',role:'midland_owner',store_ids:[]},
+  {...base,user_id:'new',active:false,store_ids:[],requests:[{status:'pending',location_key:'downtown'}]},
+  {...base,user_id:'blocked',access_blocked:true,store_ids:['finch'],requests:[{status:'pending',location_key:'midland'}]},
+  {...base,user_id:'disabled',active:false,store_ids:['finch'],last_change:{at:'2026-11-24'}},
+  {...base,user_id:'unassigned',store_ids:[]}
+ ];
+ const sections=groupAccounts(accounts,[{id:'finch'},{id:'downtown'},{id:'midland'}]);
+ assert.deepEqual(sections.map(s=>s.status),['pending','enabled','disabled']);
+ const flattened=sections.flatMap(s=>s.groups.flatMap(g=>g.accounts));assert.equal(flattened.length,accounts.length);assert.equal(new Set(flattened.map(a=>a.user_id)).size,accounts.length);
+ assert.equal(accountLocation(accounts[0]),'finch');assert.equal(accountLocation(accounts[1]),'multiple');assert.equal(accountLocation(accounts[2]),'multiple');assert.equal(accountLocation(accounts[3]),'factory');assert.equal(accountLocation(accounts[4]),'all');assert.equal(accountLocation(accounts[5]),'midland');assert.equal(accountLocation(accounts[6]),'downtown');assert.equal(accountStatus(accounts[7]),'disabled');assert.equal(accountStatus(accounts[8]),'disabled');assert.equal(accountLocation(accounts[9]),'unassigned');
+ assert.deepEqual(sections.find(s=>s.status==='disabled').groups[0].accounts.map(a=>a.user_id).sort(),['blocked','disabled']);
+});
+test('approval requests keep their top-level folder even when no requests are pending',()=>{
+ const groups=groupAccounts([{user_id:'a',role:'employee',active:true,store_ids:['finch'],requests:[]}]);
+ assert.equal(groups[0].status,'pending');assert.equal(groups[0].groups.length,0);assert.equal(groups[1].status,'enabled');
+});

@@ -1,3 +1,4 @@
+import {countProgress} from './count-game-policy.mjs?v=20261122-completion';
 // 매장 발주 · 한 개씩 보기
 // 카테고리 안에서 품목을 하나씩 보여주고, 재고 숫자만 넣으면 자동 주문수량이 발주함에 들어가고 (화면에는 안 보임),
 // "다음"을 누르면 저장하고 다음 품목으로 넘어가요. 이전으로 가거나 목록에서 골라 고칠 수 있어요.
@@ -46,10 +47,10 @@ const CSS = `
 .os-next{background:#3e4b33;color:#fff}
 .os-nav button:disabled{opacity:.4}
 .os-warn{font-size:12px;color:#a0522d;min-height:16px;margin-top:6px}
-.os-list{background:#fff;border-radius:18px;box-shadow:0 3px 10px #0001;overflow:hidden}
+.os-cheer{font-size:14px;font-weight:700;color:#566c3f;text-align:center;margin:8px 0}.os-list{background:#fff;border-radius:18px;box-shadow:0 3px 10px #0001;overflow:hidden}
 .os-row{display:grid;grid-template-columns:1fr auto 44px;gap:10px;align-items:center;width:100%;border:0;border-bottom:1px solid #f0ebe0;background:none;padding:12px 14px;text-align:left;font-size:15px}
 .os-row:last-child{border-bottom:0}
-.os-row.on{background:#f3f7ee}
+.os-row.on{outline:2px solid #81715f;outline-offset:-2px}.os-row.checked{background:#edf6e9;border-left:4px solid #6b9259}.os-row.pending{background:#fff2e4;border-left:4px solid #d49345}.os-row .os-check-label{display:block;font-size:11px;margin-top:3px}.os-row.checked .os-check-label{color:#3e6b31}.os-row.pending .os-check-label{color:#8b571b}
 .os-row small{color:#6b6555;font-size:12px;white-space:nowrap}
 .os-row em{font-style:normal;font-weight:700;white-space:nowrap}
 .os-win{text-align:center;background:#fff;border-radius:22px;padding:26px 14px;box-shadow:0 3px 10px #0001}
@@ -83,7 +84,7 @@ const CSS = `
 `;
 
 function ensureStyle() {
-  if (document.getElementById(STYLE_ID)) return;
+  if (typeof document === 'undefined' || document.getElementById(STYLE_ID)) return;
   const el = document.createElement('style');
   el.id = STYLE_ID;
   el.textContent = CSS;
@@ -106,6 +107,16 @@ const SPEED = [
   [12, '😎', '깔끔하게 끝! 재고 장인 인정합니다', 'Clean finish! Certified stock master'],
   [Infinity, '🐢', '천천히, 정확하게! 거북이가 이긴 거 아시죠?', 'Slow and steady wins the race!']
 ];
+const ENCOURAGEMENT = [
+ ['힘내요! 하나씩 확인하면 금방 끝나요 💪','You’ve got this! One item at a time 💪'],
+ ['잘하고 있어요! 확인한 만큼 매장이 든든해져요 🌟','Doing great! Every check helps the store 🌟'],
+ ['조금만 더 힘내요! 남은 품목도 같이 확인해요 🙌','Keep going! Let’s check the remaining items 🙌'],
+ ['천천히, 정확하게! 오늘도 고마워요 💚','Slow and steady! Thank you for your work today 💚'],
+ ['하나 더 확인 완료! 차근차근 잘하고 있어요 ✨','One more checked! You’re making progress ✨'],
+ ['끝이 가까워지고 있어요! 놓친 품목도 살펴봐요 👀','Getting closer! Check for anything missed 👀'],
+ ['오늘의 재고 요정, 응원해요! 🧚','Cheering for today’s stock fairy! 🧚'],
+ ['힘내요! 꼼꼼한 확인이 내일을 편하게 해줘요 ☀️','Keep it up! Careful checks make tomorrow easier ☀️']
+];
 const pick = list => list[Math.floor(Math.random() * list.length)];
 function timeText(secs, t) { return secs >= 60 ? `${Math.floor(secs / 60)}${t('분', 'm')} ${secs % 60}${t('초', 's')}` : `${secs}${t('초', 's')}`; }
 
@@ -119,6 +130,7 @@ export function createStepState(store, today) {
     key: '',            // 보고 있는 카테고리 (바뀌면 처음부터)
     index: 0,           // 보고 있는 품목 순서
     view: 'one',        // 'one' 한 개씩 | 'list' 목록에서 고치기
+    edited: new Set(),
     typed: {},          // 품목 id → 입력 중인 재고 글자
     order: {},          // 품목 id → 직접 바꾼 주문수량
     done: new Set(remembered), // 오늘 센 품목
@@ -143,17 +155,23 @@ export function renderOrderSteps(host, c) {
   ensureStyle();
   const {state: s, items, t, esc} = c;
   if (s.key !== c.key) { s.key = c.key; s.index = firstUndone(); s.view = 'one'; s.streak = 0; s.startedAt = 0; s.counts = 0; s.finishedIn = 0; }
+  if (c.forceView) s.view = c.forceView;   // ▦ 전체 목록: 필수 확인은 늘 목록으로
   if (s.index > items.length) s.index = items.length;
 
+  const progress = () => countProgress(c.getRequiredIds?.() || c.allIds || items.map(p=>p.id), s.done, s.failed);
+  const pendingMessage = n => t(`아직 ${n}개 품목이 남아 있어요. 나머지 품목도 모두 확인해 주세요.`, `${n} items still need checking. Please check every remaining item.`);
   function firstUndone() { const i = items.findIndex(p => !s.done.has(p.id)); return i < 0 ? 0 : i; }
+  // 다음 품목: 이 매장에서 오늘 아직 안 센 것만 (다른 직원이 이미 센 건 건너뛰어요)
+  function nextUndone(from) { for (let i = from; i < items.length; i++) if (!s.done.has(items[i].id) || s.failed.has(items[i].id)) return i; return items.length; }
   let doneCount = 0;
   function head() {
     doneCount = items.filter(p => s.done.has(p.id)).length;
-    const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
+    const full=progress(),pct=full.total?Math.round(full.completed/full.total*100):0;
     const sc = c.shiftCounts || {};
-    const shiftBar = c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">☀️ ${t('낮 요정', 'Day fairy')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🧚‍♀️ ${t('마감 요정', 'Closing fairy')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
-    return shiftBar + `<div class="os-head"><span class="os-count">${Math.min(s.index + 1, items.length)} / ${items.length}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${doneCount === items.length && items.length ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
-    <div class="os-tools"><button data-os="one" aria-pressed="${s.view === 'one'}">${t('한 개씩', 'One by one')}</button><button data-os="list" aria-pressed="${s.view === 'list'}">✎ ${t('목록', 'List')}</button><button data-os="grid">▦ ${t('전체 보기', 'Grid')}</button></div>`;
+    const shiftBar = c.openSupplies ? `<div class="os-shift"><button aria-pressed="true">✅ ${t('필수 확인', 'Must check')}<small>${t('꼭 세는 품목', 'Count these')} · ${sc.all ?? ''}</small></button><button data-os="supplies">📦 ${t('추가 주문', 'Extra order')}<small>${t('나머지 · 더 필요해요!', 'Everything else · need more!')}</small></button></div>` : c.shift ? `<div class="os-shift"><button data-shift="morning" aria-pressed="${c.shift === 'morning'}">☀️ ${t('낮 요정', 'Day fairy')}<small>${t('포장재·소모품·음료 베이스', 'Packaging · supplies · drink bases')} · ${sc.morning ?? ''}</small></button><button data-shift="closing" aria-pressed="${c.shift === 'closing'}">🧚‍♀️ ${t('마감 요정', 'Closing fairy')}<small>${t('나머지 전부', 'Everything else')} · ${sc.closing ?? ''}</small></button></div>` : '';
+    return shiftBar + `<div class="os-head"><span class="os-count">${full.completed} / ${full.total}</span><div class="os-bar"><i style="width:${pct}%"></i></div><span>${full.complete ? '🏆' : s.streak >= 3 ? `🔥${s.streak}` : ''}</span></div>
+    ${full.remaining.length?`<p class="os-cheer">${esc(t(...ENCOURAGEMENT[Math.floor(full.completed/3)%ENCOURAGEMENT.length]))}</p><p class="os-warn" role="status">${esc(pendingMessage(full.remaining.length))}${c.shift==='closing'&&c.carriedCount?` ${t('오전반 미확인 품목도 포함되어 있어요.','Includes unfinished morning tasks.')}`:''}</p>`:''}
+    <div class="os-tools"><button data-os="one" aria-pressed="${s.view === 'one'}">${t('한 개씩', 'One by one')}</button><button data-os="list" aria-pressed="${s.view === 'list'}">✎ ${t('목록', 'List')}</button><button data-os="grid">▦ ${t('전체 목록', 'All items')}</button></div>`;
   }
 
   const wrap = html => { host.innerHTML = `<div class="os">${html}</div>`; };
@@ -176,8 +194,13 @@ export function renderOrderSteps(host, c) {
     try { return c.parse(p, text); } catch { return undefined; }
   }
   function orderFor(p) {
+    // A shared basket or explicit list entry is an order request, not a stock suggestion.
+    if(c.keepManual?.(p)&&s.order[p.id]==null)return {q:c.getQty(p)||0,auto:false,keep:true};
     if (s.order[p.id] != null) return {q: s.order[p.id], auto: false};
     const v = stored(p);
+    // 두쫀쿠: 충분히 많아요 / 반박스 주문 / 한박스 주문 → 고른 버튼이 바로 주문량
+    const chosen = v == null || v === undefined ? null : c.choiceOrder?.(p, v);
+    if (chosen != null) return {q: chosen, auto: true};
     // 포장·소모품(있다/없다)과 티백(1봉지/반봉지/없음): 모자라면 1개(박스·봉지) 주문.
     // 단, 이미 주문해서 오는 중(입고확인 전)이면 또 주문하지 않아요.
     if ((c.yesNo?.(p) || c.bagMode?.(p)) && v != null && v !== undefined) {
@@ -193,22 +216,23 @@ export function renderOrderSteps(host, c) {
 
   function drawList() {
     wrap(head() + `<div class="os-list">${items.map((p, i) => {
-      const st = stockText(p), last = c.lastStock(p);
-      return `<button class="os-row ${i === s.index ? 'on' : ''}" data-go="${i}"><span>${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</span><em>${esc(ynText(p, st !== '' ? st : last ?? '—'))}</em><small>${st !== '' ? t('오늘', 'today') : t('지난번', 'last')}</small></button>`;
+      // 오늘 센 숫자를 먼저 보여줘요: 지금 입력 중인 것 → 오늘 저장된 것 → (없으면) 지난번
+      const typed = stockText(p), saved = typed === '' ? c.todayValue?.(p) : null, st = typed !== '' ? typed : saved == null ? '' : String(saved), last = c.lastStock(p);
+      return `<button class="os-row ${s.done.has(p.id)&&!s.failed.has(p.id)?'checked':'pending'} ${i === s.index ? 'on' : ''}" data-go="${i}"><span>${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}<small class="os-check-label">${s.done.has(p.id)&&!s.failed.has(p.id)?t('확인 완료','Checked'):t('미확인','Not checked')}</small></span><em>${esc(ynText(p, st !== '' ? st : last ?? '—'))}</em><small>${st !== '' ? t('오늘', 'today') : t('지난번', 'last')}</small></button>`;
     }).join('')}</div>`);
   }
 
   function drawWin() {
-    const next = c.nextCategory, allDone = (c.allIds || []).length > 0 && c.allIds.every(id => s.done.has(id));
+    const next = c.nextCategory, full=progress(),allDone=full.complete;
     const secs = s.finishedIn || 0, per = s.counts ? secs / s.counts : Infinity;
     const tier = SPEED.find(x => per <= x[0]);
     wrap(head() + `<div class="os-win"><div class="big">${allDone ? '🏆' : tier[1]}</div>
-      <h3>${allDone ? (c.shift === 'morning' ? t('낮 요정 임무 완료! ☀️', 'Day fairy: mission complete! ☀️') : c.shift === 'closing' ? t('마감 요정 임무 완료! 🧚‍♀️', 'Closing fairy: mission complete! 🧚‍♀️') : t('오늘 재고 전부 끝!', 'All stock counted!')) : `${esc(c.title)} ${t('완료!', 'done!')}`}</h3>
-      <p class="praise">${esc(t(tier[2], tier[3]))}</p>
+      <h3>${allDone ? (c.shift === 'morning' ? t('낮 요정 임무 완료! ☀️', 'Day fairy: mission complete! ☀️') : c.shift === 'closing' ? t('마감 요정 임무 완료! 🧚‍♀️', 'Closing fairy: mission complete! 🧚‍♀️') : t('오늘 재고 전부 끝!', 'All stock counted!')) : `${esc(c.title)} ${t('목록을 확인했어요', 'list checked')}`}</h3>
+      <p class="praise">${allDone?esc(t(tier[2],tier[3])):esc(pendingMessage(full.remaining.length))}</p>
       <p class="time">${s.counts ? `${s.counts}${t('개', ' items')} · ${timeText(secs, t)}` : `${doneCount} / ${items.length} ${t('품목', 'items')}`}</p>
       ${s.failed.size ? `<p class="os-warn">${t(`${s.failed.size}개 재고가 저장되지 않았어요. 목록에서 다시 확인해 주세요.`, `${s.failed.size} counts did not save. Check them in the list.`)}</p>` : ''}
-      ${next && !allDone ? `<button class="primary" data-os="nextcat">${t(`다음: ${next} →`, `Next: ${next} →`)}</button>` : ''}
-      <button class="done" data-os="basket">${t('다 했어요! 🙌', 'All done! 🙌')}</button>
+      ${!allDone&&full.remaining.length?`<button class="primary" data-os="remaining">${t('남은 품목 확인하기 →','Check remaining items →')}</button>`:''}
+      <button class="done" data-os="basket" ${!allDone||c.preview||c.locked?'disabled':''}>${t('다 했어요! 🙌', 'All done! 🙌')}</button>
       <button data-os="list">✎ ${t('목록에서 고치기', 'Fix from list')}</button></div>`);
   }
 
@@ -222,18 +246,18 @@ export function renderOrderSteps(host, c) {
     const p = items[s.index], st = stockText(p), last = c.lastStock(p);
     const animate = s.lastShown !== p.id; s.lastShown = p.id;
     // 있다/없다 버튼 글자: 기본은 포장·소모품(한 박스), app이 품목마다 바꿀 수 있어요 (예: 아이스크림 10스쿱)
-    const yn = Object.assign({q: t('한 박스 이상 있나요?', 'At least one full box?'), yes: t('있어요', 'Yes'), yesSmall: t('한 박스 이상', '1+ box'), yesIcon: '📦', no: t('없어요', 'No'), noSmall: t('자동으로 1박스 주문', 'Orders 1 box')}, c.yesNoText?.(p) || {});
-    const dis = c.locked ? 'disabled' : '';
+    const yn = Object.assign({q: t('필요한 재고가 남아 있나요?', 'Is there enough stock?'), yes: t('있어요', 'Yes'), yesSmall: t('추가 주문 안 함', 'No extra order'), yesIcon: '📦', no: t('없어요', 'No'), noSmall: t('자동으로 1단위 주문', 'Orders 1 unit')}, c.yesNoText?.(p) || {});
+    const dis = c.locked||s.saving ? 'disabled' : '';
     wrap(head() + `<div class="os-card ${animate ? 'in' : ''}">
-      <div class="os-top"><div class="os-pic">${c.picture(p)}</div><div><div class="os-name">${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</div><div class="os-unit">${esc(c.unitLabel(p))}</div><div class="os-last">${last == null || last === '' ? t('지난 재고 기록 없음', 'No previous count') : `${t('지난번 재고', 'Last count')}: ${esc(ynText(p, last))}`}</div></div></div>
+      <div class="os-top"><div class="os-pic">${c.picture(p)}</div><div><div class="os-name">${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</div><div class="os-unit">${esc(c.unitLabel(p))}</div><div class="os-last">${last == null || last === '' ? t('지난 재고 기록 없음', 'No previous count') : `${t('지난번 재고', 'Last count')}: ${esc(ynText(p, last))}${esc(c.countSuffix?.(p)||'')}`}</div></div></div>
       ${c.choices?.(p) ? `<div class="os-label">${esc(c.countPrompt?.(p) || t('얼마나 남았나요?', 'How much is left?'))}</div>
       <div class="os-yn many">${c.choices(p).map(([v, label, icon]) => `<button class="${st === String(v) ? 'on' : ''}" data-yn="${esc(v)}" ${dis}><i>${icon || ''}</i>${esc(label)}</button>`).join('')}</div>` : c.bagMode?.(p) ? `<div class="os-label">${t('얼마나 남았나요?', 'How much is left?')}</div>
-      <div class="os-yn three"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>🫖</i>${t('1봉지 이상', '1+ bag')}</button><button class="half ${st === '0.5' ? 'on' : ''}" data-yn="0.5" ${dis}><i>🍵</i>${t('반봉지', 'Half')}</button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${t('없음', 'None')}</button></div>${(() => { const w = c.onTheWay?.(p); return w && (c.yesNo?.(p) || c.bagMode?.(p)) ? `<div class="os-way">📦 ${t(`이미 주문했어요${w.date ? ` (${w.date} 도착 예정)` : ''} · 받을 때까지 또 주문 안 해요`, `Already ordered${w.date ? ` (arrives ${w.date})` : ''} · won't reorder until received`)}</div>` : ''; })()}` : c.yesNo?.(p) ? `${(() => { const w = c.onTheWay?.(p); return w && (c.yesNo?.(p) || c.bagMode?.(p)) ? `<div class="os-way">📦 ${t(`이미 주문했어요${w.date ? ` (${w.date} 도착 예정)` : ''} · 받을 때까지 또 주문 안 해요`, `Already ordered${w.date ? ` (arrives ${w.date})` : ''} · won't reorder until received`)}</div>` : ''; })()}<div class="os-label">${yn.q}</div>
+      <div class="os-yn three"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>🫖</i>${t('1봉지 이상', '1+ bag')}</button><button class="half ${st === '0.5' ? 'on' : ''}" data-yn="0.5" ${dis}><i>🍵</i>${t('반봉지', 'Half')}</button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${t('없음', 'None')}</button></div>` : c.yesNo?.(p) ? `<div class="os-label">${yn.q}</div>
       <div class="os-yn"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>${yn.yesIcon}</i>${yn.yes}<small>${yn.yesSmall}</small></button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${yn.no}<small>${yn.noSmall}</small></button></div>` : `<div class="os-label">${esc(c.countPrompt?.(p) || t('지금 재고', 'Stock now'))}</div>
       <div class="os-num"><button data-os="minus" ${dis} aria-label="${t('하나 빼기', 'minus one')}">−</button><output class="${st === '' ? 'empty' : ''}">${st === '' ? '?' : esc(st)}</output><button data-os="plus" ${dis} aria-label="${t('하나 더하기', 'plus one')}">＋</button></div>
       <div class="os-pad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k => `<button data-key="${k}" ${dis} aria-label="${k === '⌫' ? t('지우기', 'delete') : k}">${k}</button>`).join('')}</div>`}
       <div class="os-warn" id="osWarn">${c.preview ? t('미리보기: 저장되지 않아요.', 'Preview: nothing is saved.') : s.failed.has(p.id) ? t('이 품목 재고가 저장되지 않았어요. 다시 넣어 주세요.', 'This count did not save. Please re-enter.') : ''}</div>
-      <div class="os-nav"><button class="os-prev" data-os="prev" ${s.index === 0 ? 'disabled' : ''}>← ${t('이전', 'Back')}</button><button class="os-next" data-os="next" ${dis}>${s.index + 1 === items.length ? t('다 했어요! 🙌', 'All done! 🙌') : t('다음 →', 'Next →')}</button></div>
+      <div class="os-nav"><button class="os-prev" data-os="prev" ${s.index === 0 ? 'disabled' : ''}>← ${t('이전', 'Back')}</button><button class="os-next" data-os="next" ${dis}>${s.index + 1 === items.length ? t('저장하고 계속 →', 'Save & continue →') : t('다음 →', 'Next →')}</button></div>
     </div>`);
   }
 
@@ -254,42 +278,42 @@ export function renderOrderSteps(host, c) {
     if (k === '⌫') v = v.slice(0, -1);
     else if (k === '.') { if (!v.includes('.')) v = (v || '0') + '.'; }
     else if (v.length < 7) v = v === '0' ? k : v + k;
-    s.typed[p.id] = v;
+    s.edited.add(p.id);s.typed[p.id] = v;
     refreshNumbers();
   }
 
   function stepStock(d) {
     const p = items[s.index]; if (!p) return;
     const base = stockText(p) !== '' ? Number(stockText(p)) : Number(c.lastStock(p)) || 0;
-    s.typed[p.id] = String(Math.max(0, Math.round((base + d) * 1000) / 1000));
+    s.edited.add(p.id);s.typed[p.id] = String(Math.max(0, Math.round((base + d) * 1000) / 1000));
     refreshNumbers();
   }
 
   function stepOrder(dir) {
     const p = items[s.index]; if (!p) return;
     const q = orderFor(p).q || 0;
-    s.order[p.id] = Math.max(0, Math.min(100000, Math.round((q + dir * c.qtyStep(p)) * 1000) / 1000));
+    s.edited.add(p.id);s.order[p.id] = Math.max(0, Math.min(100000, Math.round((q + dir * c.qtyStep(p)) * 1000) / 1000));
     refreshNumbers();
   }
 
   // 지금 품목을 확정: 재고 저장 + 주문수량 발주함에 반영
-  function commit(p) {
-    const v = stored(p);
-    if (v === undefined) { const w = host.querySelector('#osWarn'); if (w) w.textContent = t('낱개 수량을 정수로 입력해 주세요.', 'Enter a whole number of pieces.'); return false; }
-    const o = orderFor(p);
-    if (!o.keep && o.q !== (c.getQty(p) || 0)) c.setQty(p, o.q);
-    if (v != null) {
-      s.done.add(p.id); s.failed.delete(p.id);
-      if (!c.preview) {
-        s.queue = s.queue.then(() => c.saveStock(p, v)).then(() => {
-          try { localStorage.setItem(s.memoryKey, JSON.stringify([...s.done])); } catch { /* 무시 */ }
-        }).catch(() => { s.failed.add(p.id); s.done.delete(p.id); });
-      }
-    }
-    return true;
+  async function commit(p) {
+    if(c.locked||s.saving)return false;
+    const v=stored(p);
+    if(v===undefined){const w=host.querySelector('#osWarn');if(w)w.textContent=t('수량을 다시 확인해 주세요.','Check the count.');return false;}
+    if(c.preview){s.edited.delete(p.id);return true;}
+    const o=orderFor(p);s.saving=true;draw();
+    try {
+      if(v!=null){if(c.yesNo?.(p)||c.bagMode?.(p))await c.saveAvailability(p,Number(v)>0);else await c.saveStock(p,v);}
+      if(!o.keep&&o.q!==(c.getQty(p)||0))c.setQty(p,o.q,{auto:o.auto===true});
+      s.edited.delete(p.id);if(v!=null){s.done.add(p.id);s.failed.delete(p.id);try{localStorage.setItem(s.memoryKey,JSON.stringify([...s.done]));}catch{}}
+      return true;
+    }catch{s.failed.add(p.id);s.done.delete(p.id);return false;}
+    finally{s.saving=false;draw();}
   }
 
   function toast(pair) {
+    if(typeof document==='undefined')return;
     document.querySelectorAll('.os-toast').forEach(x => x.remove());
     const el = document.createElement('div');
     el.className = 'os-toast'; el.textContent = t(pair[0], pair[1]);
@@ -298,49 +322,55 @@ export function renderOrderSteps(host, c) {
   }
 
   function pop(emoji) {
+    if(typeof document==='undefined')return;
     const el = document.createElement('div');
     el.className = 'os-pop'; el.textContent = emoji;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 750);
   }
 
-  host.onclick = e => {
-    const b = e.target.closest('button'); if (!b || !host.contains(b)) return;
+  host.onclick = async e => {
+    const b = e.target.closest('button'); if (!b || b.disabled || !host.contains(b)||s.saving) return;
     if (b.dataset.key) return press(b.dataset.key);
     if (b.dataset.shift) return c.setShift?.(b.dataset.shift);
-    if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.typed[it.id] = b.dataset.yn; b.classList.add('on'); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
-    if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = 'one'; return draw(); }
+    if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.edited.add(it.id);s.typed[it.id] = b.dataset.yn; b.classList.add('on'); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
+    if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = 'one'; if (c.forceView && c.openOne) return c.openOne(); return draw(); }
     const p = items[s.index];
     switch (b.dataset.os) {
-      case 'one': s.view = 'one'; return draw();
+      case 'one': s.view = c.forceView || 'one'; return draw();
       case 'list': s.view = 'list'; return draw();
       case 'grid': return c.showGrid();
+      case 'supplies': return c.openSupplies?.();
       case 'minus': return stepStock(-1);
       case 'plus': return stepStock(1);
       case 'qminus': return stepOrder(-1);
       case 'qplus': return stepOrder(1);
-      case 'prev': if (p && !commit(p)) return; s.index = Math.max(0, s.index - 1); s.streak = 0; return draw();
+      case 'prev': if (p && !await commit(p)) return; s.index = Math.max(0, s.index - 1); s.streak = 0; return draw();
       case 'next': {
-        if (!p || !commit(p)) return;
+        if(!p)return;
+        if(stored(p)==null&&(!s.done.has(p.id)||s.edited.has(p.id)||s.failed.has(p.id))){const w=host.querySelector('#osWarn');if(w)w.textContent=t('재고 수량을 입력하거나 있음·없음을 선택한 뒤 다음으로 넘어가 주세요.','Enter a stock count or choose Yes / No before continuing.');return;}
+        if(!await commit(p))return;
         const now = Date.now();
         if (stored(p) != null) {
           if (!s.startedAt) s.startedAt = now;
           s.streak += 1; s.counts += 1;
           const fast = s.lastNext && now - s.lastNext < 3000;
-          toast(STREAK[s.streak] || (fast ? pick(FAST) : pick(PRAISE)));
+          toast(STREAK[s.streak] || (s.counts%2===0?pick(ENCOURAGEMENT):(fast ? pick(FAST) : pick(PRAISE))));
           pop(s.streak % 5 === 0 ? '🔥' : fast ? '⚡' : ['⭐', '✨', '👍', '💪'][s.streak % 4]);
         }
         s.lastNext = now;
-        s.index += 1;
+        s.index = nextUndone(s.index + 1);
         if (s.index >= items.length) s.finishedIn = s.startedAt ? Math.max(1, Math.round((now - s.startedAt) / 1000)) : 0;
         return draw();
       }
       case 'nextcat': return c.goNextCategory();
-      case 'basket': return c.openBasket();
+      case 'remaining': {const id=progress().remaining[0];if(c.goRemaining)return c.goRemaining(id);const i=items.findIndex(p=>p.id===id);if(i>=0){s.index=i;s.view='one';return draw();}return;}
+      case 'basket': if(!progress().complete||c.preview||c.locked)return drawWin();return c.openBasket();
     }
   };
 
   // 컴퓨터 키보드: 숫자, Enter(다음), ←(이전). 검색창 등에 쓰는 중이면 무시.
+  if (typeof window === 'undefined') { draw(); return; }
   if (!window.__osKeys) {
     window.__osKeys = true;
     document.addEventListener('keydown', e => {
@@ -358,3 +388,5 @@ export function renderOrderSteps(host, c) {
 
   draw();
 }
+
+

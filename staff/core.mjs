@@ -1,3 +1,4 @@
+import {assertRequestNote} from './request-note.mjs?v=20261123-note-english';
 export function tomorrowToronto(now = new Date()) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone:'America/Toronto',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now).map(p=>[p.type,p.value]));
   const day = new Date(Date.UTC(+parts.year,+parts.month-1,+parts.day+1));
@@ -39,6 +40,7 @@ export function aggregate(orders) {
 }
 
 export async function saveSharedBasket(db,previous,payload){
+ assertRequestNote(payload.note);
  const {data,error}=await db.rpc('kream_save_store_basket',{target_store:payload.store_id,basket_id:previous?.id||null,previous_items:previous?.items||[],new_items:payload.items,previous_note:previous?.note||'',new_note:payload.note,previous_date:previous?.delivery_date||payload.delivery_date,new_date:payload.delivery_date});
  if(error)throw error;if(!data?.id)throw new Error('EMPTY_BASKET_RESPONSE');return data;
 }

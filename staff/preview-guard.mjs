@@ -56,6 +56,7 @@ export function guardPreview(db) {
   }
 
   ['signUp', 'updateUser', 'resetPasswordForEmail'].forEach(m => { if (db.auth[m]) db.auth[m] = () => blocked(); });
+  blockSheetWrites();
   showBanner();
   return db;
 }
@@ -67,4 +68,20 @@ function showBanner() {
   bar.textContent = '미리보기 사이트 · 저장되지 않아요 (실제 데이터는 바뀌지 않음) · PREVIEW – read only';
   bar.style.cssText = 'position:sticky;top:0;z-index:9999;background:#ffe08a;color:#3a2a00;font:600 13px/1.4 system-ui,sans-serif;text-align:center;padding:8px 12px;border-bottom:1px solid #e0b84a';
   document.body.prepend(bar);
+}
+
+// 구글 시트(Apps Script)로 가는 저장도 막아요. 읽기(op가 get…)만 보내요.
+function blockSheetWrites() {
+  if (window.__previewFetch) return;
+  const real = window.fetch.bind(window);
+  window.__previewFetch = real;
+  window.fetch = (url, opts = {}) => {
+    const u = String(url && url.url || url);
+    if (/script\.google\.com\/macros/.test(u) && String(opts.method || 'GET').toUpperCase() === 'POST') {
+      let op = '';
+      try { op = String(JSON.parse(opts.body || '{}').op || ''); } catch { /* */ }
+      if (!/^get/i.test(op)) return Promise.resolve(new Response(JSON.stringify({ok: false, error: MESSAGE}), {status: 200, headers: {'Content-Type': 'application/json'}}));
+    }
+    return real(url, opts);
+  };
 }

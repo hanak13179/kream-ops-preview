@@ -32,7 +32,7 @@ for(const match of fs.readFileSync(new URL('../app.mjs',import.meta.url),'utf8')
 
 test('preview is owner-only and factory manager adds only purchasing',()=>{assert.equal(canPreview({role:'owner',active:true},'manager'),true);for(const role of ['employee','manager','factory','midland_owner'])assert.equal(canPreview({role,active:true},'owner'),false);assert.equal(canPreview({role:'owner',active:false},'employee'),false);assert.equal(canPreview({role:'owner',active:true},'made-up'),false);const staff=visiblePages('factory_staff'),manager=visiblePages('factory_manager');assert.ok(staff.includes('inventory'));assert.deepEqual(manager.filter(p=>!staff.includes(p)),['costs','purchases','catalogreview']);assert.deepEqual(staff.filter(p=>!manager.includes(p)),[]);assert.ok(!visiblePages('factory').includes('purchases'));});
 test('employee preview scopes orders and receipts and excludes unpublished/wrong-store guides',()=>{const data={orders:[{id:'a',store_id:'finch'},{id:'b',store_id:'midland'}],receipts:[{order_id:'a',store_id:'finch'},{order_id:'b',store_id:'midland'}],guides:[{id:'g',store_id:null,published:true},{id:'draft',store_id:'finch',published:false},{id:'other',store_id:'midland',published:true},{id:'archived',store_id:'finch',published:true,archived:true}]};const scoped=scopePreview('employee','finch',data);assert.deepEqual(scoped.orders.map(o=>o.id),['a']);assert.equal(scoped.receipts.length,1);assert.deepEqual(scoped.guides.map(g=>g.id),['g']);assert.deepEqual(scopePreview('manager','finch',data).guides.map(g=>g.id),['g','draft']);});
-function fixture(){const nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{addEventListener(){},insertAdjacentHTML(_,html){this.innerHTML=html+this.innerHTML;},replaceChildren(){},appendChild(){},focus(){},innerHTML:'',textContent:'',hidden:false,disabled:false,classList:{toggle(){}},querySelector:s=>node(s),querySelectorAll:()=>[],scrollIntoView(){}});return nodes.get(id);};const ctx=vm.createContext({subcategoryStyle,displayQuantity,inputQuantity,...productDrag,setInterval:()=>0,setTimeout:()=>0,clearTimeout(){},...workplaceModule,halfBoxCount,packingHint,quantityStep,...availability,...settlementModule,...subcategoryModule,...catalogModule,...dailyModule,...replenishmentModule,...layoutModule,...checklistModule,...journalModule,...overviewModule,...stockModule,...dispatchModule,...productionModule,...wasteModule,...core,...presentation,...operations,...access,...appDependencies,URLSearchParams,Intl,Date,console,localStorage:{getItem:()=>null,setItem(){}},location:{hash:''},document:{querySelector:node,querySelectorAll:()=>[],documentElement:{},body:{classList:{toggle(){}}}},window:{addEventListener(){}},confirm:()=>true});const source=fs.readFileSync(new URL('../app.mjs',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace(/boot\(\);\s*$/,'');vm.runInContext(source+`;user={id:'owner'};profile={role:'owner',active:true,display_name:'Owner'};stores=[{id:'finch',name:'Finch'},{id:'midland',name:'Midland'}];store='finch';quantities={milk:7};dirty=true;note='Unsaved owner note';draft={id:'owner-draft',revision:4};orders=[{id:'owner-order',store_id:'finch'}];receiptOrders=[...orders,{id:'other-order',store_id:'midland'}];catalog=[{id:'milk',name_ko:'우유',name_en:'Milk',category:'원재료·음료',subgroup:'유제품',order_unit:'EA',unit_confirmed:true,active:true}];`,ctx);return {ctx,node};}
+function fixture(timers={}){const nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{addEventListener(){},insertAdjacentHTML(_,html){this.innerHTML=html+this.innerHTML;},replaceChildren(){},appendChild(){},focus(){},innerHTML:'',textContent:'',hidden:false,disabled:false,classList:{toggle(){}},querySelector:s=>node(s),querySelectorAll:()=>[],scrollIntoView(){}});return nodes.get(id);};const ctx=vm.createContext({subcategoryStyle,displayQuantity,inputQuantity,...productDrag,setInterval:()=>0,setTimeout:()=>0,clearTimeout(){},...timers,...workplaceModule,halfBoxCount,packingHint,quantityStep,...availability,...settlementModule,...subcategoryModule,...catalogModule,...dailyModule,...replenishmentModule,...layoutModule,...checklistModule,...journalModule,...overviewModule,...stockModule,...dispatchModule,...productionModule,...wasteModule,...core,...presentation,...operations,...access,...appDependencies,URLSearchParams,Intl,Date,console,localStorage:{getItem:()=>null,setItem(){}},location:{hash:''},document:{querySelector:node,querySelectorAll:()=>[],documentElement:{},body:{classList:{toggle(){}}}},window:{addEventListener(){}},confirm:()=>true});const source=fs.readFileSync(new URL('../app.mjs',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace(/boot\(\);\s*$/,'');vm.runInContext(source+`;user={id:'owner'};profile={role:'owner',active:true,display_name:'Owner'};stores=[{id:'finch',name:'Finch'},{id:'midland',name:'Midland'}];store='finch';quantities={milk:7};dirty=true;note='Unsaved owner note';draft={id:'owner-draft',revision:4};orders=[{id:'owner-order',store_id:'finch'}];receiptOrders=[...orders,{id:'other-order',store_id:'midland'}];catalog=[{id:'milk',name_ko:'우유',name_en:'Milk',category:'원재료·음료',subgroup:'유제품',order_unit:'EA',unit_confirmed:true,active:true}];`,ctx);return {ctx,node};}
 test('enter, change role/store and exit preserve owner draft and block callbacks in preview',async()=>{const {ctx,node}=fixture();vm.runInContext("changePreview('employee','midland');",ctx);assert.equal(vm.runInContext('profile.role',ctx),'owner');assert.equal(vm.runInContext('draft',ctx),null);assert.equal(vm.runInContext('store',ctx),'midland');assert.equal(vm.runInContext('orders[0].id',ctx),'other-order');assert.ok(!node('#navigation').innerHTML.includes('data-page="catalog"'));assert.equal(node('#save').disabled,true);await vm.runInContext('run(async()=>{throw new Error("should not execute")})',ctx);assert.match(node('#message').textContent,/미리보기/);await assert.rejects(vm.runInContext('persistDraft()',ctx),/PREVIEW_READ_ONLY/);vm.runInContext("quantities.milk=99;changePreview('factory_manager');changePreview('owner');",ctx);assert.equal(vm.runInContext('quantities.milk',ctx),7);assert.equal(vm.runInContext('note',ctx),'Unsaved owner note');assert.equal(vm.runInContext('draft.id',ctx),'owner-draft');assert.equal(vm.runInContext('dirty',ctx),true);assert.equal(vm.runInContext('store',ctx),'finch');});
 test('ordinary staff cannot activate or see the owner preview controls',()=>{const {ctx,node}=fixture();vm.runInContext("profile={role:'employee',active:true,display_name:'Employee'};changePreview('manager');render();",ctx);assert.equal(vm.runInContext('previewRole',ctx),'');assert.ok(!node('#portal').innerHTML.includes('id="previewRole"'));});
 
@@ -88,7 +88,7 @@ test('the basket submit button reaches confirmed completion with reordered JSONB
  const {ctx,node}=fixture();let submissions=0;
  ctx.saveDraft=async(_db,_draft,p)=>({id:'shared',revision:23,store_id:p.store_id,delivery_date:p.delivery_date,note:p.note,items:p.items.map(i=>({quantity:i.quantity,product_id:i.product_id}))});
  ctx.submitDraft=async()=>{submissions++;return 'confirmed-from-cart'};
- vm.runInContext("date=tomorrowToronto();db={from(){throw Error('History unavailable')}};cartOpen=true;renderOrderArea();",ctx);
+ vm.runInContext("orderView='grid';date=tomorrowToronto();db={from(){throw Error('History unavailable')}};cartOpen=true;renderOrderArea();",ctx);
  await node('#basketSubmit').onclick();
  assert.equal(submissions,1);assert.equal(vm.runInContext('page',ctx),'orderComplete');assert.equal(vm.runInContext('orderConfirmation.orderId',ctx),'confirmed-from-cart');assert.equal(vm.runInContext('cartOpen',ctx),false);
 });
@@ -96,6 +96,58 @@ test('a real colleague addition requires another review and does not submit an u
  const {ctx,node}=fixture();let submissions=0;
  ctx.saveDraft=async(_db,_draft,p)=>({id:'shared',revision:23,store_id:p.store_id,delivery_date:p.delivery_date,note:p.note,items:[...p.items,{quantity:2,product_id:'colleague-item'}]});
  ctx.submitDraft=async()=>{submissions++;return 'not-called'};
- vm.runInContext("date=tomorrowToronto();cartOpen=true;renderOrderArea();",ctx);await node('#basketSubmit').onclick();
+ vm.runInContext("orderView='grid';date=tomorrowToronto();cartOpen=true;renderOrderArea();",ctx);await node('#basketSubmit').onclick();
  assert.equal(submissions,0);assert.equal(vm.runInContext('page',ctx),'order');assert.match(node('#message').textContent,/다른 직원/);assert.equal(vm.runInContext('quantities["colleague-item"]',ctx),2);
+});
+
+test('sourdough is a must-check count and its category tab stays visible under Needs order',()=>{
+ const {ctx,node}=fixture();vm.runInContext("catalog.push({id:'sourdough',name_ko:'플레인 사워도우',category:'빵류',subgroup:'사워도우',order_unit:'개',unit_confirmed:true,active:true});filter='need';renderCategories();",ctx);
+ assert.match(node('#categories').innerHTML,/data-cat="빵류"/);assert.equal(vm.runInContext("skipCount(catalog.find(p=>p.id==='sourdough'))",ctx),false);
+});
+test('completion state is rebuilt from saved daily counts rather than remembered browser ticks',()=>{
+ const {ctx}=fixture();vm.runInContext("stepState=createStepState(store,countDate());stepState.done.add('milk');stock=[];stepStateFor();",ctx);assert.equal(vm.runInContext("stepState.done.has('milk')",ctx),false);
+});
+test('all-items rows include bread and distinguish saved stock checks from pending checks',()=>{
+ const {ctx,node}=fixture();vm.runInContext("orderView='list';catalog.push({id:'sourdough',name_ko:'플레인 사워도우',category:'빵류',subgroup:'사워도우',order_unit:'개',unit_confirmed:true,active:true});stock=[{product_id:'sourdough',on_hand:1,physical_count_at:new Date().toISOString()}];renderProducts();",ctx);
+ const html=['#products','#allReq','#allExtra'].map(k=>node(k).innerHTML).join('');assert.match(html,/전체 목록/);assert.match(html,/플레인 사워도우/);
+});
+test('packaging question asks about one box without changing its order unit',()=>{
+ const {ctx}=fixture();assert.equal(vm.runInContext("packagingProduct({category:'포장·소모품',subgroup:'컵류'})",ctx),true);assert.equal(vm.runInContext("packagingProduct({category:'포장·소모품',subgroup:'청소용품'})",ctx),false);
+ const source=fs.readFileSync(new URL('../app.mjs',import.meta.url),'utf8');assert.match(source,/한 박스 이상 남아 있나요/);
+});
+
+test('autosave waits while either order memo is focused, then saves the exact text after leaving it',async()=>{
+ let timer,rendered=0,saves=[];
+ const {ctx}=fixture({setTimeout:fn=>{timer=fn;return 1;},clearTimeout(){timer=null;}});
+ ctx.render=()=>{rendered++;};
+ ctx.saveDraft=async(db,previous,payload)=>{saves.push(payload);return {...payload,id:previous.id,revision:previous.revision+1};};
+ vm.runInContext("db={};date=defaultReceiptDate();draft={id:'basket',store_id:'finch',revision:1,items:[],note:''};note='Milk 1';dirty=true;",ctx);
+ for(const id of ['note','basketExtraRequests']){
+  ctx.document.activeElement={id,tagName:'TEXTAREA'};
+  vm.runInContext('scheduleBasketSave()',ctx);assert.ok(timer);await timer();
+  assert.equal(saves.length,0);assert.equal(rendered,0);assert.equal(vm.runInContext('dirty',ctx),true);
+ }
+ ctx.document.activeElement={tagName:'BUTTON'};
+ ctx.nextNote='Milk 1\nLabels 2';vm.runInContext("note=nextNote;scheduleBasketSave()",ctx);await timer();await new Promise(r=>setImmediate(r));
+ assert.equal(saves.length,1);assert.equal(saves[0].note,'Milk 1\nLabels 2');assert.equal(vm.runInContext('note',ctx),'Milk 1\nLabels 2');assert.equal(vm.runInContext('dirty',ctx),false);assert.equal(rendered,1);
+});
+
+test('a shared-basket refresh already in flight does not replace a newly focused memo',async()=>{
+ const intervals=[];const {ctx}=fixture({setInterval:(fn,ms)=>{intervals.push({fn,ms});return intervals.length;}});
+ let resolveRead,rendered=0;ctx.render=()=>{rendered++;};
+ const read=new Promise(resolve=>{resolveRead=resolve;});const query={select(){return this},eq(){return this},is(){return this},maybeSingle(){return read}};
+ ctx.refreshDb={from:()=>query};vm.runInContext("db=refreshDb;dirty=false;draft={id:'basket',revision:1,items:[],note:'Saved note'};note='Saved note';",ctx);
+ ctx.document.activeElement={tagName:'BUTTON'};
+ const request=intervals.find(i=>i.ms===15000).fn();
+ ctx.document.activeElement={id:'note',tagName:'TEXTAREA'};
+ resolveRead({data:{id:'basket',revision:2,items:[],note:'Colleague note',delivery_date:'2099-01-01'}});await request;
+ assert.equal(rendered,0);assert.equal(vm.runInContext('note',ctx),'Saved note');assert.equal(vm.runInContext('draft.revision',ctx),1);
+});
+test('a stock refresh already in flight does not redraw an order memo opened while waiting',async()=>{
+ const intervals=[];const {ctx}=fixture({setInterval:(fn,ms)=>{intervals.push({fn,ms});return intervals.length;}});
+ let resolveRead,redraws=0;ctx.renderOrderArea=()=>{redraws++;};
+ const read=new Promise(resolve=>{resolveRead=resolve;});const query={select(){return this},eq(){return this},then(resolve,reject){return read.then(resolve,reject)}};
+ ctx.refreshDb={from:()=>query};vm.runInContext("db=refreshDb;dirty=false;stock=[];availabilityChecks=[];",ctx);ctx.document.activeElement={tagName:'BUTTON'};
+ const request=intervals.filter(i=>i.ms===15000)[1].fn();ctx.document.activeElement={id:'basketExtraRequests',tagName:'TEXTAREA'};
+ resolveRead({data:[]});await request;assert.equal(redraws,0);
 });
