@@ -47,3 +47,9 @@ test('only items the store actually carries count as sold out; evening-only red;
  assert.deepEqual(headline({...base,nowMin:ORDER_DUE_MIN}).map(x=>x.key),['order']);
  assert.deepEqual(factoryOut({finished:[{product_id:'a',quantity:-5,counted:false},{product_id:'b',quantity:0,counted:true}],catalog:[]}).map(x=>x.product_id),['b']);
 });
+test('sold out that is already on today/tomorrow order is marked coming and not counted',()=>{
+ const so=soldOut({stock:[{store_id:'finch',product_id:'a',on_hand:0},{store_id:'finch',product_id:'b',on_hand:0}],catalog:[],stores:['finch'],orders:[{store_id:'finch',delivery_date:'2026-11-26',status:'submitted',kream_order_items:[{product_id:'a',quantity:1}]}],today:'2026-11-25'});
+ assert.deepEqual(so.finch.map(x=>[x.product_id,x.coming]),[['a',true],['b',false]]);
+ const base={orders:[],cash:[],attendanceRows:[],open:[],problems:{unpublished:[],open:[],conflicts:[],pendingTimeOff:0,pendingSwaps:0,pendingFixes:0},factory:0,notRec:0,pendingAccounts:0};
+ assert.deepEqual(headline({...base,sold:so}).map(x=>[x.key,x.n]),[['soldout',1]]);
+});

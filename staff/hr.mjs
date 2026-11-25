@@ -5,7 +5,7 @@
 import {TEAM_STORES, STORE_COLORS, today, addDays, fmtDate, fmtRange, fmtTime, localParts} from './team-logic.mjs?v=20261125-team4';
 import {teamBackend} from './team-data.mjs?v=20261125-team4';
 import {readAllRows} from './read-rows.mjs';
-import {carriedSet, ORDER_DUE_MIN, CASH_DUE_MIN, orderStatus, missedOrders, soldOut, longSoldOut, staleCounts, factoryOut, lowMaterials, notReceived, attendance, openPunches, scheduleProblems, headline, ORDER_STORES, LONG_OUT_DAYS, STALE_COUNT_DAYS, MISSED_ORDER_DAYS, PEOPLE_DAYS} from './hr-logic.mjs?v=20261125-hr2';
+import {carriedSet, ORDER_DUE_MIN, CASH_DUE_MIN, orderStatus, missedOrders, soldOut, longSoldOut, staleCounts, factoryOut, lowMaterials, notReceived, attendance, openPunches, scheduleProblems, headline, ORDER_STORES, LONG_OUT_DAYS, STALE_COUNT_DAYS, MISSED_ORDER_DAYS, PEOPLE_DAYS} from './hr-logic.mjs?v=20261125-hr3';
 import {renderAccounts} from './accounts.mjs?v=20261125-hr1';
 import {pushState, enablePush, disablePush, PUSH_TOPICS} from './push.mjs?v=20261125-hr1';
 
@@ -84,7 +84,7 @@ export async function renderHR(host, c) {
     const data = {
       orders: orderStatus({stores: orderStores, orders, baskets, today: d}),
       missed: missedOrders({stores: orderStores, orders, today: addDays(d, 1), days: MISSED_ORDER_DAYS}).filter(m => m.date <= d),
-      cash, sold: soldOut({stock, catalog, stores: orderStores, carried}),
+      cash, sold: soldOut({stock, catalog, stores: orderStores, carried, orders, today: d}),
       longOut: longSoldOut({stock, orders, catalog, today: d, stores: orderStores, carried}),
       stale: staleCounts({stock, catalog, today: d, stores: orderStores, carried}),
       factoryUncounted: finished.filter(f => f.counted === false && Number(f.quantity) < 0).length,
@@ -125,8 +125,9 @@ export async function renderHR(host, c) {
       ${P.conflicts.map(s => `<div class="hr-row"><span><b>${esc(s.name)}</b> · ${esc(fmtDate(s.date, lang))} ${esc(fmtRange(s.start_min, s.end_min, lang))} ${esc(sn(s.store_id).split(' ')[0])}</span><span>${s.issues.map(i => `<span class="hr-tag amber">${{timeoff: t('휴가', 'time off'), unavailable: t('안 되는 시간', 'unavailable'), overlap: t('겹침', 'overlap'), overmax: t('시간 초과', 'over max')}[i]}</span>`).join('')}</span></div>`).join('')}
       ${P.pendingTimeOff + P.pendingSwaps + P.pendingFixes ? `<div class="hr-row"><span>📥 ${t('기다리는 요청', 'Waiting requests')}: ${t('휴가', 'time off')} ${P.pendingTimeOff} · ${t('교환', 'swaps')} ${P.pendingSwaps} · ${t('출퇴근 고치기', 'punch fixes')} ${P.pendingFixes}</span><span class="hr-muted">📅 ${t('스케줄 → 요청', 'Schedule → Requests')}</span></div>` : ''}`;
     const schedCount = P.unpublished.length + P.open.length + P.conflicts.length + P.pendingTimeOff + P.pendingSwaps + P.pendingFixes;
-    const soldCount = Object.values(D.sold).reduce((a, l) => a + l.length, 0);
-    const soldBody = orderStores.map(st => storeBox(st, D.sold[st]?.length ? `<div class="hr-names">${D.sold[st].map(x => esc(x.name)).join(' · ')}</div>` : `<span class="hr-muted">${t('품절 없음', 'Nothing sold out')}</span>`)).join('')
+    const soldCount = Object.values(D.sold).reduce((a, l) => a + l.filter(x => !x.coming).length, 0);
+    const soldBody = `<p class="hr-muted">${t('그 매장이 쓰는 품목(최소수량이 있거나 최근 30일에 발주한 것) 중 재고 0이에요.', 'Items the store uses (has a minimum or ordered in 30 days) with 0 stock.')}</p>` + orderStores.map(st => { const l = D.sold[st] || [], no = l.filter(x => !x.coming), yes = l.filter(x => x.coming);
+      return storeBox(st, l.length ? `${no.length ? `<div class="hr-names"><span class="hr-tag red">${t('품절 · 주문 안 됨', 'Out · not ordered')} ${no.length}</span> ${no.map(x => esc(x.name)).join(' · ')}</div>` : ''}${yes.length ? `<div class="hr-names" style="opacity:.7;margin-top:4px"><span class="hr-tag">${t('품절 · 오늘/내일 들어옴', 'Out · arriving')} ${yes.length}</span> ${yes.map(x => esc(x.name)).join(' · ')}</div>` : ''}` : `<span class="hr-muted">${t('품절 없음', 'Nothing sold out')}</span>`); }).join('')
       + (D.longOut.length ? `<h4 style="margin:12px 0 4px">🕒 ${t(`오래 품절 (재고 0인데 ${LONG_OUT_DAYS}일 동안 안 들어옴)`, `Long sold out (0 stock, nothing arrived in ${LONG_OUT_DAYS} days)`)}</h4>${orderStores.filter(st => D.longOut.some(x => x.store_id === st)).map(st => storeBox(st, `<div class="hr-names">${D.longOut.filter(x => x.store_id === st).map(x => esc(x.name)).join(' · ')}</div>`)).join('')}<p class="hr-muted">${t('최소수량이 0이거나 발주를 안 넣고 있는지 확인해 주세요.', 'Check if the minimum is 0 or nobody is ordering it.')}</p>` : '')
       + (Object.values(D.stale).some(l => l.length) ? `<h4 style="margin:12px 0 4px">📝 ${t(`재고를 ${STALE_COUNT_DAYS}일 넘게 안 셌어요`, `Not counted for ${STALE_COUNT_DAYS}+ days`)}</h4>${orderStores.filter(st => D.stale[st]?.length).map(st => `<div class="hr-row"><span>${esc(sn(st))}</span><span class="hr-tag amber">${D.stale[st].length}${t('개 품목', ' items')}</span></div>`).join('')}` : '');
     const missedBody = D.missed.length ? orderStores.filter(st => D.missed.some(m => m.store_id === st)).map(st => storeBox(st, D.missed.filter(m => m.store_id === st).map(m => `<span class="hr-tag red">${esc(fmtDate(m.date, lang))}</span>`).join(''))).join('') + `<p class="hr-muted">${t('그날 도착한 발주가 없었던 날이에요 (쉬는 날이면 괜찮아요).', 'Days with no order arriving (fine if the store was closed).')}</p>` : `<p class="hr-muted">${t(`최근 ${MISSED_ORDER_DAYS}일 발주 누락 없어요 👍`, `No missed orders in ${MISSED_ORDER_DAYS} days 👍`)}</p>`;
