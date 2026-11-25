@@ -1,6 +1,6 @@
 import {splitTips, tipStoreLabel} from './tip-split.mjs?v=20261123-tips1';
-import {tipShiftsFromTimecards, crewForDay} from './team-logic.mjs?v=20261125-team2';
-import {teamBackend} from './team-data.mjs?v=20261125-team2';
+import {tipShiftsFromTimecards, crewForDay} from './team-logic.mjs?v=20261125-pr789';
+import {teamBackend} from './team-data.mjs?v=20261125-pr789';
 // 캐시 카운트 (1·3·4호점): 마감 때 지폐·동전 개수를 세면 합계, 오픈시재를 뺀 당일 현금매출이 바로 계산돼요.
 // 오픈시재를 빼고 남는 현금 중 지폐로 딱 떨어지는 만큼만 봉투에 넣고, 남은 돈이 내일 오픈시재예요 (예: 남는 돈 $121 → 봉투 $120, $1은 남김).
 // "시트에 저장"을 누르면 Cash Count 시트에 매장별·날짜별로 기록돼요 (오늘이 맨 위, 같은 날 다시 저장하면 그 줄을 고쳐요). 앱 데이터베이스는 바꾸지 않아요.
@@ -224,7 +224,7 @@ export function renderCashCount(host, c) {
   }
   // 📅 스케줄 페이지의 출퇴근 기록(없으면 게시된 스케줄)으로 오늘 근무자·시간
   async function crewFromApp(store, date, anyMode = false) {
-    try { const api = await teamBackend(c, stores.map(s => s.id)); if (api.mode !== 'live' && !anyMode) return []; const d = await api.load({from: date, to: date}); return crewForDay({...d, store, date}); }
+    try { const api = await teamBackend(c, stores.map(s => s.id)); if (api.mode !== 'live' && (!c.preview || !anyMode)) return []; const d = await api.load({from: date, to: date}); return crewForDay({...d, store, date}); }
     catch { return []; }
   }
   const manager = MANAGERS.includes(c.profile?.role) || !!c.profile?.store_manager || !!c.profile?.general_manager;
@@ -269,6 +269,7 @@ export function renderCashCount(host, c) {
     try {
       if (!save && source === 'clock') {
         const api = await teamBackend(c, stores.map(s => s.id));
+        if (api.mode !== 'live' && !c.preview) throw Error(t('실제 스케줄 연결 후 계산할 수 있어요.', 'Connect the live schedule before calculating.'));
         const d = await api.load({from: split.from, to: split.to});
         const shifts = tipShiftsFromTimecards(d.timecards, d.people).filter(s => s.date >= split.from && s.date <= split.to);
         const got = await post({action: 'recordCash', op: 'getTips', from: split.from, to: split.to});

@@ -1,6 +1,6 @@
 // 근무·스케줄 자료: Supabase(실제) 또는 예시 모드(이 기기에만 저장).
 // 예시 모드: 권한 미리보기, 미리보기 사이트, 또는 아직 DB에 표(team-schedule.sql)가 없을 때.
-import {TEAM_STORES, today, addDays, weekStart, weekDates, autoSchedule, geoCheck, localParts, zonedToISO, DEFAULT_RADIUS, DEFAULT_NOTICE_DAYS, noticeOk} from './team-logic.mjs?v=20261125-team2';
+import {TEAM_STORES, today, addDays, weekStart, weekDates, autoSchedule, geoCheck, localParts, zonedToISO, DEFAULT_RADIUS, DEFAULT_NOTICE_DAYS, noticeOk} from './team-logic.mjs?v=20261125-pr789';
 
 // 구글 시트 'Kream Ops Schedule' 연결 (apps-script/schedule-sync.gs 를 시트에 붙여 웹앱으로 배포한 주소)
 // 비어 있으면 시트 연결은 건너뛰어요. 시트는 로그인한 사람의 토큰으로 Supabase에서 직접 읽어서 써요 (가짜 자료를 못 넣어요).

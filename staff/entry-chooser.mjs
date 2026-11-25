@@ -25,18 +25,19 @@ function labelFor(store) {
 
 // stores: the stores this account can open; factory: true if the account can open the factory pages.
 // Resolves to {storeId} or {factory: true}, or null when nothing needs choosing.
-export function chooseWorkplace({stores = [], factory = false, lang = 'ko', userId = ''} = {}) {
+export function chooseWorkplace({stores = [], factory = false, hr = false, lang = 'ko', userId = ''} = {}) {
   const options = stores.map(s => {
     const l = labelFor(s);
     return {id: s.id, label: l ? l.label : s.name, sub: l ? s.name : '', color: l ? l.color : '#e4e2d6', order: l ? LABELS.indexOf(l) : 99};
   }).sort((a, b) => a.order - b.order);
   if (factory) options.push({...FACTORY, sub: lang === 'ko' ? '생산 · 배분' : 'Production'});
+  if (hr && options.length) options.push({id: 'hr', label: '📊 HR Management', sub: lang === 'ko' ? '지각·발주·품절·직원 관리' : 'Attendance · orders · stock · staff', color: '#5b4a6b', dark: true});
   if (!options.length) return Promise.resolve(null);
 
   let saved = null;
   try { saved = sessionStorage.getItem(KEY+userId); } catch {}
   const hit = options.find(o => o.id === saved);
-  if (hit) return Promise.resolve(hit.id === 'factory' ? {factory: true} : {storeId: hit.id});
+  if (hit && hit.id !== 'hr') return Promise.resolve(hit.id === 'factory' ? {factory: true} : {storeId: hit.id});
 
   return new Promise(resolve => {
     const wrap = document.createElement('div');
@@ -44,7 +45,7 @@ export function chooseWorkplace({stores = [], factory = false, lang = 'ko', user
     wrap.setAttribute('role', 'dialog');
     wrap.innerHTML = `<div class="entry-box"><div class="entry-logo">kream</div>
       <p class="entry-sub">${lang === 'ko' ? '오늘 어디에서 일하나요?' : 'Where are you working today?'}</p>
-      <div class="entry-grid">${options.map((o, i, all) => `<button type="button" data-entry="${esc(o.id)}" class="${o.id === 'factory' ? 'entry-factory' : wideLast(all, i) ? 'entry-wide' : ''}" style="--c:${o.color};${o.dark ? 'color:#fff' : ''}">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</button>`).join('')}</div></div>`;
+      <div class="entry-grid">${options.map((o, i, all) => `<button type="button" data-entry="${esc(o.id)}" class="${o.id === 'factory' || o.id === 'hr' ? 'entry-factory' : wideLast(all, i) ? 'entry-wide' : ''}" style="--c:${o.color};${o.dark ? 'color:#fff' : ''}">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</button>`).join('')}</div></div>`;
     if (!document.getElementById?.('entry-chooser-style')) {
       const css = document.createElement('style');
       css.id = 'entry-chooser-style';
@@ -66,9 +67,9 @@ export function chooseWorkplace({stores = [], factory = false, lang = 'ko', user
     wrap.addEventListener('click', e => {
       const b = e.target.closest('[data-entry]');
       if (!b) return;
-      try { sessionStorage.setItem(KEY+userId, b.dataset.entry); } catch {}
+      if (b.dataset.entry !== 'hr') { try { sessionStorage.setItem(KEY+userId, b.dataset.entry); } catch {} }
       wrap.remove();
-      resolve(b.dataset.entry === 'factory' ? {factory: true} : {storeId: b.dataset.entry});
+      resolve(b.dataset.entry === 'factory' ? {factory: true} : b.dataset.entry === 'hr' ? {hr: true} : {storeId: b.dataset.entry});
     });
   });
 }
@@ -80,7 +81,7 @@ export function clearWorkplaceChoice(userId='') { try { sessionStorage.removeIte
 const FACTORY_PAGES = new Set(['factorymanual', 'production', 'dispatch', 'galleria', 'galleriaHistory', 'galleriaSop', 'externaldispatch', 'productionlog', 'finishedstock', 'costs', 'inventory', 'purchases', 'materialreceiving']);
 // 매장 수가 홀수면 마지막 매장 버튼을 한 줄 전체로 (반쪽만 떠 보이지 않게)
 export function wideLast(options, i) {
-  const stores = options.filter(o => o.id !== 'factory');
+  const stores = options.filter(o => o.id !== 'factory' && o.id !== 'hr');
   return stores.length % 2 === 1 && options[i] === stores[stores.length - 1];
 }
 export function workplaceBadge({store, factory=false, lang = 'ko'} = {}) {
