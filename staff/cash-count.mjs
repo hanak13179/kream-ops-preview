@@ -1,4 +1,6 @@
 import {parseHomebaseShifts, splitTips, tipStoreLabel} from './tip-split.mjs?v=20261123-tips1';
+import {tipShiftsFromTimecards, crewForDay} from './team-logic.mjs?v=20261125-team1';
+import {teamBackend} from './team-data.mjs?v=20261125-team1';
 // 캐시 카운트 (1·3·4호점): 마감 때 지폐·동전 개수를 세면 합계, 오픈시재를 뺀 당일 현금매출이 바로 계산돼요.
 // 오픈시재를 빼고 남는 현금 중 지폐로 딱 떨어지는 만큼만 봉투에 넣고, 남은 돈이 내일 오픈시재예요 (예: 남는 돈 $121 → 봉투 $120, $1은 남김).
 // "시트에 저장"을 누르면 Cash Count 시트에 매장별·날짜별로 기록돼요 (오늘이 맨 위, 같은 날 다시 저장하면 그 줄을 고쳐요). 앱 데이터베이스는 바꾸지 않아요.
@@ -7,6 +9,13 @@ import {parseHomebaseShifts, splitTips, tipStoreLabel} from './tip-split.mjs?v=2
 
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwjnrGRDkR_qX7AmNq2S3oDVveSR1QbjED0FFga11Au1NcHWNNlPLQlZNwL7EpIlu6x/exec';
 const SYNC_KEY = 'kream-stock-sync';
+/** 시트 'Tips' 탭에서 기간의 매장·날짜별 현금/카드 팁 → [{date, store, cash, card}] (📅 스케줄의 2주 급여 요약도 써요) */
+export async function fetchTips(from, to) {
+  const r = await fetch(SHEET_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({key: SYNC_KEY, action: 'recordCash', op: 'getTips', from, to})});
+  const out = await r.json().catch(() => ({}));
+  if (!r.ok || out.ok === false) throw Error(out.error || 'REQUEST_FAILED');
+  return (out.data ?? out).tips || [];
+}
 export const CASH_STORES = ['downtown', 'richmond-hill', 'finch'];
 export const DENOMS = [
   [100, '$100'], [50, '$50'], [20, '$20'], [10, '$10'], [5, '$5'],
@@ -201,9 +210,19 @@ export function renderCashCount(host, c) {
       const got = await post({action: 'recordCash', op: 'getCash', store_id: store, count_date: date});
       if (tok !== syncTok || touched) return;   // 그 사이 다른 날짜로 바꿨거나 이미 입력을 시작했어요
       if (got.box) { v = fromSheetBox(got.box, v); synced = t('📋 시트에 저장된 값을 불러왔어요 (시트에서 고친 것도 보여요)', '📋 Loaded what is saved in the sheet (sheet edits show here too)'); }
-      else { const crew = crewFromSchedule(v.crew, got.schedule); if (crew) { v.crew = crew; synced = t(`📅 Homebase 스케줄로 근무자 ${crew.length}명을 채웠어요 · 고칠 수 있어요`, `📅 Filled ${crew.length} people from the Homebase schedule · you can edit`); } else synced = ''; }
+      else {
+        const app = await crewFromApp(store, date);
+        const crew = crewFromSchedule(v.crew, app.length ? app : got.schedule);
+        if (tok !== syncTok || touched) return;
+        if (crew) { v.crew = crew; synced = app.length ? t(`⏱ 앱 출퇴근 기록으로 근무자 ${crew.length}명을 채웠어요 · 고칠 수 있어요`, `⏱ Filled ${crew.length} people from app punches · you can edit`) : t(`📅 Homebase 스케줄로 근무자 ${crew.length}명을 채웠어요 · 고칠 수 있어요`, `📅 Filled ${crew.length} people from the Homebase schedule · you can edit`); } else synced = '';
+      }
       draw();
     } catch { /* 인터넷이 안 되면 이 기기 값으로 계속 써요 */ }
+  }
+  // 📅 스케줄 페이지의 출퇴근 기록(없으면 게시된 스케줄)으로 오늘 근무자·시간
+  async function crewFromApp(store, date) {
+    try { const api = await teamBackend(c, stores.map(s => s.id)); if (api.mode !== 'live') return []; const d = await api.load({from: date, to: date}); return crewForDay({...d, store, date}); }
+    catch { return []; }
   }
   const manager = MANAGERS.includes(c.profile?.role) || !!c.profile?.store_manager || !!c.profile?.general_manager;
   const split = memory.split || (memory.split = {from: shiftDate(cashDate(), -14), to: shiftDate(cashDate(), -1), csv: '', file: '', result: null, skipped: [], busy: false, msg: ''});
@@ -232,6 +251,8 @@ export function renderCashCount(host, c) {
       <div class="cc-two"><label>${t('시작', 'From')}<input type="date" id="ccSplitFrom" value="${esc(split.from)}"></label><label>${t('끝', 'To')}<input type="date" id="ccSplitTo" value="${esc(split.to)}"></label></div>
       <label>${t('Homebase 타임시트 CSV', 'Homebase timesheet CSV')}<input type="file" id="ccSplitFile" accept=".csv,text/csv"></label>
       ${split.file ? `<small style="display:block;margin-top:4px">📄 ${esc(split.file)}</small>` : ''}
+      <button data-cc="splitClock" ${split.busy ? 'disabled' : ''}>⏱ ${t('앱 출퇴근 기록으로 계산 (CSV 필요 없음)', 'Calculate from app punches (no CSV)')}</button>
+      <p style="font-size:12px;color:#6b6555;margin:6px 0 0;text-align:center">${t('— 또는 Homebase CSV —', '— or a Homebase CSV —')}</p>
       <button data-cc="split" ${split.busy || !split.csv ? 'disabled' : ''}>${split.busy ? t('계산 중…', 'Working…') : t('나누기 계산', 'Calculate split')}</button>
       ${r ? tipTable(r) : ''}${tipWarnings(r)}
       ${r && r.lines.length ? `<button data-cc="splitSave" ${split.busy || c.preview ? 'disabled' : ''}>${t('시트에 저장 (Tip Split 탭)', 'Save to sheet (Tip Split tab)')}</button>` : ''}
@@ -243,11 +264,19 @@ export function renderCashCount(host, c) {
     if (!r.ok || out.ok === false) throw Error(out.error || 'REQUEST_FAILED');
     return out.data ?? out;
   }
-  async function runSplit(save) {
+  async function runSplit(save, source = 'csv') {
     if (split.busy) return;
     split.busy = true; split.err = false; split.msg = ''; split.open = true; draw();
     try {
-      if (!save) {
+      if (!save && source === 'clock') {
+        const api = await teamBackend(c, stores.map(s => s.id));
+        const d = await api.load({from: split.from, to: split.to});
+        const shifts = tipShiftsFromTimecards(d.timecards, d.people).filter(s => s.date >= split.from && s.date <= split.to);
+        const got = await post({action: 'recordCash', op: 'getTips', from: split.from, to: split.to});
+        split.skipped = []; split.file = '';
+        split.result = splitTips(got.tips || [], shifts, {from: split.from, to: split.to});
+        split.msg = t(`앱 출퇴근 ${shifts.length}개 · 팁 기록 ${(got.tips || []).length}개${api.mode === 'demo' ? ' · (예시 모드)' : ''}`, `${shifts.length} app punches · ${(got.tips || []).length} tip records${api.mode === 'demo' ? ' · (demo)' : ''}`);
+      } else if (!save) {
         const parsed = parseHomebaseShifts(split.csv, {year: Number(split.to.slice(0, 4)) || undefined});
         if (parsed.error) throw Error(t('CSV에서 이름·날짜 칸을 못 찾았어요', 'Could not find name/date columns in the CSV'));
         const got = await post({action: 'recordCash', op: 'getTips', from: split.from, to: split.to});
@@ -377,6 +406,7 @@ export function renderCashCount(host, c) {
     if (b.dataset.cc === 'crewAdd') { v.crew = v.crew || []; v.crew.push({name: '', hours: ''}); draw(); const ins = host.querySelectorAll('[data-k="name"]'); if (ins.length) ins[ins.length - 1].focus(); return; }
     if (b.dataset.cc === 'crewDel') { v.crew.splice(Number(b.dataset.i), 1); return draw(); }
     if (b.dataset.cc === 'split') return runSplit(false);
+    if (b.dataset.cc === 'splitClock') return runSplit(false, 'clock');
     if (b.dataset.cc === 'splitSave') return runSplit(true);
     if (b.dataset.cc === 'clear') { if (!confirm(t('센 숫자와 입력한 매출을 모두 지울까요?', 'Clear everything?'))) return; v = blank(); keep(memory.store, memory.date, v); return draw(); }
     if (b.dataset.cc === 'save') {
