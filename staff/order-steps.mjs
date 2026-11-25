@@ -255,7 +255,7 @@ export function renderOrderSteps(host, c) {
       <div class="os-yn three"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>🫖</i>${t('1봉지 이상', '1+ bag')}</button><button class="half ${st === '0.5' ? 'on' : ''}" data-yn="0.5" ${dis}><i>🍵</i>${t('반봉지', 'Half')}</button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${t('없음', 'None')}</button></div>` : c.yesNo?.(p) ? `<div class="os-label">${yn.q}</div>
       <div class="os-yn"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>${yn.yesIcon}</i>${yn.yes}<small>${yn.yesSmall}</small></button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${yn.no}<small>${yn.noSmall}</small></button></div>` : `<div class="os-label">${esc(c.countPrompt?.(p) || t('지금 재고', 'Stock now'))}</div>
       <div class="os-num"><button data-os="minus" ${dis} aria-label="${t('하나 빼기', 'minus one')}">−</button><output class="${st === '' ? 'empty' : ''}">${st === '' ? '?' : esc(st)}</output><button data-os="plus" ${dis} aria-label="${t('하나 더하기', 'plus one')}">＋</button></div>
-      <div class="os-pad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k => `<button data-key="${k}" ${dis} aria-label="${k === '⌫' ? t('지우기', 'delete') : k}">${k}</button>`).join('')}</div>`}
+      <div class="os-pad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k => k === '.' && c.wholeOnly?.(p) ? '<span></span>' : `<button data-key="${k}" ${dis} aria-label="${k === '⌫' ? t('지우기', 'delete') : k}">${k}</button>`).join('')}</div>`}
       <div class="os-warn" id="osWarn">${c.preview ? t('미리보기: 저장되지 않아요.', 'Preview: nothing is saved.') : s.failed.has(p.id) ? t('이 품목 재고가 저장되지 않았어요. 다시 넣어 주세요.', 'This count did not save. Please re-enter.') : ''}</div>
       <div class="os-nav"><button class="os-prev" data-os="prev" ${s.index === 0 ? 'disabled' : ''}>← ${t('이전', 'Back')}</button><button class="os-next" data-os="next" ${dis}>${s.index + 1 === items.length ? t('저장하고 계속 →', 'Save & continue →') : t('다음 →', 'Next →')}</button></div>
     </div>`);
@@ -276,7 +276,7 @@ export function renderOrderSteps(host, c) {
     const p = items[s.index]; if (!p || c.locked) return;
     let v = stockText(p);
     if (k === '⌫') v = v.slice(0, -1);
-    else if (k === '.') { if (!v.includes('.')) v = (v || '0') + '.'; }
+    else if (k === '.') { if (c.wholeOnly?.(items[s.index])) return; if (!v.includes('.')) v = (v || '0') + '.'; }
     else if (v.length < 7) v = v === '0' ? k : v + k;
     s.edited.add(p.id);s.typed[p.id] = v;
     refreshNumbers();
@@ -333,7 +333,7 @@ export function renderOrderSteps(host, c) {
     const b = e.target.closest('button'); if (!b || b.disabled || !host.contains(b)||s.saving) return;
     if (b.dataset.key) return press(b.dataset.key);
     if (b.dataset.shift) return c.setShift?.(b.dataset.shift);
-    if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.edited.add(it.id);s.typed[it.id] = b.dataset.yn; b.classList.add('on'); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
+    if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.edited.add(it.id);s.typed[it.id] = b.dataset.yn; b.parentElement?.querySelectorAll?.('[data-yn]').forEach(x => x.classList.toggle('on', x === b)); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
     if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = 'one'; if (c.forceView && c.openOne) return c.openOne(); return draw(); }
     const p = items[s.index];
     switch (b.dataset.os) {
@@ -348,7 +348,7 @@ export function renderOrderSteps(host, c) {
       case 'prev': if (p && !await commit(p)) return; s.index = Math.max(0, s.index - 1); s.streak = 0; return draw();
       case 'next': {
         if(!p)return;
-        if(stored(p)==null&&(!s.done.has(p.id)||s.edited.has(p.id)||s.failed.has(p.id))){const w=host.querySelector('#osWarn');if(w)w.textContent=t('재고 수량을 입력하거나 있음·없음을 선택한 뒤 다음으로 넘어가 주세요.','Enter a stock count or choose Yes / No before continuing.');return;}
+        if(stored(p)==null&&(!s.done.has(p.id)||s.edited.has(p.id)||s.failed.has(p.id))){const w=host.querySelector('#osWarn');if(w)w.textContent=stored(p)===undefined?(c.wholeOnly?.(p)?t('이 품목은 소수점 없이 개수로 적어 주세요.','Enter whole pieces for this item.'):t('숫자를 다시 확인해 주세요.','Check the number.')):t('재고 수량을 입력하거나 있음·없음을 선택한 뒤 다음으로 넘어가 주세요.','Enter a stock count or choose Yes / No before continuing.');return;}
         if(!await commit(p))return;
         const now = Date.now();
         if (stored(p) != null) {
