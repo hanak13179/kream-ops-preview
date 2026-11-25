@@ -42,3 +42,21 @@ test('개수로만 세는 품목(크로와상 3개/봉 등)은 소수점 키가 
  renderOrderSteps(host,{...base,wholeOnly:()=>true});assert.doesNotMatch(host.innerHTML,/data-key="\."/);
  renderOrderSteps(host,{...base,wholeOnly:()=>false});assert.match(host.innerHTML,/data-key="\."/);
 });
+
+test('두쫀쿠: 고르면 그 버튼 하나만 눌리고, 바로 넘어가지 않아서 다시 바꿀 수 있어요',async()=>{
+ const p={id:'d'},state=createStepState('finch','2026-11-24');
+ let nextClicks=0;const warn={textContent:''};
+ const host={innerHTML:'',contains:()=>true,querySelector:sel=>sel==='#osWarn'?warn:sel.includes('next')?{click:()=>nextClicks++}:null};
+ renderOrderSteps(host,{state,items:[p],key:'all',t:ko=>ko,esc:String,name:()=> '두바이쫀득쿠키',unitLabel:()=> 'box',picture:()=>'',lastStock:()=>0,parse:(_,s)=>Number(s),getQty:()=>0,setQty:()=>{},qtyStep:()=>32,qtyDisplay:(_,q)=>q,yesNo:()=>false,suggest:()=>null,saveStock:async()=>{},
+  choices:()=>[['32','충분'],['16','반박스'],['0','한박스']],choiceOrder:(_,v)=>({'32':0,'16':32,'0':64})[String(v)]??null});
+ const mk=v=>({dataset:{yn:v},classList:{on:false,toggle(c,f){this.on=f;}},setAttribute(){},blur(){}});
+ const btns=['32','16','0'].map(mk);const group={classList:{contains:c=>c==='many'},querySelectorAll:()=>btns};btns.forEach(b=>b.parentElement=group);
+ const realTimeout=globalThis.setTimeout;let timers=0;globalThis.setTimeout=(f,ms)=>{timers++;return 0;};
+ try{
+  await host.onclick({target:{closest:()=>btns[1]}});   // 반박스
+  await host.onclick({target:{closest:()=>btns[0]}});   // 마음 바꿔서 충분
+ }finally{globalThis.setTimeout=realTimeout;}
+ assert.deepEqual(btns.map(b=>b.classList.on),[true,false,false]);   // 하나만 눌림
+ assert.equal(state.typed.d,'32');assert.equal(timers,0);assert.equal(nextClicks,0);   // 자동으로 안 넘어감
+ assert.match(warn.textContent,/다음을 눌러/);
+});
