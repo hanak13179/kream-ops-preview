@@ -35,9 +35,13 @@ export function carriedSet({stock = [], rules = [], orders = []}) {
   return k;
 }
 /** 지점별 품절 (그 매장이 쓰는 품목 중 재고 0 이하) */
-export function soldOut({stock = [], catalog = [], stores = ORDER_STORES, carried = null}) {
+export function soldOut({stock = [], catalog = [], stores = ORDER_STORES, carried = null, orders = [], today = torontoToday()}) {
   const by = Object.fromEntries(stores.map(s => [s, []]));
-  for (const r of stock) if (by[r.store_id] && Number(r.on_hand) <= 0 && active(catalog, r.product_id) && (!carried || carried.has(r.store_id + '|' + r.product_id))) by[r.store_id].push({product_id: r.product_id, name: nameOf(catalog, r.product_id), since: r.updated_at});
+  // 오늘·내일 도착 발주에 들어 있으면 '곧 들어옴'
+  const coming = new Set();
+  for (const o of orders) if (live(o) && (o.delivery_date === today || o.delivery_date === addDays(today, 1))) for (const i of (o.kream_order_items || o.items || [])) if (Number(i.quantity) > 0) coming.add(o.store_id + '|' + i.product_id);
+  for (const r of stock) if (by[r.store_id] && Number(r.on_hand) <= 0 && active(catalog, r.product_id) && (!carried || carried.has(r.store_id + '|' + r.product_id)))
+    by[r.store_id].push({product_id: r.product_id, name: nameOf(catalog, r.product_id), since: r.updated_at, coming: coming.has(r.store_id + '|' + r.product_id)});
   for (const s of stores) by[s].sort((a, b) => a.name.localeCompare(b.name));
   return by;
 }
@@ -128,7 +132,7 @@ export function headline({orders, cash, nowMin = ORDER_DUE_MIN, attendanceRows, 
   if (late) out.push({key: 'late', level: 'amber', n: late});
   const sch = problems.unpublished.length + problems.open.length + problems.conflicts.length + problems.pendingTimeOff + problems.pendingSwaps + problems.pendingFixes;
   if (sch) out.push({key: 'schedule', level: 'amber', n: sch});
-  const so = Object.values(sold).reduce((a, l) => a + l.length, 0);
+  const so = Object.values(sold).reduce((a, l) => a + l.filter(x => !x.coming).length, 0);
   if (so) out.push({key: 'soldout', level: 'amber', n: so});
   if (factory) out.push({key: 'factory', level: 'amber', n: factory});
   if (notRec) out.push({key: 'receive', level: 'amber', n: notRec});
