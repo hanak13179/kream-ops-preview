@@ -251,7 +251,7 @@ export function renderOrderSteps(host, c) {
     wrap(head() + `<div class="os-card ${animate ? 'in' : ''}">
       <div class="os-top"><div class="os-pic">${c.picture(p)}</div><div><div class="os-name">${s.done.has(p.id) ? '✅ ' : ''}${esc(c.name(p))}</div><div class="os-unit">${esc(c.unitLabel(p))}</div><div class="os-last">${last == null || last === '' ? t('지난 재고 기록 없음', 'No previous count') : `${t('지난번 재고', 'Last count')}: ${esc(ynText(p, last))}${esc(c.countSuffix?.(p)||'')}`}</div></div></div>
       ${c.choices?.(p) ? `<div class="os-label">${esc(c.countPrompt?.(p) || t('얼마나 남았나요?', 'How much is left?'))}</div>
-      <div class="os-yn many">${c.choices(p).map(([v, label, icon]) => `<button class="${st === String(v) ? 'on' : ''}" data-yn="${esc(v)}" ${dis}><i>${icon || ''}</i>${esc(label)}</button>`).join('')}</div>` : c.bagMode?.(p) ? `<div class="os-label">${t('얼마나 남았나요?', 'How much is left?')}</div>
+      <div class="os-yn many" role="radiogroup">${c.choices(p).map(([v, label, icon]) => `<button class="${st === String(v) ? 'on' : ''}" data-yn="${esc(v)}" ${dis}><i>${icon || ''}</i>${esc(label)}</button>`).join('')}</div>` : c.bagMode?.(p) ? `<div class="os-label">${t('얼마나 남았나요?', 'How much is left?')}</div>
       <div class="os-yn three"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>🫖</i>${t('1봉지 이상', '1+ bag')}</button><button class="half ${st === '0.5' ? 'on' : ''}" data-yn="0.5" ${dis}><i>🍵</i>${t('반봉지', 'Half')}</button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${t('없음', 'None')}</button></div>` : c.yesNo?.(p) ? `<div class="os-label">${yn.q}</div>
       <div class="os-yn"><button class="yes ${st === '1' ? 'on' : ''}" data-yn="1" ${dis}><i>${yn.yesIcon}</i>${yn.yes}<small>${yn.yesSmall}</small></button><button class="no ${st === '0' ? 'on' : ''}" data-yn="0" ${dis}><i>🙅</i>${yn.no}<small>${yn.noSmall}</small></button></div>` : `<div class="os-label">${esc(c.countPrompt?.(p) || t('지금 재고', 'Stock now'))}</div>
       <div class="os-num"><button data-os="minus" ${dis} aria-label="${t('하나 빼기', 'minus one')}">−</button><output class="${st === '' ? 'empty' : ''}">${st === '' ? '?' : esc(st)}</output><button data-os="plus" ${dis} aria-label="${t('하나 더하기', 'plus one')}">＋</button></div>
@@ -333,7 +333,10 @@ export function renderOrderSteps(host, c) {
     const b = e.target.closest('button'); if (!b || b.disabled || !host.contains(b)||s.saving) return;
     if (b.dataset.key) return press(b.dataset.key);
     if (b.dataset.shift) return c.setShift?.(b.dataset.shift);
-    if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.edited.add(it.id);s.typed[it.id] = b.dataset.yn; b.parentElement?.querySelectorAll?.('[data-yn]').forEach(x => x.classList.toggle('on', x === b)); return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
+    if (b.dataset.yn != null) { const it = items[s.index]; if (!it || c.locked) return; s.edited.add(it.id);s.typed[it.id] = b.dataset.yn; b.parentElement?.querySelectorAll?.('[data-yn]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute?.('aria-pressed', String(x === b)); }); b.blur?.();
+      // 여러 개 중 고르는 품목(두쫀쿠 등)은 바로 넘어가지 않아요: 바꿀 수 있게 두고 '다음'을 눌러요
+      if (b.parentElement?.classList?.contains('many')) { const w = host.querySelector('#osWarn'); if (w) w.textContent = t('골랐어요. 맞으면 다음을 눌러 주세요 (다른 걸 누르면 바뀌어요)', 'Selected. Tap Next (tap another to change)'); return; }
+      return setTimeout(() => host.querySelector('[data-os="next"]')?.click(), 180); }
     if (b.dataset.go != null) { s.index = Number(b.dataset.go); s.view = 'one'; if (c.forceView && c.openOne) return c.openOne(); return draw(); }
     const p = items[s.index];
     switch (b.dataset.os) {
