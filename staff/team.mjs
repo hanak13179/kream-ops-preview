@@ -4,12 +4,12 @@
 import {TEAM_STORES, STORE_COLORS, storeLabel, today, addDays, weekStart, weekDates, weekday, fmtTime, fmtRange, fmtDate, dayName, timeValue, parseTime,
   shiftHours, shiftIssues, autoSchedule, copyWeek, availability, onTimeOff, geoCheck, workedHours, onBreak, localParts, timesheet, timesheetCsv,
   lateMinutes, shiftStatus, zonedToISO, breakMinutes, DEFAULT_RADIUS, DEFAULT_NOTICE_DAYS, DEFAULT_MAX_HOURS, tcDate,
-  lateRecord, clockOutReminder, payPeriod, payrollSummary, tipShiftsFromTimecards, LATE_STRONG} from './team-logic.mjs?v=20261125-team1';
+  lateRecord, clockOutReminder, payPeriod, payrollSummary, tipShiftsFromTimecards, LATE_STRONG, wantHours} from './team-logic.mjs?v=20261125-team2';
 import {splitTips} from './tip-split.mjs?v=20261123-tips1';
 import {fetchTips} from './cash-count.mjs?v=20261125-team1';
-import {teamBackend, friendlyError, SCHEDULE_SHEET_URL, SCHEDULE_SHEET_LINK, newId} from './team-data.mjs?v=20261125-team1';
+import {teamBackend, friendlyError, SCHEDULE_SHEET_URL, SCHEDULE_SHEET_LINK, newId} from './team-data.mjs?v=20261125-team2';
 
-const S = {tab: 'week', week: weekStart(today()), filter: 'all', mine: false, build: false, buildStore: null, edit: null, swapFor: null, punchMsg: null,
+const S = {tab: 'week', week: weekStart(today()), filter: 'all', mine: true, build: false, buildStore: null, edit: null, swapFor: null, punchMsg: null,
   msg: '', err: false, busy: false, data: null, api: null, clockStore: null, tsFrom: null, tsTo: null, tsStore: 'all', tcEdit: null, av: null, setStore: null, setDraft: null, fix: null, pay: null};
 const MANAGER_ROLES = ['owner', 'manager', 'general_manager', 'manager_factory'];
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -107,8 +107,8 @@ export async function renderTeam(host, c) {
     try { const r = await fn(); await reload(); S.busy = false; if (okMsg) say(typeof okMsg === 'function' ? okMsg(r) : okMsg); else draw(); }
     catch (e) { S.busy = false; try { await reload(); } catch { /* 그대로 */ } say(friendlyError(e, t), true); }
   }
-  async function sheet(what, week) {
-    try { const r = await api.syncSheet(what, week); return r?.skipped ? '' : t(' · 📄 시트에도 저장했어요', ' · 📄 Saved to the sheet too'); }
+  async function sheet(what, week, extra = {}) {
+    try { const r = await api.syncSheet(what, week, extra); return r?.skipped ? '' : t(' · 📄 시트에도 저장했어요', ' · 📄 Saved to the sheet too'); }
     catch { return t(' · ⚠ 시트 저장은 안 됐어요 (다시 시도)', ' · ⚠ Sheet update failed (try again)'); }
   }
 
@@ -214,18 +214,22 @@ export async function renderTeam(host, c) {
   const weekLabel = () => { const a = S.week, b = addDays(S.week, 6); return `${fmtDate(a, lang)} – ${fmtDate(b, lang)}`; };
   const pendingSwap = id => D().swaps.find(w => w.shift_id === id && ['open', 'accepted'].includes(w.status));
   function shiftChip(s, {build = false} = {}) {
-    const col = colorOf(s.store_id), st = shiftStatus(s, D().timecards), tg = [];
+    // 지각·안 옴·근무 중은 본인과 매니저(운영진)만 봐요
+    const col = colorOf(s.store_id), st = manager || s.user_id === me ? shiftStatus(s, D().timecards) : {status: ''}, tg = [];
     if (!s.published) tg.push(`<span class="tm-tag">${t('초안', 'Draft')}</span>`);
     if (!s.user_id) tg.push(`<span class="tm-tag">${t('빈 근무', 'Open')}</span>`);
     if (st.late) tg.push(`<span class="tm-tag late">⚠ ${st.late}${t('분 늦음', 'm late')}</span>`);
     if (st.status === 'late_nocard') tg.push(`<span class="tm-tag late">⚠ ${t('아직 출근 안 함', 'Not clocked in yet')}</span>`);
     if (st.status === 'noshow') tg.push(`<span class="tm-tag noshow">✗ ${t('안 옴', 'No-show')}</span>`);
     if (st.status === 'working') tg.push(`<span class="tm-tag on">● ${t('근무 중', 'On shift')}</span>`);
-    if (pendingSwap(s.id)) tg.push(`<span class="tm-tag">🔁 ${t('교대 요청 중', 'Swap pending')}</span>`);
+    const pw = pendingSwap(s.id);
+    if (pw) tg.push(`<span class="tm-tag">${pw.status === 'open' ? '🛒 ' + t('마켓에 올림', 'On the market') : '🔁 ' + t('교환 대기', 'Swap pending')}</span>`);
+    const canSwap = !build && s.user_id === me && s.date >= today() && s.published && !pw && st.status !== 'working';
     if (build) shiftIssues(s, {shifts: D().shifts, availabilityRows: D().availability, timeOff: D().timeOff, prefs: D().prefs}).forEach(i => tg.push(`<span class="tm-tag issue">${issueText[i]}</span>`));
     return `<div class="tm-shift ${s.user_id === me ? 'mine' : ''} ${s.published ? '' : 'draft'}" style="background:${col.bg};border-left:5px solid ${col.line}" data-act="${build ? 'editShift' : 'shift'}" data-id="${esc(s.id)}">
       <div><div><b>${esc(fmtRange(s.start_min, s.end_min, lang))}</b> · <span class="who">${esc(nameOf(s.user_id))}</span></div>
-      <small>${esc(storeLabel(s.store_id, lang))}${s.position ? ' · ' + esc(s.position) : ''} · ${shiftHours(s)}h${s.note ? ' · ' + esc(s.note) : ''}</small><div>${tags(tg)}</div></div></div>`;
+      <small>${esc(storeLabel(s.store_id, lang))}${s.position ? ' · ' + esc(s.position) : ''} · ${shiftHours(s)}h${s.note ? ' · ' + esc(s.note) : ''}</small><div>${tags(tg)}</div></div>
+      ${canSwap ? `<button class="tm-btn small" style="flex:0 0 auto;background:#fff;color:#3b382f;border:1px solid ${col.line}" data-act="shift" data-id="${esc(s.id)}">🔁 ${t('교환하기', 'Swap')}</button>` : ''}</div>`;
   }
   function legendHtml(only) {
     return `<div class="tm-legend">${(only || stores).map(s => `<span><i style="background:${colorOf(s).bg};border:1px solid ${colorOf(s).line}"></i>${esc(storeLabel(s, lang))}</span>`).join('')}<span>⚠ ${t('늦음', 'late')}</span><span>✗ ${t('안 옴', 'no-show')}</span></div>`;
@@ -242,11 +246,11 @@ export async function renderTeam(host, c) {
       ${(sw.from_user === me || (!sw.from_user && sw.to_user === me)) ? `<div style="margin-top:8px"><button class="tm-btn alt small" data-act="swapCancel" data-id="${sw.id}">${t('요청 취소', 'Cancel request')}</button></div>` : ''}</div>`;
     if (mine) {
       const others = storePeople(s.store_id).filter(p => p.id !== me);
-      return `<div class="tm-card tm-edit"><h4>🔁 ${t('이 근무 교대·대타 요청', 'Ask for a swap / cover')}</h4><p class="tm-muted" style="margin:0">${esc(fmtDate(s.date, lang))} ${esc(fmtRange(s.start_min, s.end_min, lang))} · ${esc(storeLabel(s.store_id, lang))}</p>
-        <label class="f">${t('누구에게', 'Who')}<select id="tmSwapTo"><option value="">${t('아무나 (가능한 사람이 가져가요)', 'Anyone (whoever can take it)')}</option>${others.map(p => `<option value="${esc(p.id)}">${esc(p.name)} ${availability(D().availability, p.id, s.date, s.start_min, s.end_min) === 'no' ? t('(안 되는 시간)', '(unavailable)') : ''}</option>`).join('')}</select></label>
+      return `<div class="tm-card tm-edit"><h4>🔁 ${t('이 근무 교환하기', 'Swap this shift')}</h4><p class="tm-muted" style="margin:0">${esc(fmtDate(s.date, lang))} ${esc(fmtRange(s.start_min, s.end_min, lang))} · ${esc(storeLabel(s.store_id, lang))}</p>
+        <label class="f">${t('누구에게', 'Who')}<select id="tmSwapTo"><option value="">🛒 ${t('쉬프트 마켓에 올리기 (1·3·4호점 누구나)', 'Post to the shift market (anyone, stores 1·3·4)')}</option>${others.map(p => `<option value="${esc(p.id)}">${esc(p.name)} ${availability(D().availability, p.id, s.date, s.start_min, s.end_min) === 'no' ? t('(안 되는 시간)', '(unavailable)') : ''}</option>`).join('')}</select></label>
         <label class="f">${t('메모', 'Note')}<input id="tmSwapNote" maxlength="200" placeholder="${t('예: 병원 예약', 'e.g. doctor appointment')}"></label>
-        <div class="tm-row" style="margin-top:8px"><button class="tm-btn" data-act="swapOffer" data-id="${esc(s.id)}">${t('요청 보내기', 'Send request')}</button><button class="tm-btn alt" data-act="closeSwap">${t('닫기', 'Close')}</button></div>
-        <p class="tm-muted">${settingsOf(s.store_id).swap_approval !== false ? t('받는 사람이 정해지면 매니저가 승인해야 근무가 바뀌어요.', 'Once someone takes it, a manager approves before it changes.') : t('받는 사람이 정해지면 바로 바뀌어요.', 'It changes as soon as someone takes it.')}</p></div>`;
+        <div class="tm-row" style="margin-top:8px"><button class="tm-btn" data-act="swapOffer" data-id="${esc(s.id)}">${t('올리기 / 보내기', 'Post / send')}</button><button class="tm-btn alt" data-act="closeSwap">${t('닫기', 'Close')}</button></div>
+        <p class="tm-muted">${settingsOf(s.store_id).swap_approval ? t('누가 수락하면 매니저가 승인한 뒤에 그 사람 근무가 돼요. 그 전까지는 내 근무예요.', 'When someone accepts, a manager approves before it becomes theirs. Until then it is still yours.') : t('누가 수락하면 바로 그 사람 근무가 돼요. 그 전까지는 내 근무라 꼭 나와야 해요.', 'As soon as someone accepts, it becomes theirs. Until then it is still yours, so you still need to come in.')}</p></div>`;
     }
     if (!s.user_id && stores.includes(s.store_id)) return `<div class="tm-card tm-edit"><h4>🙋 ${t('이 빈 근무를 할까요?', 'Take this open shift?')}</h4><p class="tm-muted" style="margin:0">${esc(fmtDate(s.date, lang))} ${esc(fmtRange(s.start_min, s.end_min, lang))} · ${esc(storeLabel(s.store_id, lang))}</p>
       <div class="tm-row" style="margin-top:8px"><button class="tm-btn" data-act="swapOffer" data-id="${esc(s.id)}">${t('제가 할게요 (요청)', 'I’ll take it (request)')}</button><button class="tm-btn alt" data-act="closeSwap">${t('닫기', 'Close')}</button></div></div>`;
@@ -261,14 +265,18 @@ export async function renderTeam(host, c) {
     const myHours = D().shifts.filter(s => s.user_id === me && s.date >= S.week && s.date <= dates[6]).reduce((a, s) => a + shiftHours(s), 0);
     return `<div class="tm-card">${weekNav()}${chips}
       ${manager ? `<button class="tm-btn" style="width:100%;margin-bottom:8px" data-act="build">🛠 ${t('스케줄 짜기 (매니저)', 'Build schedule (managers)')}</button>` : ''}
-      <p class="tm-muted" style="margin:4px 0">${t(`이번 주 내 근무 ${Math.round(myHours * 100) / 100}시간`, `My hours this week: ${Math.round(myHours * 100) / 100}`)} · ${t('내 근무를 누르면 교대 요청을 할 수 있어요', 'Tap your shift to ask for a swap')}</p>
+      <p class="tm-muted" style="margin:4px 0">${t(`이번 주 내 근무 ${Math.round(myHours * 100) / 100}시간`, `My hours this week: ${Math.round(myHours * 100) / 100}`)} · ${t('못 하는 날은 🔁 교환하기로 쉬프트 마켓에 올려요', 'Can’t make it? Tap 🔁 Swap to post it to the shift market')}</p>
       ${legendHtml()}
       ${swapPanel(D().shifts.find(s => s.id === S.swapFor))}
-      ${dates.map(d => {
-        const list = shown.filter(s => s.date === d).sort((a, b) => a.start_min - b.start_min || a.store_id.localeCompare(b.store_id));
-        const off = offs.filter(o => o.start_date <= d && d <= o.end_date && (manager || o.user_id === me));
-        return `<div class="tm-day ${d === today() ? 'today' : ''}"><h4>${esc(fmtDate(d, lang))}</h4>${list.map(s => shiftChip(s)).join('') || `<p class="tm-off">${t('근무 없음', 'No shifts')}</p>`}
-          ${off.map(o => `<p class="tm-off">🌴 ${esc(nameOf(o.user_id))} ${t('휴가', 'time off')}</p>`).join('')}</div>`;
+      ${(S.mine || S.filter !== 'all' ? [null] : stores).map(st => {
+        const part = st ? shown.filter(s => s.store_id === st) : shown;
+        const head = st ? `<div style="margin:14px 0 2px;padding:8px 12px;border-radius:12px;background:${colorOf(st).bg};border-left:6px solid ${colorOf(st).line};font-weight:800">${esc(storeLabel(st, lang))} <small class="tm-muted" style="font-weight:600">· ${part.length}${t('개 근무', ' shifts')}</small></div>` : '';
+        return head + dates.map(d => {
+          const list = part.filter(s => s.date === d).sort((a, b) => a.start_min - b.start_min || a.store_id.localeCompare(b.store_id));
+          const off = offs.filter(o => o.start_date <= d && d <= o.end_date && (manager || o.user_id === me) && (!st || D().people.find(p => p.id === o.user_id)?.stores.includes(st)));
+          return `<div class="tm-day ${d === today() ? 'today' : ''}"><h4>${esc(fmtDate(d, lang))}</h4>${list.map(s => shiftChip(s)).join('') || `<p class="tm-off">${t('근무 없음', 'No shifts')}</p>`}
+            ${off.map(o => `<p class="tm-off">🌴 ${esc(nameOf(o.user_id))} ${t('휴가', 'time off')}</p>`).join('')}</div>`;
+        }).join('');
       }).join('')}</div>`;
   }
 
@@ -283,7 +291,8 @@ export async function renderTeam(host, c) {
       const mine = weekAll.filter(s => s.user_id === p.id), hrs = mine.reduce((a, s) => a + shiftHours(s), 0), max = Number(D().prefs[p.id]?.max_hours) || DEFAULT_MAX_HOURS;
       const iss = new Set(mine.flatMap(s => shiftIssues(s, {shifts: D().shifts, availabilityRows: D().availability, timeOff: D().timeOff, prefs: D().prefs})));
       const avail = WEEK_ORDER.map(wd => { const a = D().availability.find(x => x.user_id === p.id && Number(x.weekday) === wd); return !a ? '' : a.kind === 'none' ? `${dayName(wd, lang)}✗` : a.kind === 'range' ? `${dayName(wd, lang)} ${fmtRange(a.start_min, a.end_min, lang)}` : ''; }).filter(Boolean).join(', ');
-      return `<tr><td><b>${esc(p.name)}</b>${mine.some(s => s.store_id !== st) ? `<br><small class="tm-muted">${t('다른 매장 근무 포함', 'incl. other stores')}</small>` : ''}</td><td>${Math.round(hrs * 100) / 100} / ${max}h</td><td><small>${esc(avail || t('언제든', 'Any time'))}</small></td><td>${[...iss].map(i => `<span class="tm-tag issue">${issueText[i]}</span>`).join('')}</td></tr>`;
+      const want = wantHours(D().prefs[p.id]), wl = D().prefs[p.id]?.want_max ? '💪 ' + t('최대한', 'max') : (D().prefs[p.id]?.desired_hours ? `${want}h` : '–');
+      return `<tr><td><b>${esc(p.name)}</b>${mine.some(s => s.store_id !== st) ? `<br><small class="tm-muted">${t('다른 매장 근무 포함', 'incl. other stores')}</small>` : ''}</td><td>${Math.round(hrs * 100) / 100}h<br><small class="tm-muted">${t('원함', 'wants')} ${esc(wl)} · ${t('최대', 'max')} ${max}</small></td><td><small>${esc(avail || t('언제든', 'Any time'))}</small></td><td>${[...iss].map(i => `<span class="tm-tag issue">${issueText[i]}</span>`).join('')}</td></tr>`;
     }).join('');
     return `<div class="tm-card" style="border-top:8px solid ${col.line}">
       <div class="tm-row" style="justify-content:space-between"><h3 style="margin:0">🛠 ${t('스케줄 짜기', 'Build schedule')}</h3><button class="tm-btn alt small" data-act="unbuild">← ${t('스케줄 보기', 'Back to schedule')}</button></div>
@@ -296,7 +305,7 @@ export async function renderTeam(host, c) {
         <button class="tm-btn alt" data-act="clearDrafts" ${drafts && !S.busy ? '' : 'disabled'}>🗑 ${t('초안 지우기', 'Clear drafts')}</button>
       </div>
       <button class="tm-btn" style="width:100%;margin-top:8px;background:#2e7d32" data-act="publish" ${drafts && !S.busy ? '' : 'disabled'}>📤 ${t(`게시하기 · 직원에게 보여요 (${drafts}개)`, `Publish · staff can see it (${drafts})`)}</button>
-      <p class="tm-muted">${needs.length ? t(`자동 채우기는 ⚙ 설정의 ‘필요 인원’(${needs.length}줄)대로 채워요. 가능 시간·휴가·주 최대 시간·다른 매장 근무를 지키고, 시간이 적은 사람부터 골고루 넣어요.`, `Auto-fill uses ‘Staffing needs’ in ⚙ Settings (${needs.length} rows). It respects availability, time off, max hours and other-store shifts, and spreads hours evenly.`) : t('⚙ 설정에서 ‘필요 인원’을 먼저 정해 주세요.', 'Set ‘Staffing needs’ in ⚙ Settings first.')}</p>
+      <p class="tm-muted">${needs.length ? t(`자동 채우기는 ⚙ 설정의 ‘필요 인원’(${needs.length}줄)대로 채워요. 가능 시간·휴가·주 최대 시간·다른 매장 근무를 지키고, 각자 원하는 시간을 참고해서 공평하게 나눠요 (💪 최대한 많이 원하는 사람은 더 받아요).`, `Auto-fill uses ‘Staffing needs’ in ⚙ Settings (${needs.length} rows). It respects availability, time off, max hours and other-store shifts, and spreads hours evenly.`) : t('⚙ 설정에서 ‘필요 인원’을 먼저 정해 주세요.', 'Set ‘Staffing needs’ in ⚙ Settings first.')}</p>
       ${editHtml()}
       ${dates.map(d => {
         const list = wk.filter(s => s.date === d).sort((a, b) => a.start_min - b.start_min);
@@ -305,7 +314,7 @@ export async function renderTeam(host, c) {
           ${list.map(s => shiftChip(s, {build: true})).join('') || `<p class="tm-off">${t('근무 없음', 'No shifts')}</p>`}${off.map(o => `<p class="tm-off">🌴 ${esc(nameOf(o.user_id))} ${t('휴가', 'time off')}</p>`).join('')}</div>`;
       }).join('')}
       <h4 style="margin-top:12px">👥 ${t('이번 주 시간', 'Hours this week')}</h4>
-      <div class="tm-scroll"><table class="tm-table"><thead><tr><th>${t('이름', 'Name')}</th><th>${t('시간/최대', 'Hours/max')}</th><th>${t('가능 시간', 'Availability')}</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="4">${t('이 매장 직원이 없어요', 'No staff on this store')}</td></tr>`}</tbody></table></div></div>`;
+      <div class="tm-scroll"><table class="tm-table"><thead><tr><th>${t('이름', 'Name')}</th><th>${t('이번 주', 'This week')}</th><th>${t('가능 시간', 'Availability')}</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="4">${t('이 매장 직원이 없어요', 'No staff on this store')}</td></tr>`}</tbody></table></div></div>`;
   }
   function editHtml() {
     const e = S.edit;
@@ -332,22 +341,26 @@ export async function renderTeam(host, c) {
     if (!S.av) {
       const mine = D().availability.filter(a => a.user_id === me);
       S.av = {rows: Object.fromEntries(WEEK_ORDER.map(wd => { const a = mine.find(x => Number(x.weekday) === wd); return [wd, a ? {kind: a.kind, start_min: a.start_min ?? 600, end_min: a.end_min ?? 1320} : {kind: 'all', start_min: 600, end_min: 1320}]; })),
-        max: D().prefs[me]?.max_hours ?? '', note: D().prefs[me]?.note || ''};
+        max: D().prefs[me]?.max_hours ?? '', note: D().prefs[me]?.note || '', want: D().prefs[me]?.desired_hours ?? '', wantMax: !!D().prefs[me]?.want_max};
     }
     const r = S.av.rows;
     const mineForm = `<div class="tm-card"><h3>🙋 ${t('내 가능 시간', 'My availability')}</h3><p class="tm-muted">${t('매주 일할 수 있는 시간을 적어 주세요. 매니저가 스케줄을 짤 때 이대로 맞춰요. 바뀌면 언제든 고쳐요.', 'Tell us when you can work each week. Managers schedule around it. Update any time.')}</p>
       ${WEEK_ORDER.map(wd => `<div class="tm-row" style="margin:6px 0"><b style="width:34px">${dayName(wd, lang)}</b>
         <select data-av="kind" data-wd="${wd}"><option value="all" ${r[wd].kind === 'all' ? 'selected' : ''}>${t('언제든', 'Any time')}</option><option value="range" ${r[wd].kind === 'range' ? 'selected' : ''}>${t('시간 지정', 'Between')}</option><option value="none" ${r[wd].kind === 'none' ? 'selected' : ''}>${t('안 돼요', 'Not available')}</option></select>
         ${r[wd].kind === 'range' ? `<input type="time" step="900" data-av="start" data-wd="${wd}" value="${timeValue(r[wd].start_min)}">–<input type="time" step="900" data-av="end" data-wd="${wd}" value="${timeValue(r[wd].end_min)}">` : ''}</div>`).join('')}
-      <div class="tm-grid2"><label class="f">${t('주 최대 시간', 'Max hours / week')}<input type="number" min="0" max="80" data-av="max" value="${esc(S.av.max)}" placeholder="${DEFAULT_MAX_HOURS}"></label>
+      <h4 style="margin-top:12px">⏱ ${t('일주일에 일하고 싶은 시간', 'Hours I want per week')}</h4>
+      <div class="tm-grid2"><label class="f">${t('원하는 시간', 'Hours I’d like')}<input type="number" min="0" max="80" step="1" data-av="want" value="${esc(S.av.want)}" placeholder="${t('예: 25', 'e.g. 25')}" ${S.av.wantMax ? 'disabled' : ''}></label>
+      <label class="f" style="display:flex;gap:8px;align-items:center;margin-top:22px"><input type="checkbox" data-av="wantMax" ${S.av.wantMax ? 'checked' : ''} style="width:auto">💪 ${t('최대한 많이 일하고 싶어요!', 'As many hours as possible!')}</label></div>
+      <p class="tm-muted" style="margin:4px 0 0">${t('자동 스케줄이 이 시간을 참고해서 더 주거나 덜 줘요. 꼭 맞춰지는 건 아니고, 모두에게 공평하게 나눠요.', 'Auto-scheduling uses this to give you more or fewer hours. It isn’t guaranteed, and hours are shared fairly.')}</p>
+      <div class="tm-grid2"><label class="f">${t('주 최대 시간 (이보다 많이는 안 돼요)', 'Max hours / week (hard limit)')}<input type="number" min="0" max="80" data-av="max" value="${esc(S.av.max)}" placeholder="${DEFAULT_MAX_HOURS}"></label>
       <label class="f">${t('메모 (학교 등)', 'Note (school etc.)')}<input data-av="note" maxlength="200" value="${esc(S.av.note)}"></label></div>
       <button class="tm-btn" style="margin-top:10px;width:100%" data-act="saveAvail" ${S.busy ? 'disabled' : ''}>${t('저장', 'Save')}</button></div>`;
     if (!manager) return mineForm;
     const st = S.buildStore;
     const table = `<div class="tm-card"><h3>👥 ${t('직원 가능 시간', 'Team availability')}</h3>
       <label class="f">${t('매장', 'Store')}<select data-in="buildStore">${stores.map(s => `<option value="${s}" ${s === st ? 'selected' : ''}>${esc(storeLabel(s, lang))}</option>`).join('')}</select></label>
-      <div class="tm-scroll"><table class="tm-table"><thead><tr><th>${t('이름', 'Name')}</th>${WEEK_ORDER.map(wd => `<th>${dayName(wd, lang)}</th>`).join('')}<th>${t('최대', 'Max')}</th></tr></thead><tbody>
-      ${storePeople(st).map(p => `<tr style="background:${colorOf(st).bg}55"><td><b>${esc(p.name)}</b>${D().prefs[p.id]?.note ? `<br><small>${esc(D().prefs[p.id].note)}</small>` : ''}</td>${WEEK_ORDER.map(wd => { const a = D().availability.find(x => x.user_id === p.id && Number(x.weekday) === wd); return `<td>${!a ? '<span class="tm-muted">–</span>' : a.kind === 'none' ? '✗' : a.kind === 'range' ? `<small>${esc(fmtRange(a.start_min, a.end_min, lang))}</small>` : '✓'}</td>`; }).join('')}<td>${esc(D().prefs[p.id]?.max_hours ?? '')}</td></tr>`).join('')}
+      <div class="tm-scroll"><table class="tm-table"><thead><tr><th>${t('이름', 'Name')}</th>${WEEK_ORDER.map(wd => `<th>${dayName(wd, lang)}</th>`).join('')}<th>${t('원함', 'Wants')}</th><th>${t('최대', 'Max')}</th></tr></thead><tbody>
+      ${storePeople(st).map(p => `<tr style="background:${colorOf(st).bg}55"><td><b>${esc(p.name)}</b>${D().prefs[p.id]?.note ? `<br><small>${esc(D().prefs[p.id].note)}</small>` : ''}</td>${WEEK_ORDER.map(wd => { const a = D().availability.find(x => x.user_id === p.id && Number(x.weekday) === wd); return `<td>${!a ? '<span class="tm-muted">–</span>' : a.kind === 'none' ? '✗' : a.kind === 'range' ? `<small>${esc(fmtRange(a.start_min, a.end_min, lang))}</small>` : '✓'}</td>`; }).join('')}<td>${D().prefs[p.id]?.want_max ? '💪' : esc(D().prefs[p.id]?.desired_hours ?? '–')}</td><td>${esc(D().prefs[p.id]?.max_hours ?? '')}</td></tr>`).join('')}
       </tbody></table></div><p class="tm-muted">✓ ${t('언제든', 'any time')} · ✗ ${t('안 돼요', 'not available')} · – ${t('아직 안 적음 (언제든으로 봐요)', 'not set (treated as any time)')}</p></div>`;
     return mineForm + table;
   }
@@ -366,20 +379,24 @@ export async function renderTeam(host, c) {
       <div class="tm-card"><h4>${t('내 신청', 'My requests')}</h4>${mine.map(o => `<div class="tm-row" style="justify-content:space-between;border-top:1px solid #efe9da;padding:6px 0"><span>${esc(fmtDate(o.start_date, lang))}${o.end_date !== o.start_date ? ' – ' + esc(fmtDate(o.end_date, lang)) : ''} ${o.reason ? '· ' + esc(o.reason) : ''}</span><span>${st[o.status] || o.status}${['pending', 'approved'].includes(o.status) && o.start_date > today() ? ` <button class="tm-btn alt small" data-act="cancelOff" data-id="${o.id}">${t('취소', 'Cancel')}</button>` : ''}</span></div>`).join('') || `<p class="tm-muted">${t('아직 없어요', 'None yet')}</p>`}</div>`;
   }
 
-  // ── 교대 ────────────────────────────────────────────
+  // ── 🛒 쉬프트 마켓 (1·3·4호점 통합) ─────────────────
   function swapsHtml() {
     const shift = id => D().shifts.find(s => s.id === id);
-    const line = s => s ? `<span style="background:${colorOf(s.store_id).bg};border-radius:6px;padding:1px 6px">${esc(storeLabel(s.store_id, lang))}</span> ${esc(fmtDate(s.date, lang))} ${esc(fmtRange(s.start_min, s.end_min, lang))}` : t('(지난 근무)', '(past shift)');
-    const stTxt = {open: t('가져갈 사람 찾는 중', 'Looking for someone'), accepted: t('매니저 승인 대기', 'Waiting for manager'), approved: t('✅ 바뀜', '✅ Done'), denied: t('❌ 거절', '❌ Denied'), cancelled: t('취소됨', 'Cancelled')};
-    const mine = D().swaps.filter(w => w.from_user === me || w.to_user === me);
-    const canTake = D().swaps.filter(w => w.status === 'open' && w.from_user !== me && shift(w.shift_id) && stores.includes(shift(w.shift_id).store_id) && shift(w.shift_id).date >= today());
-    const openShifts = D().shifts.filter(s => !s.user_id && s.published && s.date >= today() && stores.includes(s.store_id) && !pendingSwap(s.id));
-    return `<div class="tm-card"><h3>🙋 ${t('가져갈 수 있는 근무', 'Shifts you can pick up')}</h3>
-      ${canTake.map(w => { const s = shift(w.shift_id); const busy = D().shifts.some(x => x.user_id === me && x.date === s.date && x.start_min < s.end_min && s.start_min < x.end_min); return `<div class="tm-row" style="justify-content:space-between;border-top:1px solid #efe9da;padding:6px 0"><span>${line(s)} · ${esc(nameOf(w.from_user))}${w.note ? ` · “${esc(w.note)}”` : ''}</span><button class="tm-btn small" data-act="swapAccept" data-id="${w.id}" ${busy ? 'disabled' : ''}>${busy ? t('그때 근무 있음', 'You work then') : t('제가 할게요', 'I’ll take it')}</button></div>`; }).join('')}
-      ${openShifts.map(s => `<div class="tm-row" style="justify-content:space-between;border-top:1px solid #efe9da;padding:6px 0"><span>${line(s)} · ${t('빈 근무', 'Open shift')}</span><button class="tm-btn small" data-act="swapOffer" data-id="${s.id}">${t('제가 할게요', 'I’ll take it')}</button></div>`).join('')}
-      ${!canTake.length && !openShifts.length ? `<p class="tm-muted">${t('지금은 없어요', 'Nothing right now')}</p>` : ''}</div>
-      <div class="tm-card"><h4>🔁 ${t('내 교대 요청', 'My swap requests')}</h4><p class="tm-muted">${t('📅 스케줄에서 내 근무를 누르면 교대를 요청할 수 있어요.', 'Tap your shift on 📅 Schedule to ask for a swap.')}</p>
-      ${mine.map(w => `<div class="tm-row" style="justify-content:space-between;border-top:1px solid #efe9da;padding:6px 0"><span>${line(shift(w.shift_id))} · ${w.from_user === me ? `→ ${esc(w.to_user ? nameOf(w.to_user) : t('아무나', 'anyone'))}` : `${esc(w.from_user ? nameOf(w.from_user) : t('빈 근무', 'open shift'))} →  ${t('나', 'me')}`}</span><span>${stTxt[w.status] || w.status}${['open', 'accepted'].includes(w.status) && (w.from_user === me || !w.from_user) ? ` <button class="tm-btn alt small" data-act="swapCancel" data-id="${w.id}">${t('취소', 'Cancel')}</button>` : ''}</span></div>`).join('') || `<p class="tm-muted">${t('아직 없어요', 'None yet')}</p>`}</div>`;
+    const chip = st => `<span style="background:${colorOf(st).bg};border:1px solid ${colorOf(st).line};border-radius:7px;padding:1px 7px;font-weight:700;font-size:12px">${esc(storeLabel(st, lang))}</span>`;
+    const stTxt = {open: t('🛒 마켓에 올라가 있어요', '🛒 On the market'), accepted: t('매니저 승인 대기', 'Waiting for manager'), approved: t('✅ 넘어갔어요', '✅ Taken'), denied: t('❌ 거절', '❌ Denied'), cancelled: t('취소됨', 'Cancelled')};
+    const busyAt = m => D().shifts.some(x => x.user_id === me && x.date === m.date && x.start_min < m.end_min && m.start_min < x.end_min);
+    const market = (D().market || []).filter(m => m.from_user !== me && (S.mkStore === 'all' || !S.mkStore || m.store_id === S.mkStore));
+    const mine = D().swaps.filter(w => w.from_user === me || w.to_user === me).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    const days = [...new Set(market.map(m => m.date))];
+    return `<div class="tm-card"><h3>🛒 ${t('쉬프트 마켓', 'Shift market')}</h3>
+      <p class="tm-muted">${t('1·3·4호점에서 일하기 어려운 근무가 여기 올라와요. “제가 할게요”를 누르면 내 근무가 돼요. 다른 지점 근무도 가져갈 수 있어요.', 'Shifts people can’t work at stores 1·3·4 show up here. Tap “I’ll take it” and it becomes yours, even at another store.')}</p>
+      <div class="tm-chips"><span class="tm-chip ${!S.mkStore || S.mkStore === 'all' ? 'on' : ''}" data-act="mk" data-v="all">${t('전체 지점', 'All stores')}</span>${TEAM_STORES.map(st => `<span class="tm-chip ${S.mkStore === st ? 'on' : ''}" style="background:${colorOf(st).bg}" data-act="mk" data-v="${st}">${esc(storeLabel(st, lang))}</span>`).join('')}</div>
+      ${days.map(d => `<h4 style="margin:12px 0 4px">${esc(fmtDate(d, lang))}</h4>${market.filter(m => m.date === d).map(m => { const busy = busyAt(m); return `<div class="tm-shift" style="background:${colorOf(m.store_id).bg};border-left:5px solid ${colorOf(m.store_id).line};cursor:default">
+        <div><div>${chip(m.store_id)} <b>${esc(fmtRange(m.start_min, m.end_min, lang))}</b> · ${(m.end_min - m.start_min) / 60}h${m.position ? ' · ' + esc(m.position) : ''}</div>
+        <small>${m.from_user ? `${t('올린 사람', 'Posted by')}: ${esc(m.from_name || nameOf(m.from_user))}` : t('빈 근무 (매니저가 올림)', 'Open shift (from manager)')}${m.note ? ` · “${esc(m.note)}”` : ''}</small></div>
+        <button class="tm-btn small" style="flex:0 0 auto" data-act="${m.swap_id ? 'swapAccept' : 'swapOffer'}" data-id="${esc(m.swap_id || m.shift_id)}" ${busy || S.busy ? 'disabled' : ''}>${busy ? t('그때 근무 있음', 'You work then') : t('제가 할게요', 'I’ll take it')}</button></div>`; }).join('')}`).join('') || `<p class="tm-muted">${t('지금 올라온 근무가 없어요', 'Nothing on the market right now')}</p>`}</div>
+      <div class="tm-card"><h4>📤 ${t('내가 올린 근무 · 가져간 근무', 'My posts and pickups')}</h4><p class="tm-muted">${t('📅 스케줄에서 내 근무의 “🔁 교환하기”를 눌러 마켓에 올려요.', 'Tap “🔁 Swap” on your shift in 📅 Schedule to post it.')}</p>
+      ${mine.map(w => { const s = shift(w.shift_id); return `<div class="tm-row" style="justify-content:space-between;border-top:1px solid #efe9da;padding:6px 0"><span>${s ? `${chip(s.store_id)} ${esc(fmtDate(s.date, lang))} ${esc(fmtRange(s.start_min, s.end_min, lang))}` : t('(지난 근무)', '(past shift)')} · ${w.from_user === me ? (w.to_user ? `→ ${esc(nameOf(w.to_user))}` : t('내가 올림', 'posted by me')) : t('내가 가져감', 'I took it')}</span><span>${stTxt[w.status] || w.status}${['open', 'accepted'].includes(w.status) && (w.from_user === me || !w.from_user) ? ` <button class="tm-btn alt small" data-act="swapCancel" data-id="${w.id}">${t('내리기', 'Take down')}</button>` : ''}</span></div>`; }).join('') || `<p class="tm-muted">${t('아직 없어요', 'None yet')}</p>`}</div>`;
   }
 
   // ── 요청 (매니저) ───────────────────────────────────
@@ -480,7 +497,7 @@ export async function renderTeam(host, c) {
       <button class="tm-btn alt" data-act="here" ${S.busy ? 'disabled' : ''}>📍 ${t('POS 옆 · 지금 여기로 정하기', 'At the POS · use my location')}</button>
       <div class="tm-grid3"><label class="f">${t('반경 (m)', 'Radius (m)')}<input type="number" min="30" max="500" data-set="radius_m" value="${d.radius_m}"></label>
       <label class="f">${t('휴가 신청 기한 (일 전)', 'Time-off notice (days)')}<input type="number" min="0" max="90" data-set="notice_days" value="${d.notice_days}"></label>
-      <label class="f" style="display:flex;gap:6px;align-items:center;margin-top:22px"><input type="checkbox" data-set="swap_approval" ${d.swap_approval ? 'checked' : ''} style="width:auto">${t('교대는 매니저 승인', 'Swaps need approval')}</label></div>
+      <label class="f" style="display:flex;gap:6px;align-items:center;margin-top:22px"><input type="checkbox" data-set="swap_approval" ${d.swap_approval ? 'checked' : ''} style="width:auto">${t('마켓 교환은 매니저 승인 후 적용', 'Market swaps need manager approval')}</label></div>
       <h4 style="margin-top:14px">👥 ${t('필요 인원 (자동 스케줄용)', 'Staffing needs (for auto-fill)')}</h4>
       <div class="tm-scroll"><table class="tm-table"><thead><tr><th>${t('요일', 'Day')}</th><th>${t('시작', 'Start')}</th><th>${t('끝', 'End')}</th><th>${t('인원', 'People')}</th><th>${t('포지션', 'Position')}</th><th></th></tr></thead><tbody>
       ${needs.map(n => `<tr><td><select data-need="weekday" data-i="${n.i}">${WEEK_ORDER.map(wd => `<option value="${wd}" ${Number(n.weekday) === wd ? 'selected' : ''}>${dayName(wd, lang)}</option>`).join('')}</select></td>
@@ -497,7 +514,7 @@ export async function renderTeam(host, c) {
   // ── 그리기 ──────────────────────────────────────────
   function draw() {
     const nReq = manager ? pendingOff().length + pendingSwaps().length + pendingFixes().length : 0;
-    const tabs = [['week', '📅 ' + t('스케줄', 'Schedule')], ['mytime', '⏱ ' + t('내 출퇴근', 'My punches')], ['avail', '🙋 ' + t('가능 시간', 'Availability')], ['off', '🌴 ' + t('휴가', 'Time off')], ['swaps', '🔁 ' + t('교대', 'Swaps')]]
+    const tabs = [['week', '📅 ' + t('스케줄', 'Schedule')], ['mytime', '⏱ ' + t('내 출퇴근', 'My punches')], ['avail', '🙋 ' + t('가능 시간', 'Availability')], ['off', '🌴 ' + t('휴가', 'Time off')], ['swaps', '🛒 ' + t('쉬프트 마켓', 'Shift market') + ((D().market || []).filter(m => m.from_user !== me).length ? `<span class="tm-badge" style="background:#3e4b33">${(D().market || []).filter(m => m.from_user !== me).length}</span>` : '')]]
       .concat(manager ? [['req', '📥 ' + t('요청', 'Requests') + (nReq ? `<span class="tm-badge">${nReq}</span>` : '')], ['ts', '🧾 ' + t('근무기록', 'Timesheets')], ['set', '⚙ ' + t('설정', 'Settings')]] : []);
     const body = S.tab === 'week' ? (S.build && manager ? buildHtml() : weekHtml()) : S.tab === 'mytime' ? myTimeHtml() : S.tab === 'avail' ? availHtml() : S.tab === 'off' ? offHtml() : S.tab === 'swaps' ? swapsHtml() : S.tab === 'req' ? requestsHtml() : S.tab === 'ts' ? tsHtml() : settingsHtml();
     host.innerHTML = `<div class="tm">
@@ -532,7 +549,8 @@ export async function renderTeam(host, c) {
       const wd = Number(d.wd);
       if (d.av === 'kind') { S.av.rows[wd].kind = el.value; draw(); return; }
       if (d.av === 'start' || d.av === 'end') { const m = parseTime(el.value); if (m != null) S.av.rows[wd][d.av === 'start' ? 'start_min' : 'end_min'] = m === 0 && d.av === 'end' ? 1440 : m; return; }
-      if (d.av === 'max') S.av.max = el.value; if (d.av === 'note') S.av.note = el.value; return;
+      if (d.av === 'max') S.av.max = el.value; if (d.av === 'note') S.av.note = el.value; if (d.av === 'want') S.av.want = el.value;
+      if (d.av === 'wantMax') { S.av.wantMax = el.checked; draw(); } return;
     }
     if (d.set && S.setDraft) { S.setDraft[d.set] = el.type === 'checkbox' ? el.checked : Number(el.value); return; }
     if (d.need && S.setDraft) {
@@ -544,6 +562,12 @@ export async function renderTeam(host, c) {
     if (d.fx && S.fix) { const k = d.fx; if (k === 'in' || k === 'out') S.fix[k] = el.value ? parseTime(el.value) : null; else if (k === 'brk') S.fix.brk = Number(el.value) || 0; else if (k === 'store') S.fix.store_id = el.value; else S.fix[k] = el.value; return; }
     if (d.tc && S.tcEdit) { const k = d.tc; S.tcEdit[k === 'user' ? 'user_id' : k === 'store' ? 'store_id' : k] = (k === 'in' || k === 'out') ? (el.value ? parseTime(el.value) : null) : k === 'brk' ? Number(el.value) || 0 : el.value; }
   };
+  // 가져간 뒤: 바로 내 근무가 됐는지(승인 필요 없음) 매니저 승인 대기인지
+  const afterTake = m => {
+    const mineNow = m && D().shifts.some(x => x.id === m.shift_id && x.user_id === me);
+    const where = m ? `${storeLabel(m.store_id, lang)} ${fmtDate(m.date, lang)} ${fmtRange(m.start_min, m.end_min, lang)}` : '';
+    return mineNow ? t(`✅ 이제 내 근무예요: ${where}. 📅 스케줄에 보여요.`, `✅ It’s yours now: ${where}. It shows on 📅 Schedule.`) : t(`가져가기로 했어요 (${where}). 매니저 승인 후 내 근무가 돼요.`, `You took it (${where}). It becomes yours after manager approval.`);
+  };
   host.onclick = async ev => {
     const b = ev.target.closest('[data-act]');
     if (!b || !host.contains(b)) return;
@@ -554,12 +578,19 @@ export async function renderTeam(host, c) {
     if (act === 'wk') { S.week = b.dataset.d === '0' ? weekStart(today()) : addDays(S.week, Number(b.dataset.d)); S.edit = null; S.swapFor = null; await reload(); draw(); return; }
     if (act === 'filter') { S.filter = b.dataset.v; draw(); return; }
     if (act === 'mine') { S.mine = !S.mine; draw(); return; }
+    if (act === 'mk') { S.mkStore = b.dataset.v; draw(); return; }
     if (act === 'build') { S.build = true; if (S.filter !== 'all' && stores.includes(S.filter)) S.buildStore = S.filter; S.msg = ''; draw(); return; }
     if (act === 'unbuild') { S.build = false; S.edit = null; S.msg = ''; draw(); return; }
     if (act === 'shift') { const s = D().shifts.find(x => x.id === id); S.swapFor = s && (s.user_id === me || !s.user_id) && s.date >= today() ? id : null; draw(); return; }
     if (act === 'closeSwap') { S.swapFor = null; draw(); return; }
-    if (act === 'swapOffer') { const to = val('#tmSwapTo'), note = val('#tmSwapNote'); S.swapFor = null; run(() => api.swapOffer(id, to || null, note), t('교대 요청을 보냈어요', 'Swap request sent')); return; }
-    if (act === 'swapAccept') { run(() => api.swapAccept(id), t('가져가기로 했어요. 매니저 승인을 기다려요.', 'You took it. Waiting for manager approval.')); return; }
+    if (act === 'swapOffer') {
+      const s = D().shifts.find(x => x.id === id) || (D().market || []).find(m => m.shift_id === id), mineShift = s && s.user_id === me;
+      const to = mineShift ? val('#tmSwapTo') : '', note = mineShift ? val('#tmSwapNote') : '';
+      S.swapFor = null;
+      run(() => api.swapOffer(id, to || null, note), () => mineShift ? (to ? t('교환 요청을 보냈어요', 'Swap request sent') : t('🛒 쉬프트 마켓에 올렸어요. 누가 가져가기 전까지는 내 근무예요.', '🛒 Posted to the shift market. It stays yours until someone takes it.')) : afterTake(s));
+      return;
+    }
+    if (act === 'swapAccept') { const m = (D().market || []).find(x => x.swap_id === id); run(() => api.swapAccept(id), () => afterTake(m)); return; }
     if (act === 'swapCancel') { run(() => api.swapCancel(id), t('요청을 취소했어요', 'Request cancelled')); return; }
     if (act === 'decideSwap') { run(() => api.swapDecide(id, b.dataset.yes === '1'), b.dataset.yes === '1' ? t('승인했어요 · 스케줄이 바뀌었어요', 'Approved · schedule updated') : t('거절했어요', 'Denied')); return; }
     if (act === 'decideOff') { run(() => api.decideTimeOff(id, b.dataset.yes === '1'), b.dataset.yes === '1' ? t('휴가를 승인했어요', 'Time off approved') : t('거절했어요', 'Denied')); return; }
@@ -568,7 +599,8 @@ export async function renderTeam(host, c) {
     if (act === 'saveAvail') {
       const rows = WEEK_ORDER.map(wd => { const r = S.av.rows[wd]; return r.kind === 'range' ? {weekday: wd, kind: 'range', start_min: r.start_min, end_min: r.end_min} : {weekday: wd, kind: r.kind}; });
       if (rows.some(r => r.kind === 'range' && !(r.end_min > r.start_min))) { say(t('끝나는 시간이 시작보다 늦어야 해요', 'End time must be after start time'), true); return; }
-      run(async () => { await api.saveAvailability(rows, S.av.max === '' ? null : Number(S.av.max), S.av.note); return sheet('syncAvailability'); }, extra => t('가능 시간을 저장했어요', 'Availability saved') + (extra || ''));
+      if (!S.av.wantMax && S.av.want !== '' && S.av.max !== '' && Number(S.av.want) > Number(S.av.max)) { say(t('원하는 시간이 주 최대 시간보다 많아요', 'Wanted hours are more than your max hours'), true); return; }
+      run(async () => { await api.saveAvailability(rows, S.av.max === '' ? null : Number(S.av.max), S.av.note, {desired_hours: S.av.wantMax ? null : (S.av.want === '' ? null : Number(S.av.want)), want_max: S.av.wantMax}); return sheet('syncAvailability'); }, extra => t('가능 시간을 저장했어요', 'Availability saved') + (extra || ''));
       return;
     }
     // 내 출퇴근 고치기 요청
@@ -639,7 +671,7 @@ export async function renderTeam(host, c) {
     if (act === 'clearDrafts') { const st = S.buildStore, ids = D().shifts.filter(s => s.store_id === st && !s.published && s.date >= S.week && s.date <= addDays(S.week, 6)).map(s => s.id); if (!confirm(t(`초안 ${ids.length}개를 지울까요?`, `Delete ${ids.length} drafts?`))) return; run(() => api.saveShifts(st, [], ids), t('초안을 지웠어요', 'Drafts cleared')); return; }
     if (act === 'publish') {
       const st = S.buildStore;
-      run(async () => { const n = await api.publish(st, S.week, addDays(S.week, 6)); return {n, extra: await sheet('syncWeek', S.week)}; }, r => t(`게시했어요 · 직원들이 이제 볼 수 있어요 (${r.n}개)`, `Published · staff can see it now (${r.n})`) + (r.extra || ''));
+      run(async () => { const n = await api.publish(st, S.week, addDays(S.week, 6)); return {n, extra: await sheet('syncWeek', S.week, {stores})}; }, r => t(`게시했어요 · 직원들이 이제 볼 수 있어요 (${r.n}개)`, `Published · staff can see it now (${r.n})`) + (r.extra || ''));
       return;
     }
     // 근무기록
@@ -681,7 +713,7 @@ export async function renderTeam(host, c) {
       run(() => api.saveSettings(d.store_id, {...d, radius_m: radius, needs: d.needs.map(({weekday: w, start_min, end_min, count, position}) => ({weekday: Number(w), start_min, end_min, count: Number(count) || 0, position: position || ''}))}), () => { S.setDraft = null; return t('설정을 저장했어요', 'Settings saved'); });
       return;
     }
-    if (act === 'sheetNow') { run(() => api.syncSheet('syncWeek', S.week), t('시트에 보냈어요', 'Sent to the sheet')); }
+    if (act === 'sheetNow') { run(() => api.syncSheet('syncWeek', S.week, {stores}), t('시트에 보냈어요', 'Sent to the sheet')); }
   };
   draw();
 }

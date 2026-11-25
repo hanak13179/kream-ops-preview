@@ -90,3 +90,18 @@ test('repeat lateness, clock-out reminder, biweekly payroll',()=>{
  const p=payrollSummary({timecards:cards,shifts,people:[{id:'a',name:'Amy'}],from:'2026-11-16',to:'2026-11-29',tips:[{name:'Amy',card:40.5,cash:10}]});
  assert.equal(p[0].hours,23.25);assert.equal(p[0].late,3);assert.equal(p[0].card_tips,40.5);
 });
+import {wantHours} from '../team-logic.mjs';
+test('wanted hours steer auto-schedule but stay fair',()=>{
+ assert.equal(wantHours({want_max:true,max_hours:38}),38);assert.equal(wantHours({desired_hours:12}),12);assert.equal(wantHours({}),24);assert.equal(wantHours({desired_hours:50,max_hours:30}),30);
+ const ppl=[{id:'max',name:'Max',stores:['finch']},{id:'few',name:'Few',stores:['finch']},{id:'mid',name:'Mid',stores:['finch']}];
+ const needs=[0,1,2,3,4,5,6].flatMap(wd=>[{weekday:wd,start_min:600,end_min:960,count:1},{weekday:wd,start_min:960,end_min:1320,count:1}]);   // 84h
+ const prefs={max:{want_max:true,max_hours:40},few:{desired_hours:12},mid:{desired_hours:24}};
+ const {shifts}=autoSchedule({store:'finch',dates:week,needs,people:ppl,prefs});
+ const h=id=>shifts.filter(s=>s.user_id===id).reduce((a,s)=>a+(s.end_min-s.start_min)/60,0);
+ assert.ok(h('max')>h('mid')&&h('mid')>h('few'),`${h('max')} ${h('mid')} ${h('few')}`);
+ assert.ok(h('few')>=12,'few still gets their wish'); assert.ok(h('max')<=40);
+ // 일이 적은 주: 모두 비슷한 비율로 (최대한 많이도 혼자 다 가져가지 않아요)
+ const small=autoSchedule({store:'finch',dates:week,needs:[1,2,3,4,5,6].map(wd=>({weekday:wd,start_min:600,end_min:960,count:1})),people:ppl,prefs}).shifts;
+ const hs=id=>small.filter(s=>s.user_id===id).length;
+ assert.ok(hs('few')>=1&&hs('mid')>=1,'everyone gets some'); assert.ok(hs('max')>=hs('mid'));
+});

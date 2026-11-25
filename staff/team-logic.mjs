@@ -6,6 +6,7 @@ export const TEAM_STORES = ['downtown', 'richmond-hill', 'finch'];
 export const TZ = 'America/Toronto';
 export const WEEK_OT_HOURS = 44;          // 온타리오: 한 주 44시간 넘으면 초과근무
 export const DEFAULT_MAX_HOURS = 40;
+export const DEFAULT_WANT_HOURS = 24;   // 원하는 시간을 안 적은 사람
 export const DEFAULT_RADIUS = 100;        // m · 매장 POS에서 100m 안에서만 출근
 export const DEFAULT_NOTICE_DAYS = 14;
 export const LATE_GRACE_MIN = 5;
@@ -105,6 +106,14 @@ export function shiftIssues(shift, {shifts = [], availabilityRows = [], timeOff 
   return out;
 }
 
+/** 이 사람이 일주일에 원하는 시간 (꼭 맞추는 건 아니고 자동 스케줄이 참고해요). '최대한 많이'면 주 최대 시간 */
+export function wantHours(pref) {
+  const max = Number(pref?.max_hours) || DEFAULT_MAX_HOURS;
+  if (pref?.want_max) return max;
+  const w = Number(pref?.desired_hours);
+  return w > 0 ? Math.min(w, max) : Math.min(DEFAULT_WANT_HOURS, max);
+}
+
 // ── 자동 스케줄 ───────────────────────────────────────
 function hash(s) { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
 /**
@@ -113,7 +122,8 @@ function hash(s) { let h = 2166136261; for (const ch of String(s)) { h ^= ch.cha
  * people: [{id, name, stores:[...]}]   (이 매장에서 일하는 사람)
  * shifts: 이번 주 모든 근무 (모든 매장)  → 겹침·시간 계산에 써요
  * → {shifts: 새 근무(아직 게시 안 함), unfilled: [{date,start_min,end_min,position,missing}]}
- * 규칙: 휴가·안 되는 시간·겹치는 근무는 빼고 / 주 최대 시간 넘지 않게 / 하루 한 번 / 시간이 적은 사람부터 (골고루)
+ * 규칙: 휴가·안 되는 시간·겹치는 근무는 빼고 / 주 최대 시간 넘지 않게 / 하루 한 번
+ *       / 원하는 시간 대비 덜 받은 사람부터 (원하는 시간 비율로 골고루 → '최대한 많이'는 더 받지만 다른 사람도 꾸준히 받아요)
  */
 export function autoSchedule({store, dates, needs = [], people = [], shifts = [], availabilityRows = [], timeOff = [], prefs = {}, maxPerDay = 1}) {
   const all = shifts.map(s => ({...s}));
@@ -147,9 +157,9 @@ export function autoSchedule({store, dates, needs = [], people = [], shifts = []
   units.sort((a, b) => a.options - b.options || a.date.localeCompare(b.date) || a.start_min - b.start_min);
   for (const u of units) {
     const c = pool.filter(p => fits(p, u));
-    // 가능 시간을 적어 둔 사람을 먼저, 그다음 이번 주 시간이 적은 사람, 일한 날이 적은 사람
-    c.sort((a, b) => (availability(availabilityRows, a.id, u.date, u.start_min, u.end_min) === 'yes' ? 0 : 1) - (availability(availabilityRows, b.id, u.date, u.start_min, u.end_min) === 'yes' ? 0 : 1)
-      || hoursOf(a.id) - hoursOf(b.id) || daysOf(a.id) - daysOf(b.id) || hash(a.id + u.date) - hash(b.id + u.date));
+    // 원하는 시간을 아직 못 채운 사람 먼저 → 그 안에서는 원하는 시간 대비 비율이 낮은 사람 (공평하게)
+    const fill = id => hoursOf(id) / wantHours(prefs[id]), under = id => hoursOf(id) + 1e-9 < wantHours(prefs[id]) ? 0 : 1;
+    c.sort((a, b) => under(a.id) - under(b.id) || fill(a.id) - fill(b.id) || daysOf(a.id) - daysOf(b.id) || hash(a.id + u.date) - hash(b.id + u.date));
     const s = {date: u.date, store_id: store, start_min: u.start_min, end_min: u.end_min, position: u.position, user_id: c[0]?.id || null, published: false, auto: true};
     all.push(s); added.push(s);
     if (!c.length) unfilled.push({date: u.date, start_min: u.start_min, end_min: u.end_min, position: u.position, missing: 1});

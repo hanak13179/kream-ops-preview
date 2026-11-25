@@ -1,6 +1,6 @@
 // 근무·스케줄 자료: Supabase(실제) 또는 예시 모드(이 기기에만 저장).
 // 예시 모드: 권한 미리보기, 미리보기 사이트, 또는 아직 DB에 표(team-schedule.sql)가 없을 때.
-import {TEAM_STORES, today, addDays, weekStart, weekDates, autoSchedule, geoCheck, localParts, zonedToISO, DEFAULT_RADIUS, DEFAULT_NOTICE_DAYS, noticeOk} from './team-logic.mjs?v=20261125-team1';
+import {TEAM_STORES, today, addDays, weekStart, weekDates, autoSchedule, geoCheck, localParts, zonedToISO, DEFAULT_RADIUS, DEFAULT_NOTICE_DAYS, noticeOk} from './team-logic.mjs?v=20261125-team2';
 
 // 구글 시트 'Kream Ops Schedule' 연결 (apps-script/schedule-sync.gs 를 시트에 붙여 웹앱으로 배포한 주소)
 // 비어 있으면 시트 연결은 건너뛰어요. 시트는 로그인한 사람의 토큰으로 Supabase에서 직접 읽어서 써요 (가짜 자료를 못 넣어요).
@@ -48,22 +48,25 @@ function defaultNeeds() {
   }
   return out;
 }
-function seedDemo(me, myName, myStores) {
+function seedDemo(me, myName, myStoresIn) {
+  const myStores = myStoresIn.length ? myStoresIn : TEAM_STORES;
   const people = [], availability = [], prefs = {};
   TEAM_STORES.forEach((st, si) => SAMPLE[st].forEach((n, i) => {
     const id = `demo-${st}-${i}`; people.push({id, name: `${n} (예시)`, role: 'employee', stores: [st]});
     if (i % 2 === 0) availability.push({user_id: id, weekday: (i + si) % 7, kind: 'none'});
     if (i === 1) for (const wd of [1, 3]) availability.push({user_id: id, weekday: wd, kind: 'range', start_min: 900, end_min: 1320});
-    prefs[id] = {max_hours: i === 3 ? 24 : 40, note: ''};
+    prefs[id] = {max_hours: i === 3 ? 24 : 40, note: '', desired_hours: [30, null, 16, 20, null][i] ?? null, want_max: i === 1};
   }));
   people.push({id: me, name: myName, role: 'manager', stores: myStores});
-  const settings = Object.fromEntries(TEAM_STORES.map(st => [st, {store_id: st, lat: null, lng: null, radius_m: DEFAULT_RADIUS, notice_days: DEFAULT_NOTICE_DAYS, swap_approval: true, needs: defaultNeeds()}]));
+  const settings = Object.fromEntries(TEAM_STORES.map(st => [st, {store_id: st, lat: null, lng: null, radius_m: DEFAULT_RADIUS, notice_days: DEFAULT_NOTICE_DAYS, swap_approval: false, needs: defaultNeeds()}]));
   const shifts = [], timecards = [];
   const thisWeek = weekStart(today()), lastWeek = addDays(thisWeek, -7);
   for (const st of TEAM_STORES) for (const wk of [lastWeek, thisWeek]) {
     const r = autoSchedule({store: st, dates: weekDates(wk), needs: settings[st].needs, people: people.filter(p => p.stores.includes(st) && p.id !== me), shifts, availabilityRows: availability, prefs});
     r.shifts.forEach(s => shifts.push({...s, id: uuid(), published: true}));
   }
+  // 나에게도 이번 주·다음 주 근무 몇 개 (내 근무만 보기·교환하기를 써 볼 수 있게)
+  shifts.filter(s => s.store_id === myStores[0] && s.date >= addDays(thisWeek, 2) && s.start_min < 700).slice(0, 3).forEach(s => { s.user_id = me; });
   // 지난주~어제 출퇴근 기록 (가끔 늦게 온 날도 있게)
   const until = today();
   shifts.filter(s => s.user_id && s.date < until).forEach((s, i) => {
@@ -71,19 +74,31 @@ function seedDemo(me, myName, myStores) {
     timecards.push({id: uuid(), user_id: s.user_id, store_id: s.store_id, clock_in: zonedToISO(s.date, start), clock_out: zonedToISO(s.date, s.end_min + 2),
       breaks: s.end_min - s.start_min > 300 ? [{start: zonedToISO(s.date, s.start_min + 180), end: zonedToISO(s.date, s.start_min + 210)}] : [], in_geo: {ok: true, dist: 20 + i % 40}, source: 'app'});
   });
-  return {people, availability, prefs, settings, shifts, timecards, timeOff: [], swaps: [], fixes: []};
+  const swaps = [];
+  shifts.filter(s => s.user_id && s.date > until).filter((_, i) => i % 7 === 3).slice(0, 4)
+    .forEach((s, i) => swaps.push({id: uuid(), shift_id: s.id, from_user: s.user_id, to_user: null, status: 'open', note: ['시험이 있어요', 'doctor appt', '가족 행사', ''][i], created_at: new Date().toISOString()}));
+  return {people, availability, prefs, settings, shifts, timecards, timeOff: [], swaps, fixes: []};
 }
 
 function demoBackend(c) {
   const me = c.profile?.user_id || 'me', myName = c.profile?.display_name || '나', myStores = (c.stores || []).map(s => s.id).filter(id => TEAM_STORES.includes(id));
   let db;
   try { db = JSON.parse(localStorage.getItem(DEMO_KEY) || 'null'); } catch { db = null; }
-  if (!db || db.me !== me) db = {me, ...seedDemo(me, myName, myStores.length ? myStores : TEAM_STORES)};
+  if (!db || db.me !== me || !db.v3) db = {me, v3: true, ...seedDemo(me, myName, myStores.length ? myStores : TEAM_STORES)};
   const save = () => { try { localStorage.setItem(DEMO_KEY, JSON.stringify(db)); } catch { /* 저장 못 해도 화면은 돼요 */ } };
   save();
   const ok = v => Promise.resolve(v);
   const fail = msg => Promise.reject(new Error(msg));
   const myCard = () => db.timecards.find(tc => tc.user_id === me && !tc.clock_out);
+  const nameOf = id => db.people.find(p => p.id === id)?.name || '';
+  function demoMarket() {
+    const t = today(), posted = db.swaps.filter(w => w.status === 'open').map(w => ({w, s: db.shifts.find(x => x.id === w.shift_id)})).filter(x => x.s && x.s.published && x.s.date >= t)
+      .map(({w, s}) => ({swap_id: w.id, shift_id: s.id, store_id: s.store_id, date: s.date, start_min: s.start_min, end_min: s.end_min, position: s.position || '', from_user: w.from_user, from_name: nameOf(w.from_user), note: w.note || ''}));
+    const open = db.shifts.filter(s => !s.user_id && s.published && s.date >= t && !db.swaps.some(w => w.shift_id === s.id && ['open', 'accepted'].includes(w.status)))
+      .map(s => ({swap_id: null, shift_id: s.id, store_id: s.store_id, date: s.date, start_min: s.start_min, end_min: s.end_min, position: s.position || '', from_user: null, from_name: '', note: s.note || ''}));
+    return [...posted, ...open].sort((a, b) => a.date.localeCompare(b.date) || a.start_min - b.start_min);
+  }
+  const autoApply = w => { const s = db.shifts.find(x => x.id === w.shift_id); if (w.status === 'accepted' && !db.settings[s.store_id]?.swap_approval) { s.user_id = w.to_user; w.status = 'approved'; } };
   return {
     mode: 'demo', me,
     reset() { localStorage.removeItem(DEMO_KEY); db = {me, ...seedDemo(me, myName, myStores.length ? myStores : TEAM_STORES)}; save(); },
@@ -92,11 +107,11 @@ function demoBackend(c) {
         people: db.people, settings: db.settings, availability: db.availability, prefs: db.prefs,
         shifts: db.shifts.filter(s => s.date >= addDays(from, -7) && s.date <= to),
         timecards: db.timecards.filter(tc => { const d = localParts(tc.clock_in).date; return (d >= addDays(from, -31) && d <= to) || !tc.clock_out; }),
-        timeOff: db.timeOff, swaps: db.swaps, fixes: db.fixes || []
+        timeOff: db.timeOff, swaps: db.swaps, fixes: db.fixes || [], market: demoMarket()
       };
     },
     saveSettings(store, s) { db.settings[store] = {...db.settings[store], ...s, store_id: store}; save(); return ok(); },
-    saveAvailability(rows, max, note) { db.availability = db.availability.filter(a => a.user_id !== me).concat(rows.map(r => ({...r, user_id: me}))); db.prefs[me] = {max_hours: max, note}; save(); return ok(); },
+    saveAvailability(rows, max, note, want = {}) { db.availability = db.availability.filter(a => a.user_id !== me).concat(rows.map(r => ({...r, user_id: me}))); db.prefs[me] = {max_hours: max, note, desired_hours: want.desired_hours ?? null, want_max: !!want.want_max}; save(); return ok(); },
     saveShifts(store, rows, deleteIds = []) {
       db.shifts = db.shifts.filter(s => !deleteIds.includes(s.id));
       for (const r of rows) { const i = db.shifts.findIndex(s => s.id === r.id), v = {...r, store_id: store, id: r.id || uuid()}; if (i >= 0) db.shifts[i] = {...v, published: db.shifts[i].published || !!r.published}; else db.shifts.push(v); }
@@ -113,11 +128,16 @@ function demoBackend(c) {
     swapOffer(shiftId, toUser, note) {
       const s = db.shifts.find(x => x.id === shiftId);
       if (db.swaps.some(w => w.shift_id === shiftId && ['open', 'accepted'].includes(w.status))) return fail('Swap already requested');
-      db.swaps.push(s.user_id === me ? {id: uuid(), shift_id: shiftId, from_user: me, to_user: toUser || null, status: toUser ? 'accepted' : 'open', note, created_at: new Date().toISOString()}
-        : {id: uuid(), shift_id: shiftId, from_user: null, to_user: me, status: 'accepted', note, created_at: new Date().toISOString()});
+      const w = s.user_id === me ? {id: uuid(), shift_id: shiftId, from_user: me, to_user: toUser || null, status: toUser ? 'accepted' : 'open', note, created_at: new Date().toISOString()}
+        : {id: uuid(), shift_id: shiftId, from_user: null, to_user: me, status: 'accepted', note, created_at: new Date().toISOString()};
+      db.swaps.push(w); autoApply(w);
       save(); return ok();
     },
-    swapAccept(id) { const w = db.swaps.find(x => x.id === id); w.to_user = me; w.status = 'accepted'; save(); return ok(); },
+    swapAccept(id) {
+      const w = db.swaps.find(x => x.id === id), s = db.shifts.find(x => x.id === w.shift_id);
+      if (db.shifts.some(x => x.user_id === me && x.date === s.date && x.start_min < s.end_min && s.start_min < x.end_min)) return fail('You already work then');
+      w.to_user = me; w.status = 'accepted'; autoApply(w); save(); return ok();
+    },
     swapDecide(id, yes) { const w = db.swaps.find(x => x.id === id); if (yes) { db.shifts.find(s => s.id === w.shift_id).user_id = w.to_user; w.status = 'approved'; } else w.status = 'denied'; save(); return ok(); },
     swapCancel(id) { const w = db.swaps.find(x => x.id === id); if (w) w.status = 'cancelled'; save(); return ok(); },
     punch(store, kind, pos) {
@@ -177,11 +197,13 @@ function supaBackend(c, stores) {
       const people = new Map();
       for (const p of peopleLists.flat()) { const cur = people.get(p.user_id) || {id: p.user_id, name: p.display_name, role: p.role, stores: []}; cur.stores.push(p.store); people.set(p.user_id, cur); }
       const fromISO = zonedToISO(addDays(from, -31), 0), toISO = zonedToISO(addDays(to, 1), 0);
-      const [settings, availability, prefs, shifts, timecards, openCards, timeOff, swaps, fixes] = await Promise.all([
+      const [settings, availability, prefs, shifts, mine, market, timecards, openCards, timeOff, swaps, fixes] = await Promise.all([
         rows(db.from('kream_team_settings').select('*').in('store_id', stores)),
         rows(db.from('kream_team_availability').select('*')),
         rows(db.from('kream_team_prefs').select('*')),
         rows(db.from('kream_team_shifts').select('*').in('store_id', stores).gte('shift_date', addDays(from, -7)).lte('shift_date', to).order('shift_date').limit(3000)),
+        rows(db.from('kream_team_shifts').select('*').eq('user_id', me).gte('shift_date', addDays(from, -7)).lte('shift_date', addDays(to, 31))),
+        call('kream_team_market', {}).catch(() => []),
         rows(db.from('kream_team_timecards').select('*').gte('clock_in', fromISO).lt('clock_in', toISO).order('clock_in').limit(5000)),
         rows(db.from('kream_team_timecards').select('*').is('clock_out', null)),
         rows(db.from('kream_team_time_off').select('*').gte('end_date', addDays(today(), -60)).order('start_date')),
@@ -191,13 +213,14 @@ function supaBackend(c, stores) {
       const cards = new Map([...timecards, ...openCards].map(tc => [tc.id, tc]));
       return {
         people: [...people.values()],
-        settings: Object.fromEntries(stores.map(st => [st, settings.find(s => s.store_id === st) || {store_id: st, lat: null, lng: null, radius_m: DEFAULT_RADIUS, notice_days: DEFAULT_NOTICE_DAYS, swap_approval: true, needs: []}])),
+        settings: Object.fromEntries(stores.map(st => [st, settings.find(s => s.store_id === st) || {store_id: st, lat: null, lng: null, radius_m: DEFAULT_RADIUS, notice_days: DEFAULT_NOTICE_DAYS, swap_approval: false, needs: []}])),
         availability, prefs: Object.fromEntries(prefs.map(p => [p.user_id, p])),
-        shifts: shifts.map(shiftOut), timecards: [...cards.values()], timeOff, swaps, fixes
+        shifts: [...new Map([...shifts, ...mine].map(s => [s.id, s])).values()].map(shiftOut), timecards: [...cards.values()], timeOff, swaps, fixes,
+        market: (market || []).map(m => ({swap_id: m.swap_id, shift_id: m.shift_id, store_id: m.store_id, date: m.shift_date, start_min: m.start_min, end_min: m.end_min, position: m.shift_position || '', from_user: m.from_user, from_name: m.from_name || '', note: m.note || ''}))
       };
     },
     saveSettings: (store, s) => call('kream_team_save_settings', {target_store: store, new_lat: s.lat ?? null, new_lng: s.lng ?? null, new_radius: s.radius_m, new_notice: s.notice_days, new_swap_approval: s.swap_approval, new_needs: s.needs || []}),
-    saveAvailability: (list, max, note) => call('kream_team_save_availability', {rows: list, new_max_hours: max === '' || max == null ? null : Number(max), new_note: note || ''}),
+    saveAvailability: (list, max, note, want = {}) => call('kream_team_save_availability', {rows: list, new_max_hours: max === '' || max == null ? null : Number(max), new_note: note || '', new_desired_hours: want.desired_hours === '' || want.desired_hours == null ? null : Number(want.desired_hours), new_want_max: !!want.want_max}),
     saveShifts: (store, list, deleteIds = []) => call('kream_team_save_shifts', {target_store: store, rows: list.map(s => ({...s, id: s.id || uuid()})), delete_ids: deleteIds}),
     publish: (store, from, to) => call('kream_team_publish', {target_store: store, from_date: from, to_date: to}),
     requestTimeOff: (from, to, reason) => call('kream_team_request_time_off', {request_id: uuid(), from_date: from, to_date: to, why: reason || ''}),

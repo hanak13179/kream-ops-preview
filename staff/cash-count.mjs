@@ -1,6 +1,6 @@
 import {parseHomebaseShifts, splitTips, tipStoreLabel} from './tip-split.mjs?v=20261123-tips1';
-import {tipShiftsFromTimecards, crewForDay} from './team-logic.mjs?v=20261125-team1';
-import {teamBackend} from './team-data.mjs?v=20261125-team1';
+import {tipShiftsFromTimecards, crewForDay} from './team-logic.mjs?v=20261125-team2';
+import {teamBackend} from './team-data.mjs?v=20261125-team2';
 // 캐시 카운트 (1·3·4호점): 마감 때 지폐·동전 개수를 세면 합계, 오픈시재를 뺀 당일 현금매출이 바로 계산돼요.
 // 오픈시재를 빼고 남는 현금 중 지폐로 딱 떨어지는 만큼만 봉투에 넣고, 남은 돈이 내일 오픈시재예요 (예: 남는 돈 $121 → 봉투 $120, $1은 남김).
 // "시트에 저장"을 누르면 Cash Count 시트에 매장별·날짜별로 기록돼요 (오늘이 맨 위, 같은 날 다시 저장하면 그 줄을 고쳐요). 앱 데이터베이스는 바꾸지 않아요.

@@ -10,9 +10,17 @@ $$;
 create function kream_private.team_member(s text) returns boolean language sql stable security definer set search_path='' as $$
  select kream_private.is_team_store(s) and kream_private.can_read_store(s)
 $$;
+create function kream_private.team_any() returns boolean language sql stable security definer set search_path='' as $$
+ select exists(select 1 from public.kream_memberships m join public.kream_profiles p on p.user_id=m.user_id where m.user_id=auth.uid() and p.active and kream_private.is_team_store(m.store_id))
+$$;
+create function kream_private.team_any_user(u uuid) returns boolean language sql stable security definer set search_path='' as $$
+ select exists(select 1 from public.kream_memberships m where m.user_id=u and kream_private.is_team_store(m.store_id))
+$$;
 create function kream_private.distance_m(lat1 double precision,lng1 double precision,lat2 double precision,lng2 double precision) returns double precision language sql immutable set search_path='' as $$
  select 2*6371000*asin(least(1,sqrt(power(sin(radians(lat2-lat1)/2),2)+cos(radians(lat1))*cos(radians(lat2))*power(sin(radians(lng2-lng1)/2),2))))
 $$;
+revoke all on function kream_private.team_any(),kream_private.team_any_user(uuid) from public,anon;
+grant execute on function kream_private.team_any(),kream_private.team_any_user(uuid) to authenticated;
 revoke all on function kream_private.is_team_store(text),kream_private.team_manager(text),kream_private.team_member(text),kream_private.distance_m(double precision,double precision,double precision,double precision) from public,anon;
 grant execute on function kream_private.is_team_store(text),kream_private.team_manager(text),kream_private.team_member(text),kream_private.distance_m(double precision,double precision,double precision,double precision) to authenticated;
 
@@ -23,7 +31,7 @@ create table public.kream_team_settings(
  lng double precision check(lng between -180 and 180),
  radius_m integer not null default 100 check(radius_m between 30 and 500),
  notice_days integer not null default 14 check(notice_days between 0 and 90),
- swap_approval boolean not null default true,
+ swap_approval boolean not null default false,   -- 쉬프트 마켓: 수락하면 바로 그 사람 근무 (켜면 매니저 승인 필요)
  needs jsonb not null default '[]'::jsonb check(jsonb_typeof(needs)='array' and jsonb_array_length(needs)<=200),
  updated_by uuid references public.kream_profiles(user_id),
  updated_at timestamptz not null default now(),
@@ -43,6 +51,8 @@ create table public.kream_team_availability(
 create table public.kream_team_prefs(
  user_id uuid primary key references public.kream_profiles(user_id),
  max_hours numeric(5,2) check(max_hours between 0 and 80),
+ desired_hours numeric(5,2) check(desired_hours between 0 and 80),   -- 일주일에 일하고 싶은 시간 (자동 스케줄 참고, 꼭 맞추진 않음)
+ want_max boolean not null default false,                            -- '최대한 많이 일하고 싶어요'
  note text not null default '' check(char_length(note)<=500),
  updated_at timestamptz not null default now()
 );
@@ -151,9 +161,9 @@ create policy team_time_off_read on public.kream_team_time_off for select to aut
  user_id=auth.uid() or exists(select 1 from public.kream_memberships m where m.user_id=kream_team_time_off.user_id and kream_private.team_manager(m.store_id)));
 -- 스케줄: 매니저는 전부(초안 포함), 매장 사람은 게시된 것만
 create policy team_shifts_read on public.kream_team_shifts for select to authenticated using(
- kream_private.team_manager(store_id) or (published and kream_private.team_member(store_id)));
+ kream_private.team_manager(store_id) or user_id=auth.uid() or (published and kream_private.team_member(store_id)));
 create policy team_swaps_read on public.kream_team_swaps for select to authenticated using(
- from_user=auth.uid() or to_user=auth.uid() or exists(select 1 from public.kream_team_shifts s where s.id=shift_id and (kream_private.team_manager(s.store_id) or (kream_team_swaps.status='open' and s.published and kream_private.team_member(s.store_id)))));
+ from_user=auth.uid() or to_user=auth.uid() or (status='open' and kream_private.team_any()) or exists(select 1 from public.kream_team_shifts s where s.id=shift_id and kream_private.team_manager(s.store_id)));
 -- 출퇴근: 본인과 그 매장 매니저
 create policy team_timecards_read on public.kream_team_timecards for select to authenticated using(user_id=auth.uid() or kream_private.team_manager(store_id));
 
@@ -161,8 +171,9 @@ create policy team_timecards_read on public.kream_team_timecards for select to a
 create function public.kream_team_people(target_store text) returns table(user_id uuid,display_name text,role text)
 language sql stable security definer set search_path='' as $$
  select p.user_id,p.display_name,p.role from public.kream_profiles p
- join public.kream_memberships m on m.user_id=p.user_id and m.store_id=target_store
  where kream_private.team_member(target_store) and p.active and not coalesce(p.access_blocked,false)
+ and (exists(select 1 from public.kream_memberships m where m.user_id=p.user_id and m.store_id=target_store)
+  or exists(select 1 from public.kream_team_shifts s where s.user_id=p.user_id and s.store_id=target_store and s.shift_date>=current_date-62))
  order by p.display_name
 $$;
 
@@ -177,7 +188,7 @@ begin
 end $$;
 
 -- ── 본인: 가능 시간 (요일 7개 통째로 바꿔요) ──
-create function public.kream_team_save_availability(rows jsonb,new_max_hours numeric,new_note text) returns void
+create function public.kream_team_save_availability(rows jsonb,new_max_hours numeric,new_note text,new_desired_hours numeric default null,new_want_max boolean default false) returns void
 language plpgsql security definer set search_path='' as $$
 begin
  if auth.uid() is null or not exists(select 1 from public.kream_profiles where user_id=auth.uid() and active) then raise exception 'Authentication required' using errcode='42501'; end if;
@@ -185,8 +196,8 @@ begin
  delete from public.kream_team_availability where user_id=auth.uid();
  insert into public.kream_team_availability(user_id,weekday,kind,start_min,end_min)
  select auth.uid(),(r->>'weekday')::smallint,r->>'kind',(r->>'start_min')::int,(r->>'end_min')::int from jsonb_array_elements(rows) r;
- insert into public.kream_team_prefs(user_id,max_hours,note,updated_at) values(auth.uid(),new_max_hours,coalesce(new_note,''),now())
- on conflict(user_id) do update set max_hours=excluded.max_hours,note=excluded.note,updated_at=now();
+ insert into public.kream_team_prefs(user_id,max_hours,desired_hours,want_max,note,updated_at) values(auth.uid(),new_max_hours,new_desired_hours,coalesce(new_want_max,false),coalesce(new_note,''),now())
+ on conflict(user_id) do update set max_hours=excluded.max_hours,desired_hours=excluded.desired_hours,want_max=excluded.want_max,note=excluded.note,updated_at=now();
 end $$;
 
 -- ── 매니저: 근무 저장·삭제 (게시된 근무를 바꾸면 그대로 게시 상태 유지) ──
@@ -251,11 +262,11 @@ language plpgsql security definer set search_path='' as $$
 declare s public.kream_team_shifts;
 begin
  select * into s from public.kream_team_shifts where id=target_shift;
- if not found or not s.published or not kream_private.team_member(s.store_id) then raise exception 'Shift not found' using errcode='42501'; end if;
+ if not found or not s.published or not (kream_private.team_member(s.store_id) or s.user_id=auth.uid() or (s.user_id is null and kream_private.team_any())) then raise exception 'Shift not found' using errcode='42501'; end if;
  if s.shift_date<(now() at time zone 'America/Toronto')::date then raise exception 'Shift already passed' using errcode='22023'; end if;
  if exists(select 1 from public.kream_team_swaps where shift_id=target_shift and status in ('open','accepted')) then raise exception 'Swap already requested' using errcode='22023'; end if;
  if s.user_id=auth.uid() then
-  if target_user is not null and (target_user=auth.uid() or not exists(select 1 from public.kream_memberships where user_id=target_user and store_id=s.store_id)) then raise exception 'Person is not on this store' using errcode='22023'; end if;
+  if target_user is not null and (target_user=auth.uid() or not kream_private.team_any_user(target_user)) then raise exception 'Person is not on a team store' using errcode='22023'; end if;
   insert into public.kream_team_swaps(id,shift_id,from_user,to_user,status,note) values(request_id,target_shift,auth.uid(),target_user,case when target_user is null then 'open' else 'accepted' end,coalesce(why,''));
  elsif s.user_id is null then
   insert into public.kream_team_swaps(id,shift_id,from_user,to_user,status,note) values(request_id,target_shift,null,auth.uid(),'accepted',coalesce(why,''));
@@ -280,7 +291,7 @@ begin
  select * into w from public.kream_team_swaps where id=target_id for update;
  if not found then raise exception 'Swap not found' using errcode='22023'; end if;
  select * into s from public.kream_team_shifts where id=w.shift_id;
- if w.status<>'open' or w.from_user=auth.uid() or not exists(select 1 from public.kream_memberships where user_id=auth.uid() and store_id=s.store_id) then raise exception 'Cannot take this shift' using errcode='42501'; end if;
+ if w.status<>'open' or w.from_user=auth.uid() or not kream_private.team_any() or not s.published or s.shift_date<(now() at time zone 'America/Toronto')::date then raise exception 'Cannot take this shift' using errcode='42501'; end if;
  if exists(select 1 from public.kream_team_shifts x where x.user_id=auth.uid() and x.shift_date=s.shift_date and x.start_min<s.end_min and s.start_min<x.end_min) then raise exception 'You already work then' using errcode='22023'; end if;
  update public.kream_team_swaps set to_user=auth.uid(),status='accepted' where id=target_id;
  if coalesce((select not swap_approval from public.kream_team_settings where store_id=s.store_id),false) then perform kream_private.apply_swap(target_id,null); end if;
@@ -303,12 +314,28 @@ begin
  if not found then raise exception 'Cannot cancel' using errcode='22023'; end if;
 end $$;
 
+-- ── 쉬프트 마켓: 1·3·4호점 통합. 올라온 근무 + 빈 근무 (지점·시간·올린 사람) ──
+create function public.kream_team_market() returns table(swap_id uuid,shift_id uuid,store_id text,shift_date date,start_min integer,end_min integer,shift_position text,from_user uuid,from_name text,note text,created_at timestamptz)
+language sql stable security definer set search_path='' as $$
+ select w.id,s.id,s.store_id,s.shift_date,s.start_min,s.end_min,s.position,w.from_user,p.display_name,w.note,w.created_at
+ from public.kream_team_swaps w join public.kream_team_shifts s on s.id=w.shift_id left join public.kream_profiles p on p.user_id=w.from_user
+ where kream_private.team_any() and w.status='open' and s.published and s.shift_date>=(now() at time zone 'America/Toronto')::date
+ union all
+ select null,s.id,s.store_id,s.shift_date,s.start_min,s.end_min,s.position,null,null,s.note,s.updated_at
+ from public.kream_team_shifts s
+ where kream_private.team_any() and s.user_id is null and s.published and s.shift_date>=(now() at time zone 'America/Toronto')::date
+  and not exists(select 1 from public.kream_team_swaps w where w.shift_id=s.id and w.status in ('open','accepted'))
+ order by 4,5
+$$;
+
 -- ── 출퇴근: 출근은 매장 POS에서 반경(기본 100m) 안에서만. 퇴근·휴식은 위치만 기록 ──
 create function public.kream_team_punch(request_id uuid,target_store text,punch text,lat double precision,lng double precision,accuracy double precision) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare st public.kream_team_settings; card public.kream_team_timecards; d double precision; geo jsonb; ok boolean;
 begin
- if auth.uid() is null or not kream_private.is_team_store(target_store) or not exists(select 1 from public.kream_memberships where user_id=auth.uid() and store_id=target_store) then raise exception 'Not on this store' using errcode='42501'; end if;
+ if auth.uid() is null or not kream_private.is_team_store(target_store) or not (exists(select 1 from public.kream_memberships where user_id=auth.uid() and store_id=target_store)
+  or exists(select 1 from public.kream_team_shifts where user_id=auth.uid() and store_id=target_store and published and shift_date between (now() at time zone 'America/Toronto')::date-1 and (now() at time zone 'America/Toronto')::date)
+  or exists(select 1 from public.kream_team_timecards where user_id=auth.uid() and store_id=target_store and clock_out is null)) then raise exception 'Not on this store' using errcode='42501'; end if;
  if punch not in ('in','out','break_start','break_end') then raise exception 'Bad punch' using errcode='22023'; end if;
  select * into st from public.kream_team_settings where store_id=target_store;
  if lat is not null and lng is not null and st.lat is not null then d:=kream_private.distance_m(st.lat,st.lng,lat,lng); end if;
@@ -419,7 +446,7 @@ begin
 end $$;
 
 do $$ declare f text; begin
- foreach f in array array['kream_team_people(text)','kream_team_save_settings(text,double precision,double precision,integer,integer,boolean,jsonb)','kream_team_save_availability(jsonb,numeric,text)','kream_team_save_shifts(text,jsonb,uuid[])','kream_team_publish(text,date,date)','kream_team_request_time_off(uuid,date,date,text)','kream_team_cancel_time_off(uuid)','kream_team_decide_time_off(uuid,boolean)','kream_team_swap_offer(uuid,uuid,uuid,text)','kream_team_swap_accept(uuid)','kream_team_swap_decide(uuid,boolean)','kream_team_swap_cancel(uuid)','kream_team_punch(uuid,text,text,double precision,double precision,double precision)','kream_team_save_timecard(uuid,uuid,text,timestamptz,timestamptz,jsonb,text)','kream_team_delete_timecard(uuid,text)','kream_team_request_timecard_fix(uuid,uuid,text,timestamptz,timestamptz,integer,text)','kream_team_cancel_timecard_fix(uuid)','kream_team_decide_timecard_fix(uuid,boolean)'] loop
+ foreach f in array array['kream_team_people(text)','kream_team_market()','kream_team_save_settings(text,double precision,double precision,integer,integer,boolean,jsonb)','kream_team_save_availability(jsonb,numeric,text,numeric,boolean)','kream_team_save_shifts(text,jsonb,uuid[])','kream_team_publish(text,date,date)','kream_team_request_time_off(uuid,date,date,text)','kream_team_cancel_time_off(uuid)','kream_team_decide_time_off(uuid,boolean)','kream_team_swap_offer(uuid,uuid,uuid,text)','kream_team_swap_accept(uuid)','kream_team_swap_decide(uuid,boolean)','kream_team_swap_cancel(uuid)','kream_team_punch(uuid,text,text,double precision,double precision,double precision)','kream_team_save_timecard(uuid,uuid,text,timestamptz,timestamptz,jsonb,text)','kream_team_delete_timecard(uuid,text)','kream_team_request_timecard_fix(uuid,uuid,text,timestamptz,timestamptz,integer,text)','kream_team_cancel_timecard_fix(uuid)','kream_team_decide_timecard_fix(uuid,boolean)'] loop
   execute format('revoke all on function public.%s from public,anon',f);
   execute format('grant execute on function public.%s to authenticated',f);
  end loop;
