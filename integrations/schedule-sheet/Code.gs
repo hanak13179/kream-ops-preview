@@ -5,7 +5,9 @@
  * 앱이 {action, token, ...}을 보내면, 이 스크립트가 그 사람의 로그인 토큰으로 Supabase에서 직접 읽어서 써요.
  * → 앱에서 숫자를 보내지 않으니 시트에 가짜 시간을 넣을 수 없어요 (팁 금액만 매니저 앱에서 같이 와요).
  *
- *  syncWeek         (매니저) 그 주 스케줄을 '<월> Schedule' 탭에 매장별(색)로. 같은 주는 다시 쓰고, 새 주는 아래에 계속 쌓여요. 지각·안 옴 표시.
+ *  syncWeek         (매니저) 그 주 스케줄을 '<월> Schedule' 탭에 매장마다 블록으로 (날짜 칸 아래 시간 / 시간수 / 이름, 사람마다 색).
+ *                   같은 주는 다시 쓰고 새 주는 아래에 계속 쌓여요. 지각·안 옴 표시.
+ *  ⟲ 시트에서 고치기  시간·이름 칸을 고치면 1분 안에 앱에 반영돼요 (메뉴 'Kream 스케줄' → 자동 반영 켜기, 처음 한 번).
  *  syncAvailability (누구나) 'Availability' 탭에서 그 사람 줄만 바꿔요 (매니저가 보내면 매장 사람 모두).
  *  syncPayroll      (매니저) 'Payroll' 탭에 2주 급여 요약 (시간·정규·초과 44h/주·카드팁·현금팁·지각). 같은 기간은 다시 써요.
  *
@@ -32,7 +34,7 @@ function doPost(e) {
     const profile = sb(body.token, `kream_profiles?user_id=eq.${me}&select=role,display_name,active`)[0] || {};
     const manager = profile.active && ['owner', 'manager'].indexOf(profile.role) >= 0;
     let out;
-    if (body.action === 'syncWeek') { if (!manager) throw new Error('Manager access required'); out = syncWeek(body.token, body.week_start); }
+    if (body.action === 'syncWeek') { if (!manager) throw new Error('Manager access required'); out = syncWeek(body.token, body.week_start, body.stores || []); }
     else if (body.action === 'syncAvailability') out = syncAvailability(body.token);
     else if (body.action === 'syncPayroll') { if (!manager) throw new Error('Manager access required'); out = syncPayroll(body.token, body.from, body.to, body.tips || []); }
     else throw new Error('Unknown action');
@@ -95,56 +97,149 @@ function writeBlock(sh, key, rows, styles) {
   if (width > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), width - sh.getMaxColumns());
   const rg = sh.getRange(at, 1, grid.length, width);
   rg.setValues(grid).setBackground(null).setFontWeight('normal').setFontColor('#2b2a26').setWrap(true).setVerticalAlignment('top');
-  (styles || []).forEach(s => { const r = sh.getRange(at + s.row, 1 + (s.col || 0), 1, s.cols || width); if (s.bg) r.setBackground(s.bg); if (s.bold) r.setFontWeight('bold'); if (s.color) r.setFontColor(s.color); if (s.size) r.setFontSize(s.size); });
+  (styles || []).forEach(s => { const r = sh.getRange(at + s.row, 1 + (s.col || 0), 1, s.cols || width); if (s.bg) r.setBackground(s.bg); if (s.bold) r.setFontWeight('bold'); if (s.color) r.setFontColor(s.color); if (s.size) r.setFontSize(s.size); if (s.align) r.setHorizontalAlignment(s.align); if (s.italic) r.setFontStyle('italic'); });
   return at;
 }
 
-// ── 스케줄 (주마다 쌓기) ──
-function syncWeek(token, weekStart) {
+// ── 스케줄 (예전 엑셀처럼: 매장마다·주마다 블록, 날짜 칸 아래로 시간 / 시간수 / 이름) ──
+const MONTHS3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const DAYS_FULL = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+const PERSON_COLORS = ['#f4cccc', '#fce5cd', '#fff2cc', '#d9ead3', '#d0e0e3', '#c9daf8', '#d9d2e9', '#ead1dc', '#e6b8af', '#b6d7a8', '#a2c4c9', '#b4a7d6', '#f9cb9c', '#ffe599', '#9fc5e8', '#d5a6bd'];
+function personColor(name) { let h = 0; String(name).split('').forEach(c => { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return PERSON_COLORS[h % PERSON_COLORS.length]; }
+const blockKey = (weekStart, store) => `# ${weekStart} ${store}`;
+const hmSpace = (a, b) => `${hm(a)} ~ ${hm(b)}`;
+
+/** stores: 앱에서 매니저가 관리하는 매장들. 그 매장 사람(멤버)인 경우만 써요 */
+function syncWeek(token, weekStart, stores) {
   weekStart = weekStartOf(weekStart);
   const end = ymdAdd(weekStart, 6), dates = [0, 1, 2, 3, 4, 5, 6].map(i => ymdAdd(weekStart, i));
   const ppl = people(token);
   const shifts = sb(token, `kream_team_shifts?select=*&published=eq.true&shift_date=gte.${weekStart}&shift_date=lte.${end}&order=start_min`);
   const cards = sb(token, `kream_team_timecards?select=*&clock_in=gte.${isoBound(ymdAdd(weekStart, -1))}&clock_in=lt.${isoBound(ymdAdd(end, 2))}`);
-  const name = id => id ? ((ppl[id] && ppl[id].name) || '?') : 'OPEN (빈 근무)';
-  const now = new Date(), today = local(now.toISOString()), nowMin = localMin(now.toISOString());
-  const rows = [[`# WEEK ${weekStart}`, `Week of ${md(weekStart)} – ${md(end)}, ${end.slice(0, 4)}`, `updated ${Utilities.formatDate(now, TZ, 'MMM d HH:mm')}`]];
-  const styles = [{row: 0, bold: true, bg: '#3e4b33', color: '#ffffff', size: 12}];
-  rows.push(['Store', 'Name'].concat(dates.map(d => `${DAYS[wd(d)]} ${md(d)}`), ['Hours', 'Late']));
-  styles.push({row: 1, bold: true, bg: '#efe9da'});
-  STORES.forEach(st => {
-    const list = shifts.filter(s => s.store_id === st);
-    if (!list.length) return;
-    const who = []; list.forEach(s => { const k = s.user_id || 'open'; if (who.indexOf(k) < 0) who.push(k); });
-    who.sort((a, b) => name(a === 'open' ? null : a).localeCompare(name(b === 'open' ? null : b)));
-    who.forEach(k => {
-      const id = k === 'open' ? null : k; let hrs = 0, lates = 0;
-      const cells = dates.map(d => list.filter(s => (s.user_id || null) === id && s.shift_date === d).map(s => {
-        hrs += (s.end_min - s.start_min) / 60;
-        let txt = `${hm(s.start_min)}–${hm(s.end_min)}${s.position ? ' ' + s.position : ''}`;
-        if (id) {
-          const tc = cards.filter(c => c.user_id === id && c.store_id === st && local(c.clock_in) === d)[0];
-          if (tc) { const late = localMin(tc.clock_in) - s.start_min; if (late > LATE_GRACE) { txt += ` ⚠ late ${late}m`; lates++; } }
-          else if (d < today || (d === today && nowMin > s.start_min + 15)) txt += ' ✗ no-show';
-        }
-        return txt;
-      }).join('\n'));
-      rows.push([STORE[st].label, name(id)].concat(cells, [r2(hrs), lates || '']));
-      styles.push({row: rows.length - 1, bg: STORE[st].bg});
-      if (lates) styles.push({row: rows.length - 1, col: 2 + 7 + 1, cols: 1, color: '#b00020', bold: true});
-    });
-  });
-  if (rows.length === 2) rows.push(['', '(게시된 근무 없음)']);
+  const mine = (stores && stores.length ? stores : STORES).filter(st => STORES.indexOf(st) >= 0 && rpc(token, 'kream_team_people', {target_store: st}).length);
   const sh = sheetNamed(monthTab(weekStart, 'Schedule'));
-  writeBlock(sh, `# WEEK ${weekStart}`, rows, styles);
-  sh.setColumnWidth(1, 140); sh.setColumnWidth(2, 130); for (let c = 3; c <= 9; c++) sh.setColumnWidth(c, 125);
-  return {tab: sh.getName(), rows: rows.length - 2};
+  const now = new Date(), today = local(now.toISOString()), nowMin = localMin(now.toISOString());
+  mine.forEach(st => {
+    const name = id => id ? ((ppl[id] && ppl[id].name) || '?') : 'OPEN';
+    const byDay = dates.map(d => shifts.filter(s => s.store_id === st && s.shift_date === d).sort((a, b) => a.start_min - b.start_min || a.end_min - b.end_min));
+    const slots = Math.max(1, ...byDay.map(l => l.length)) + 1;   // 맨 아래 빈 칸 한 줄: 시트에서 근무 추가용
+    const rows = [], styles = [];
+    rows.push([blockKey(weekStart, st), `${STORE[st].label}  ·  ${md(weekStart)} – ${md(end)}, ${end.slice(0, 4)}`, '', '', '', '', '', '', `앱에서 보냄 ${Utilities.formatDate(now, TZ, 'MMM d HH:mm')}`]);
+    styles.push({row: 0, col: 1, cols: 7, bg: STORE[st].bg, bold: true, size: 12}, {row: 0, col: 8, cols: 1, color: '#888888', size: 9}, {row: 0, col: 0, cols: 1, color: '#bbbbbb', size: 8});
+    rows.push([''].concat(dates.map(d => `${MONTHS3[Number(d.slice(5, 7)) - 1]}.${Number(d.slice(8))}`)));
+    styles.push({row: 1, col: 1, cols: 7, bg: '#fff7c2', bold: true, align: 'center'});
+    rows.push([''].concat(dates.map(d => DAYS_FULL[wd(d)])));
+    styles.push({row: 2, col: 1, cols: 5, bold: true, align: 'center'}, {row: 2, col: 6, cols: 2, bold: true, color: '#d00000', italic: true, align: 'center'});
+    for (let k = 0; k < slots; k++) {
+      const tr = [''], hr = [''], nr = [''], base = rows.length;
+      byDay.forEach((list, i) => {
+        const s = list[k];
+        if (!s) { tr.push(''); hr.push(''); nr.push(''); return; }
+        tr.push(hmSpace(s.start_min, s.end_min) + (s.position ? ` ${s.position}` : ''));
+        hr.push(r2((s.end_min - s.start_min) / 60));
+        let nm = name(s.user_id), mark = '';
+        if (s.user_id) {
+          const tc = cards.filter(c => c.user_id === s.user_id && c.store_id === st && local(c.clock_in) === dates[i])[0];
+          if (tc) { const late = localMin(tc.clock_in) - s.start_min; if (late > LATE_GRACE) mark = ` ⚠ ${late}m late`; }
+          else if (dates[i] < today || (dates[i] === today && nowMin > s.start_min + 15)) mark = ' ✗ no-show';
+        }
+        nr.push(nm + mark);
+        styles.push({row: base + 2, col: 1 + i, cols: 1, bg: s.user_id ? personColor(nm) : '#eeeeee'});
+        if (mark) styles.push({row: base + 2, col: 1 + i, cols: 1, color: '#b00020', bold: true});
+      });
+      rows.push(tr, hr, nr);
+      styles.push({row: base, col: 1, cols: 7, bold: true, align: 'center'}, {row: base + 1, col: 1, cols: 7, align: 'center', color: '#555555'}, {row: base + 2, col: 1, cols: 7, align: 'center'});
+    }
+    rows.push(['']);
+    writeBlock(sh, blockKey(weekStart, st), rows, styles);
+  });
+  sh.setColumnWidth(1, 28); for (let c = 2; c <= 8; c++) sh.setColumnWidth(c, 150); sh.setColumnWidth(9, 220);
+  return {tab: sh.getName(), stores: mine};
+}
+
+// ── 시트에서 고치면 앱에 반영 ──
+// 스크립트 속성: TEAM_SHEET_SECRET (Supabase 비밀값과 같게), FUNCTION_URL (…/functions/v1/kream-team-sheet)
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Kream 스케줄')
+    .addItem('바뀐 스케줄 지금 앱에 반영', 'pushDirty')
+    .addItem('이 블록 앱에 반영 (커서가 있는 곳)', 'pushCurrent')
+    .addSeparator().addItem('자동 반영 켜기 (처음 한 번만)', 'installTriggers').addToUi();
+}
+function installTriggers() {
+  ScriptApp.getProjectTriggers().forEach(t => { if (['onEditInstalled', 'pushDirty'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('onEditInstalled').forSpreadsheet(SpreadsheetApp.getActive()).onEdit().create();
+  ScriptApp.newTrigger('pushDirty').timeBased().everyMinutes(1).create();
+  SpreadsheetApp.getActive().toast('자동 반영을 켰어요. 스케줄 칸을 고치면 1분 안에 앱에 반영돼요.');
+}
+function keyAbove(sh, row) {
+  const top = Math.max(1, row - 80), vals = sh.getRange(top, 1, row - top + 1, 1).getValues();
+  for (let i = vals.length - 1; i >= 0; i--) { const v = String(vals[i][0]); if (v.indexOf('# ') === 0) return {key: v, row: top + i}; }
+  return null;
+}
+function onEditInstalled(e) {
+  const sh = e.range.getSheet();
+  if (!/Schedule$/.test(sh.getName()) || e.range.getColumn() > 8) return;
+  const k = keyAbove(sh, e.range.getRow());
+  if (!k || e.range.getRow() < k.row + 3) return;
+  const props = PropertiesService.getDocumentProperties(), dirty = JSON.parse(props.getProperty('dirty') || '{}');
+  dirty[sh.getName() + '|' + k.key] = Date.now(); props.setProperty('dirty', JSON.stringify(dirty));
+}
+function pushCurrent() {
+  const sh = SpreadsheetApp.getActiveSheet(), k = keyAbove(sh, sh.getActiveCell().getRow());
+  if (!k) { SpreadsheetApp.getActive().toast('스케줄 블록 안을 눌러 주세요'); return; }
+  SpreadsheetApp.getActive().toast(pushBlock(sh, k.key));
+}
+function pushDirty() {
+  const lock = LockService.getDocumentLock(); if (!lock.tryLock(5000)) return;
+  try {
+    const props = PropertiesService.getDocumentProperties(), dirty = JSON.parse(props.getProperty('dirty') || '{}');
+    Object.keys(dirty).forEach(id => {
+      if (Date.now() - dirty[id] < 20000) return;   // 아직 고치는 중이면 다음 번에
+      const [tab, key] = [id.slice(0, id.indexOf('|')), id.slice(id.indexOf('|') + 1)], sh = SpreadsheetApp.getActive().getSheetByName(tab);
+      if (sh) pushBlock(sh, key);
+      delete dirty[id];
+    });
+    props.setProperty('dirty', JSON.stringify(dirty));
+  } finally { lock.releaseLock(); }
+}
+function parseRange(text) {
+  const m = String(text || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*[~\-–—]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(.*)$/i);
+  if (!m) return null;
+  const t = (h, mi, ap) => { h = Number(h); mi = Number(mi || 0); if (ap) { h = h % 12 + (/p/i.test(ap) ? 12 : 0); } return h * 60 + mi; };
+  let a = t(m[1], m[2], m[3]), b = t(m[4], m[5], m[6] || (m[3] && !m[6] && Number(m[4]) < Number(m[1]) ? 'pm' : ''));
+  if (b === 0) b = 1440;
+  return b > a && b <= 1440 ? {start_min: a, end_min: b, position: m[7].trim()} : null;
+}
+function pushBlock(sh, key) {
+  const parts = key.split(' '), weekStart = parts[1], store = parts[2];
+  const props = PropertiesService.getScriptProperties(), url = props.getProperty('FUNCTION_URL'), secret = props.getProperty('TEAM_SHEET_SECRET');
+  const last = sh.getLastRow(), colA = sh.getRange(1, 1, last, 1).getValues().map(r => String(r[0]));
+  const at = colA.indexOf(key) + 1; if (!at) return '블록을 못 찾았어요';
+  let len = 1; while (at + len <= last && colA[at + len - 1].indexOf('#') !== 0) len++;
+  const grid = sh.getRange(at, 1, len, 9).getValues(), shifts = [], bad = [];
+  for (let r = 3; r + 2 < grid.length; r += 3) for (let c = 1; c <= 7; c++) {
+    const time = String(grid[r][c]).trim(), nm = String(grid[r + 2][c]).trim();
+    if (!time && !nm) continue;
+    const t = parseRange(time);
+    if (!t) { bad.push(`${md(ymdAdd(weekStart, c - 1))} “${time || '(시간 없음)'}”`); continue; }
+    shifts.push({date: ymdAdd(weekStart, c - 1), start_min: t.start_min, end_min: t.end_min, position: t.position, name: nm});
+  }
+  const status = sh.getRange(at, 9);
+  if (!url || !secret) { status.setValue('⚠ 앱 반영 설정 전 (FUNCTION_URL / TEAM_SHEET_SECRET)'); return '설정이 필요해요'; }
+  const r = UrlFetchApp.fetch(url, {method: 'post', contentType: 'application/json', headers: {'x-kream-sheet-secret': secret}, payload: JSON.stringify({store_id: store, week_start: weekStart, shifts}), muteHttpExceptions: true});
+  const out = JSON.parse(r.getContentText() || '{}');
+  // 시간수 줄은 시트에서도 바로 다시 계산
+  for (let rr = 3; rr + 2 < grid.length; rr += 3) for (let c = 1; c <= 7; c++) { const t = parseRange(grid[rr][c]); sh.getRange(at + rr + 1, 1 + c).setValue(t ? r2((t.end_min - t.start_min) / 60) : ''); }
+  const warn = (out.warnings || []).concat(bad.map(b => `${b}: 시간을 못 읽었어요 (예: 10:00 ~ 16:00)`));
+  const msg = out.ok ? `✅ 앱에 반영 ${Utilities.formatDate(new Date(), TZ, 'MMM d HH:mm')} (${out.changed}개 바뀜)${warn.length ? '\n⚠ ' + warn.join('\n⚠ ') : ''}` : `⚠ 반영 실패: ${out.error || r.getResponseCode()}`;
+  status.setValue(msg).setFontColor(warn.length || !out.ok ? '#b00020' : '#2e7d32').setWrap(true);
+  return msg.split('\n')[0];
 }
 
 // ── 가능 시간 ──
 function syncAvailability(token) {
   const ppl = people(token), avail = sb(token, 'kream_team_availability?select=*'), prefs = sb(token, 'kream_team_prefs?select=*');
-  const sh = sheetNamed('Availability'), head = ['user_id', 'Name', 'Stores', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Max hrs/wk', 'Note', 'Updated'];
+  const sh = sheetNamed('Availability'), head = ['user_id', 'Name', 'Stores', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Wants hrs/wk', 'Max hrs/wk', 'Note', 'Updated'];
   if (sh.getLastRow() === 0) { sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold').setBackground('#efe9da'); sh.setFrozenRows(1); sh.hideColumns(1); }
   const ids = {}; avail.forEach(a => { ids[a.user_id] = 1; }); prefs.forEach(p => { ids[p.user_id] = 1; });
   const order = [1, 2, 3, 4, 5, 6, 0], stamp = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm');
@@ -154,7 +249,7 @@ function syncAvailability(token) {
     const p = ppl[id]; if (!p) return;
     const pr = prefs.filter(x => x.user_id === id)[0] || {};
     const cells = order.map(d => { const a = avail.filter(x => x.user_id === id && Number(x.weekday) === d)[0]; return !a ? '' : a.kind === 'none' ? '✗ not available' : a.kind === 'range' ? `${hm(a.start_min)}–${hm(a.end_min)}` : '✓ any time'; });
-    const row = [id, p.name, p.stores.map(s => STORE[s].label).join(', ')].concat(cells, [pr.max_hours == null ? '' : pr.max_hours, pr.note || '', stamp]);
+    const row = [id, p.name, p.stores.map(s => STORE[s].label).join(', ')].concat(cells, [pr.want_max ? 'As many as possible' : (pr.desired_hours == null ? '' : pr.desired_hours), pr.max_hours == null ? '' : pr.max_hours, pr.note || '', stamp]);
     const i = existing.indexOf(id), at = i >= 0 ? i + 2 : sh.getLastRow() + 1;
     sh.getRange(at, 1, 1, row.length).setValues([row]).setBackground(STORE[p.stores[0]].bg);
     if (i < 0) existing.push(id);
