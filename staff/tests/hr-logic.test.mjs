@@ -33,6 +33,17 @@ test('people: late, no-show, open punches, schedule problems, headline',()=>{
  assert.deepEqual(openPunches({timecards,people,now}).map(x=>x.name),['Ben']);
  const p=scheduleProblems({stores:['downtown','finch'],shifts,people,today,timeOff:[{status:'pending'}]});
  assert.deepEqual(p.unpublished.map(x=>[x.store_id,x.drafts]),[['downtown',1],['finch',0]]);assert.equal(p.open.length,1);assert.equal(p.pendingTimeOff,1);
- const h=headline({orders:[{done:false}],cash:[{done:false},{done:true}],attendanceRows:a,open:[1],problems:p,sold:{finch:[1,2]},factory:1,notRec:0,pendingAccounts:2});
+ const h=headline({nowMin:23*60,orders:[{done:false}],cash:[{done:false},{done:true}],attendanceRows:a,open:[1],problems:p,sold:{finch:[1,2]},factory:1,notRec:0,pendingAccounts:2});
  assert.deepEqual(h.map(x=>x.key),['order','cash','open','noshow','late','schedule','soldout','factory','accounts']);
+});
+import {carriedSet,ORDER_DUE_MIN} from '../hr-logic.mjs';
+test('only items the store actually carries count as sold out; evening-only red; counted factory only',()=>{
+ const stock=[{store_id:'midland',product_id:'x',on_hand:0},{store_id:'midland',product_id:'y',on_hand:0},{store_id:'finch',product_id:'z',on_hand:0,minimum:2}];
+ const carried=carriedSet({stock,rules:[],orders:[{store_id:'midland',status:'dispatched',kream_order_items:[{product_id:'x',quantity:3}]}]});
+ const so=soldOut({stock,catalog:[],stores:['midland','finch'],carried});
+ assert.deepEqual(so.midland.map(x=>x.product_id),['x']);assert.deepEqual(so.finch.map(x=>x.product_id),['z']);
+ const base={cash:[{done:false}],attendanceRows:[],open:[],problems:{unpublished:[],open:[],conflicts:[],pendingTimeOff:0,pendingSwaps:0,pendingFixes:0},sold:{},factory:0,notRec:0,pendingAccounts:0,orders:[{done:false}]};
+ assert.deepEqual(headline({...base,nowMin:12*60}).map(x=>x.key),[]);
+ assert.deepEqual(headline({...base,nowMin:ORDER_DUE_MIN}).map(x=>x.key),['order']);
+ assert.deepEqual(factoryOut({finished:[{product_id:'a',quantity:-5,counted:false},{product_id:'b',quantity:0,counted:true}],catalog:[]}).map(x=>x.product_id),['b']);
 });
