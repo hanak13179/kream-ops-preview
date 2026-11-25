@@ -4,7 +4,8 @@
 // 직원 관리: 초대 링크, 가입·근무지 요청 승인, 매장 지정 (Sora의 accounts 화면을 그대로 써요) / 🔔 알림 설정
 import {TEAM_STORES, STORE_COLORS, today, addDays, fmtDate, fmtRange, fmtTime, localParts} from './team-logic.mjs?v=20261125-team4';
 import {teamBackend} from './team-data.mjs?v=20261125-team4';
-import {orderStatus, missedOrders, soldOut, longSoldOut, staleCounts, factoryOut, lowMaterials, notReceived, attendance, openPunches, scheduleProblems, headline, ORDER_STORES, LONG_OUT_DAYS, STALE_COUNT_DAYS, MISSED_ORDER_DAYS, PEOPLE_DAYS} from './hr-logic.mjs?v=20261125-hr1';
+import {readAllRows} from './read-rows.mjs';
+import {carriedSet, ORDER_DUE_MIN, CASH_DUE_MIN, orderStatus, missedOrders, soldOut, longSoldOut, staleCounts, factoryOut, lowMaterials, notReceived, attendance, openPunches, scheduleProblems, headline, ORDER_STORES, LONG_OUT_DAYS, STALE_COUNT_DAYS, MISSED_ORDER_DAYS, PEOPLE_DAYS} from './hr-logic.mjs?v=20261125-hr2';
 import {renderAccounts} from './accounts.mjs?v=20261125-hr1';
 import {pushState, enablePush, disablePush, PUSH_TOPICS} from './push.mjs?v=20261125-hr1';
 
@@ -62,12 +63,14 @@ export async function renderHR(host, c) {
 
   async function load() {
     const d = today(), safe = p => p.then(r => r?.error ? [] : (r?.data ?? r ?? [])).catch(() => []);
-    const [ordersAll, receiptsAll, baskets, stock, finished, materials, accounts, cash, team] = await Promise.all([
-      safe(db.from('kream_orders').select('id,store_id,delivery_date,status,kream_order_items(product_id,quantity)').gte('delivery_date', addDays(d, -(MISSED_ORDER_DAYS + LONG_OUT_DAYS + 1))).lte('delivery_date', addDays(d, 2)).limit(3000)),
-      safe(db.from('kream_receipts').select('order_id,store_id').gte('created_at', addDays(d, -14)).limit(3000)),
+    const all = mk => readAllRows(mk).catch(() => []);
+    const [ordersAll, receiptsAll, rules, baskets, stock, finished, materials, accounts, cash, team] = await Promise.all([
+      all(() => db.from('kream_orders').select('id,store_id,delivery_date,status,kream_order_items(product_id,quantity)').gte('delivery_date', addDays(d, -30)).lte('delivery_date', addDays(d, 2)).order('id')),
+      all(() => db.from('kream_receipts').select('order_id,store_id').gte('created_at', addDays(d, -45)).order('id')),
+      all(() => db.from('kream_stock_rules').select('store_id,product_id,weekday_base,weekend_base').order('store_id').order('product_id')),
       safe(db.from('kream_store_baskets').select('store_id,delivery_date,items').gte('delivery_date', addDays(d, -1)).lte('delivery_date', addDays(d, 2))),
-      safe(db.from('kream_stock').select('store_id,product_id,on_hand,minimum,updated_at,physical_count_at').limit(5000)),
-      factorySide ? safe(db.from('kream_finished_stock').select('product_id,order_unit,quantity,updated_at')) : [],
+      all(() => db.from('kream_stock').select('store_id,product_id,on_hand,minimum,updated_at,physical_count_at').order('store_id').order('product_id')),
+      factorySide ? safe(db.from('kream_finished_stock').select('product_id,order_unit,quantity,counted,updated_at')) : [],
       factorySide ? safe(db.from('kream_materials').select('id,name_ko,name_en,unit,on_hand,minimum,active')) : [],
       ['owner', 'manager'].includes(c.profile.role) ? safe(db.rpc('kream_list_accounts')) : [],
       Promise.all(teamStores.map(st => (c.cashSaved ? c.cashSaved(st, d) : Promise.resolve(null)).then(done => ({store_id: st, done})).catch(() => ({store_id: st, done: null})))),
@@ -75,15 +78,16 @@ export async function renderHR(host, c) {
     ]);
     // 앱이 들고 있는 발주는 지금 매장 것만이라서, 여기서 모든 매장 것을 따로 불러요
     const catalog = c.catalogAll || [], orders = ordersAll.length ? ordersAll : (c.orders || []), receipts = [...receiptsAll, ...(c.receipts || [])];
-    const people = team?.people || [];
+    const people = team?.people || [], carried = carriedSet({stock, rules, orders});
     const tm = team || {shifts: [], timecards: [], timeOff: [], swaps: [], fixes: [], availability: [], prefs: {}};
     const pendingAccounts = (accounts || []).filter(a => !a.active && !a.access_blocked || (a.requests || []).some(r => r.status === 'pending')).length;
     const data = {
       orders: orderStatus({stores: orderStores, orders, baskets, today: d}),
       missed: missedOrders({stores: orderStores, orders, today: addDays(d, 1), days: MISSED_ORDER_DAYS}).filter(m => m.date <= d),
-      cash, sold: soldOut({stock, catalog, stores: orderStores}),
-      longOut: longSoldOut({stock, orders, catalog, today: d, stores: orderStores}),
-      stale: staleCounts({stock, catalog, today: d, stores: orderStores}),
+      cash, sold: soldOut({stock, catalog, stores: orderStores, carried}),
+      longOut: longSoldOut({stock, orders, catalog, today: d, stores: orderStores, carried}),
+      stale: staleCounts({stock, catalog, today: d, stores: orderStores, carried}),
+      factoryUncounted: finished.filter(f => f.counted === false && Number(f.quantity) < 0).length,
       factory: factoryOut({finished, catalog}), materials: lowMaterials(materials),
       notRec: notReceived({orders: orders.filter(o => orderStores.includes(o.store_id)), receipts, today: d}),
       attendance: attendance({shifts: tm.shifts, timecards: tm.timecards, people, today: d}),
@@ -91,7 +95,8 @@ export async function renderHR(host, c) {
       schedule: scheduleProblems({stores: teamStores, shifts: tm.shifts, timeOff: tm.timeOff, swaps: tm.swaps, fixes: tm.fixes, availability: tm.availability, prefs: tm.prefs, people, today: d}),
       pendingAccounts, teamMode: team?.mode || 'none', teamWhy: team?.why || '', people
     };
-    data.head = headline({orders: data.orders, cash: data.cash, attendanceRows: data.attendance, open: data.open, problems: data.schedule, sold: data.sold, factory: data.factory.length, notRec: data.notRec.length, pendingAccounts});
+    data.nowMin = localParts(new Date()).min;
+    data.head = headline({nowMin: data.nowMin, orders: data.orders, cash: data.cash, attendanceRows: data.attendance, open: data.open, problems: data.schedule, sold: data.sold, factory: data.factory.length, notRec: data.notRec.length, pendingAccounts});
     S.data = data;
   }
   try { await load(); } catch (e) { host.innerHTML = `<div class="hr"><p class="hr-msg err">${esc(e.message || e)}</p></div>`; return; }
@@ -107,10 +112,11 @@ export async function renderHR(host, c) {
 
   function draw() {
     const D = S.data, d = today();
-    const now = `<div class="hr-top">${D.orders.map(o => `<div style="background:${o.done ? '#e3f1dc' : '#fde2df'}">${o.done ? '✅' : o.inProgress ? '🛒' : '⏳'} ${esc(sn(o.store_id))}<small>${o.done ? t(`발주 완료 (${fmtDate(o.date, lang)} 도착)`, `Ordered (arrives ${fmtDate(o.date, lang)})`) : o.inProgress ? t(`발주함에 ${o.items}개 · 아직 발주완료 안 함`, `${o.items} in basket · not submitted`) : t('아직 발주 안 함', 'No order yet')}</small></div>`).join('')}
-      ${D.cash.map(cc => `<div style="background:${cc.done ? '#e3f1dc' : cc.done === false ? '#fde2df' : '#f3efe4'}">${cc.done ? '✅' : cc.done === false ? '💵' : '·'} ${esc(sn(cc.store_id))}<small>${cc.done ? t('캐시 카운트 완료', 'Cash count done') : cc.done === false ? t('캐시 카운트 아직 안 함', 'Cash count not done') : t('캐시 카운트 확인 못 함', 'Could not check cash count')}</small></div>`).join('')}</div>
+    const orderDue = D.nowMin >= ORDER_DUE_MIN, cashDue = D.nowMin >= CASH_DUE_MIN, GRAY = '#f3efe4';
+    const now = `<div class="hr-top">${D.orders.map(o => `<div style="background:${o.done ? '#e3f1dc' : orderDue ? '#fde2df' : GRAY}">${o.done ? '✅' : o.inProgress ? '🛒' : '⏳'} ${esc(sn(o.store_id))}<small>${o.done ? t(`발주 완료 (${fmtDate(o.date, lang)} 도착)`, `Ordered (arrives ${fmtDate(o.date, lang)})`) : o.inProgress ? t(`발주함에 ${o.items}개 · 아직 발주완료 안 함`, `${o.items} in basket · not submitted`) : orderDue ? t('아직 발주 안 함', 'No order yet') : t('아직 발주 전 (보통 저녁에 해요)', 'Not yet (usually evening)')}</small></div>`).join('')}
+      ${D.cash.map(cc => `<div style="background:${cc.done ? '#e3f1dc' : cc.done === false && cashDue ? '#fde2df' : GRAY}">${cc.done ? '✅' : cc.done === false ? '💵' : '·'} ${esc(sn(cc.store_id))}<small>${cc.done ? t('캐시 카운트 완료', 'Cash count done') : cc.done === false ? (cashDue ? t('캐시 카운트 아직 안 함', 'Cash count not done') : t('캐시 카운트는 마감 후에 해요', 'Cash count is after closing')) : t('캐시 카운트 확인 못 함', 'Could not check cash count')}</small></div>`).join('')}</div>
       ${D.open.length ? `<h4 style="margin:12px 0 4px">⏱ ${t('퇴근을 안 찍었어요', 'Still clocked in')}</h4>${D.open.map(o => `<div class="hr-row"><span><b>${esc(o.name)}</b> · ${esc(sn(o.store_id))} · ${esc(fmtDate(o.date, lang))}</span><span class="hr-tag red">${o.hours}h ${t('째', '')}</span></div>`).join('')}<p class="hr-muted">${t('📅 스케줄 → 근무기록에서 퇴근 시간을 고쳐 주세요.', 'Fix the clock-out in 📅 Schedule → Timesheets.')}</p>` : ''}`;
-    const nowCount = D.orders.filter(o => !o.done).length + D.cash.filter(x => x.done === false).length + D.open.length;
+    const nowCount = (orderDue ? D.orders.filter(o => !o.done).length : 0) + (cashDue ? D.cash.filter(x => x.done === false).length : 0) + D.open.length;
     const ppl = D.attendance.map(r => `<div class="hr-row"><span><b>${esc(r.name)}</b><br>${r.noShow.map(x => `<span class="hr-tag red">✗ ${esc(fmtDate(x.date, lang))} ${esc(sn(x.store_id).split(' ')[0])}</span>`).join('')}${r.late.map(x => `<span class="hr-tag amber">⚠ ${esc(fmtDate(x.date, lang))} ${x.minutes}${t('분', 'm')}</span>`).join('')}</span><span>${r.noShow.length ? `<span class="hr-tag red">${t('미출근', 'no-show')} ${r.noShow.length}</span>` : ''}${r.late.length ? `<span class="hr-tag amber">${t('지각', 'late')} ${r.late.length}</span>` : ''}</span></div>`).join('')
       || `<p class="hr-muted">${D.teamMode === 'live' ? t(`최근 ${PEOPLE_DAYS}일 지각·미출근 없어요 👍`, `No late or no-show in ${PEOPLE_DAYS} days 👍`) : t('📅 스케줄 DB가 아직 없어서 출퇴근 기록이 없어요.', 'Schedule database not installed yet, so no punches.')}</p>`;
     const P = D.schedule;
@@ -127,6 +133,7 @@ export async function renderHR(host, c) {
     const recBody = D.notRec.length ? D.notRec.map(o => `<div class="hr-row"><span>${esc(sn(o.store_id))}</span><span class="hr-tag amber">${esc(fmtDate(o.date, lang))} ${t('도착분', 'delivery')}</span></div>`).join('') + `<p class="hr-muted">${t('공장이 보냈는데 매장에서 입고확인을 안 했어요.', 'Factory sent it but the store has not confirmed receiving.')}</p>` : `<p class="hr-muted">${t('모두 입고확인 했어요 👍', 'All received 👍')}</p>`;
     const facBody = !factorySide ? `<p class="hr-muted">${t('공장 매니저·운영진만 봐요.', 'Factory managers and owners only.')}</p>` :
       (D.factory.length ? `<h4 style="margin:4px 0">🏭 ${t('완제품', 'Finished goods')}</h4>${D.factory.map(f => `<div class="hr-row"><span>${esc(f.name)}</span><span class="hr-tag ${f.quantity < 0 ? 'red' : 'amber'}">${f.quantity < 0 ? t(`${-f.quantity} 부족`, `${-f.quantity} short`) : t('0 · 없음', '0 · out')}</span></div>`).join('')}` : `<p class="hr-muted">${t('완제품 재고 없는 것 없어요 👍', 'No finished goods out 👍')}</p>`)
+      + (D.factoryUncounted ? `<p class="hr-muted">${t(`재고를 센 적 없는 완제품 ${D.factoryUncounted}개는 마이너스(보낸 게 더 많음)라서 빼고 보여줘요. 🏭 완제품 재고관리에서 세면 여기 나와요.`, `${D.factoryUncounted} finished goods were never counted (negative = sent more than counted) and are left out. Count them in Finished stock to see them here.`)}</p>` : '')
       + (D.materials.length ? `<h4 style="margin:12px 0 4px">🧂 ${t('원재료·소모품 부족', 'Low materials')}</h4>${D.materials.map(m => `<div class="hr-row"><span>${esc(m.name)}</span><span class="hr-tag ${m.on_hand <= 0 ? 'red' : 'amber'}">${m.on_hand}${m.minimum != null ? ` / ${t('최소', 'min')} ${m.minimum}` : ''} ${esc(m.unit)}</span></div>`).join('')}` : '');
     const push = S.push || {};
     const pushBody = `<p class="hr-sub">${t('폰에 알림이 와요: 발주·캐시 카운트 안 했을 때, 지각·미출근, 퇴근 안 찍었을 때, 요청이 들어왔을 때, 공장 재고 부족.', 'Get phone alerts: order or cash count not done, late/no-show, not clocked out, new requests, factory shortages.')}</p>

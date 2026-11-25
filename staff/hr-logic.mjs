@@ -26,36 +26,44 @@ export function missedOrders({stores = ORDER_STORES, orders = [], today = toront
 }
 const nameOf = (catalog, id) => { const p = catalog.find(c => c.id === id); return p ? (p.name_ko || p.name_en || id) : id; };
 const active = (catalog, id) => { const p = catalog.find(c => c.id === id); return !p || (p.active !== false && !p.archived); };
-/** 지점별 품절 (재고 0 이하) */
-export function soldOut({stock = [], catalog = [], stores = ORDER_STORES}) {
+/** 그 매장이 실제로 쓰는 품목인지: 최소수량·발주 기준이 있거나, 최근 30일 안에 발주한 적이 있음 (안 파는 품목의 0은 품절이 아니에요) */
+export function carriedSet({stock = [], rules = [], orders = []}) {
+  const k = new Set();
+  for (const r of stock) if (Number(r.minimum) > 0) k.add(r.store_id + '|' + r.product_id);
+  for (const r of rules) if (Number(r.weekday_base) > 0 || Number(r.weekend_base) > 0) k.add(r.store_id + '|' + r.product_id);
+  for (const o of orders) if (live(o)) for (const i of (o.kream_order_items || o.items || [])) if (Number(i.quantity) > 0) k.add(o.store_id + '|' + i.product_id);
+  return k;
+}
+/** 지점별 품절 (그 매장이 쓰는 품목 중 재고 0 이하) */
+export function soldOut({stock = [], catalog = [], stores = ORDER_STORES, carried = null}) {
   const by = Object.fromEntries(stores.map(s => [s, []]));
-  for (const r of stock) if (by[r.store_id] && Number(r.on_hand) <= 0 && active(catalog, r.product_id)) by[r.store_id].push({product_id: r.product_id, name: nameOf(catalog, r.product_id), since: r.updated_at});
+  for (const r of stock) if (by[r.store_id] && Number(r.on_hand) <= 0 && active(catalog, r.product_id) && (!carried || carried.has(r.store_id + '|' + r.product_id))) by[r.store_id].push({product_id: r.product_id, name: nameOf(catalog, r.product_id), since: r.updated_at});
   for (const s of stores) by[s].sort((a, b) => a.name.localeCompare(b.name));
   return by;
 }
 /** 오래 품절: 재고 0인데 최근 N일 동안 그 품목이 들어온(도착한) 발주가 없음 */
-export function longSoldOut({stock = [], orders = [], catalog = [], today = torontoToday(), days = LONG_OUT_DAYS, stores = ORDER_STORES}) {
+export function longSoldOut({stock = [], orders = [], catalog = [], today = torontoToday(), days = LONG_OUT_DAYS, stores = ORDER_STORES, carried = null}) {
   const from = addDays(today, -days), out = [];
   for (const r of stock) {
-    if (!stores.includes(r.store_id) || Number(r.on_hand) > 0 || !active(catalog, r.product_id)) continue;
+    if (!stores.includes(r.store_id) || Number(r.on_hand) > 0 || !active(catalog, r.product_id) || (carried && !carried.has(r.store_id + '|' + r.product_id))) continue;
     const came = orders.some(o => live(o) && o.store_id === r.store_id && o.delivery_date >= from && o.delivery_date <= addDays(today, 1) && (o.kream_order_items || o.items || []).some(i => i.product_id === r.product_id && Number(i.quantity) > 0));
     if (!came) out.push({store_id: r.store_id, product_id: r.product_id, name: nameOf(catalog, r.product_id)});
   }
   return out.sort((a, b) => a.store_id.localeCompare(b.store_id) || a.name.localeCompare(b.name));
 }
 /** 재고를 오래 안 셈 (실제로 센 날이 N일 넘음) → 매장별 개수 */
-export function staleCounts({stock = [], catalog = [], today = torontoToday(), days = STALE_COUNT_DAYS, stores = ORDER_STORES}) {
+export function staleCounts({stock = [], catalog = [], today = torontoToday(), days = STALE_COUNT_DAYS, stores = ORDER_STORES, carried = null}) {
   const out = Object.fromEntries(stores.map(s => [s, []]));
   for (const r of stock) {
-    if (!out[r.store_id] || !active(catalog, r.product_id)) continue;
+    if (!out[r.store_id] || !active(catalog, r.product_id) || (carried && !carried.has(r.store_id + '|' + r.product_id))) continue;
     const at = r.physical_count_at || r.updated_at;
     if (!at || localParts(at).date < addDays(today, -days)) out[r.store_id].push({product_id: r.product_id, name: nameOf(catalog, r.product_id), at});
   }
   return out;
 }
-/** 공장 완제품 재고 없음 (0 이하, 마이너스는 부족한 만큼) */
+/** 공장 완제품 재고 없음: 실제로 센(counted) 품목 중 0 이하. 안 센 품목의 마이너스는 '보낸 게 더 많음'이라 따로 개수만 */
 export function factoryOut({finished = [], catalog = []}) {
-  return finished.filter(f => Number(f.quantity) <= 0 && active(catalog, f.product_id))
+  return finished.filter(f => f.counted !== false && Number(f.quantity) <= 0 && active(catalog, f.product_id))
     .map(f => ({product_id: f.product_id, name: nameOf(catalog, f.product_id), quantity: Number(f.quantity), unit: f.order_unit || ''}))
     .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name));
 }
@@ -107,12 +115,13 @@ export function scheduleProblems({stores = TEAM_STORES, shifts = [], timeOff = [
 }
 
 /** 맨 위에 보여줄 요약 (빨강 = 지금 해야 해요) */
-export function headline({orders, cash, attendanceRows, open, problems, sold, factory, notRec, pendingAccounts}) {
+export const ORDER_DUE_MIN = 18 * 60, CASH_DUE_MIN = 22 * 60;   // 발주는 저녁, 캐시 카운트는 마감 후 → 그 전엔 빨간색 아님
+export function headline({orders, cash, nowMin = ORDER_DUE_MIN, attendanceRows, open, problems, sold, factory, notRec, pendingAccounts}) {
   const out = [];
   const notOrdered = orders.filter(o => !o.done);
-  if (notOrdered.length) out.push({key: 'order', level: 'red', n: notOrdered.length});
+  if (notOrdered.length && nowMin >= ORDER_DUE_MIN) out.push({key: 'order', level: 'red', n: notOrdered.length});
   const noCash = cash.filter(c => c.done === false);
-  if (noCash.length) out.push({key: 'cash', level: 'red', n: noCash.length});
+  if (noCash.length && nowMin >= CASH_DUE_MIN) out.push({key: 'cash', level: 'red', n: noCash.length});
   if (open.length) out.push({key: 'open', level: 'red', n: open.length});
   const ns = attendanceRows.reduce((a, r) => a + r.noShow.length, 0), late = attendanceRows.reduce((a, r) => a + r.late.length, 0);
   if (ns) out.push({key: 'noshow', level: 'red', n: ns});
