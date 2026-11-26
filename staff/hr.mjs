@@ -9,7 +9,7 @@ import {carriedSet, ORDER_DUE_MIN, CASH_DUE_MIN, orderStatus, missedOrders, sold
 import {renderAccounts} from './accounts.mjs?v=20261124-account-folders';
 import {pushState, enablePush, disablePush, PUSH_TOPICS} from './push.mjs?v=20261125-live-push';
 
-export const HR_ROLES = ['owner', 'manager', 'general_manager', 'manager_factory', 'factory_manager'];
+export const HR_ROLES = ['owner', 'manager', 'general_manager', 'manager_factory', 'manager_factory_staff', 'employee_factory_manager', 'factory_manager'];
 export function canUseHR(profile, role) {
   if (!profile?.active) return false;
   return HR_ROLES.includes(role) || profile.role === 'owner' || profile.role === 'manager' || (profile.role === 'factory' && !!profile.factory_manager);

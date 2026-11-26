@@ -52,3 +52,10 @@ test('approval requests keep their top-level folder even when no requests are pe
  const groups=groupAccounts([{user_id:'a',role:'employee',active:true,store_ids:['finch'],requests:[]}]);
  assert.equal(groups[0].status,'pending');assert.equal(groups[0].groups.length,0);assert.equal(groups[1].status,'enabled');
 });
+
+import {workplaceAccessKind} from '../accounts.mjs';
+test('store and factory roles are independent and require explicit manager choices',()=>{
+ const cases=[['employee',false,'employee_factory'],['employee',true,'employee_factory_manager'],['manager',false,'manager_factory_staff'],['manager',true,'manager_factory']];
+ for(const [base,fm,kind] of cases){assert.equal(workplaceAccessKind(base,['finch'],true,fm),kind);const payload=accessPayload({user_id:'a',role:'employee'},kind,['finch','downtown'],true);assert.deepEqual(payload.store_keys,['finch','downtown']);assert.equal(accountKind({role:'factory',factory_manager:fm,store_manager:base==='manager',store_ids:['finch']}),kind);const pages=visiblePages(kind);assert.ok(pages.includes('order')&&pages.includes('receiving')&&pages.includes('dispatch'));assert.equal(pages.includes('purchases'),fm);assert.equal(pages.includes('daily'),base==='manager');}
+ assert.equal(workplaceAccessKind('employee',[],true,false),'factory_staff');assert.equal(workplaceAccessKind('employee',[],true,true),'factory_manager');assert.equal(workplaceAccessKind('employee',['finch'],false,false),'employee');assert.equal(workplaceAccessKind('midland_owner',['midland'],true,true),'midland_owner');
+});

@@ -6,7 +6,7 @@ test('assignment restricts single, multiple and combined workplaces',()=>{
  assert.deepEqual(scope({role:'employee',store_ids:['downtown']}),{stores:[stores[0]],factory:false});
  assert.deepEqual(scope({role:'employee',store_ids:['downtown','finch']}).stores,[stores[0],stores[2]]);
  assert.deepEqual(scope({role:'factory',factory_manager:true,store_manager:true,store_ids:['finch']}),{stores:[stores[2]],factory:true});
- assert.deepEqual(scope({role:'factory',store_ids:['finch']}),{stores:[],factory:true});
+ assert.deepEqual(scope({role:'factory',store_ids:['finch']}),{stores:[stores[2]],factory:true});
  assert.equal(scope({role:'manager',store_ids:['midland']}).factory,false);
  assert.equal(scope({role:'owner'}).factory,true);
  assert.equal(scope({role:'manager',general_manager:true}).factory,false);

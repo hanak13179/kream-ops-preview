@@ -151,3 +151,12 @@ test('a stock refresh already in flight does not redraw an order memo opened whi
  const request=intervals.filter(i=>i.ms===15000)[1].fn();ctx.document.activeElement={id:'basketExtraRequests',tagName:'TEXTAREA'};
  resolveRead({data:[]});await request;assert.equal(redraws,0);
 });
+
+test('mixed staff keep store employee rights while factory managers use factory HR context',()=>{
+ const {ctx}=fixture();
+ vm.runInContext("profile={role:'factory',factory_manager:false,store_manager:false,active:true,store_ids:['finch']};page='order';",ctx);
+ assert.equal(vm.runInContext('screenRole()',ctx),'employee_factory');assert.equal(vm.runInContext('screenProfile().role',ctx),'employee');assert.equal(vm.runInContext('screenStores().length',ctx),1);
+ vm.runInContext("page='dispatch'",ctx);assert.equal(vm.runInContext('screenProfile().role',ctx),'factory');
+ vm.runInContext("profile.factory_manager=true;page='hr';entryFactory=false;",ctx);assert.equal(vm.runInContext('screenProfile().role',ctx),'factory');
+ vm.runInContext("profile.factory_manager=false;profile.store_manager=true;page='order';",ctx);assert.equal(vm.runInContext('screenRole()',ctx),'manager_factory_staff');assert.equal(vm.runInContext('screenProfile().role',ctx),'manager');
+});

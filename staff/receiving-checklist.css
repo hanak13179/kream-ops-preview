@@ -26,3 +26,7 @@
 .receiving-checklist input:focus{font-size:16px}
 @media(max-width:400px){.receiving-checklist .receipt-check-table .receipt-action-col{width:139px}.receiving-checklist .receipt-check-table th,.receiving-checklist .receipt-check-table td{padding:5px 4px}}
 @media(pointer:coarse){.receiving-checklist .receipt-check-actions input[data-receive],.receiving-checklist .receipt-check-actions button,.receiving-checklist [data-receive-undo]{min-height:44px}.receiving-checklist .receipt-check-actions input[data-receive]{font-size:16px}}
+
+/* Quantities are edited directly, without browser increment/decrement arrows. */
+.receiving-checklist input[type="number"]{appearance:textfield;-moz-appearance:textfield}
+.receiving-checklist input[type="number"]::-webkit-inner-spin-button,.receiving-checklist input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}

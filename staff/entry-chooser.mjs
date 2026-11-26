@@ -13,7 +13,7 @@ const KEY = 'kream-entry-choice:';
 export function assignedWorkplaces(profile,stores=[]){
  if(!profile?.active)return {stores:[],factory:false};
  const owner=profile.role==='owner',allStores=owner||profile.role==='manager'&&profile.general_manager;
- const storeRole=['employee','manager','midland_owner'].includes(profile.role)||profile.role==='factory'&&profile.factory_manager&&profile.store_manager;
+ const storeRole=['employee','manager','midland_owner'].includes(profile.role)||profile.role==='factory';
  return {stores:stores.filter(s=>(allStores||storeRole&&(profile.store_ids||[]).includes(s.id))&&(profile.role!=='midland_owner'||s.id==='midland')),factory:owner||profile.role==='factory'};
 }
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));

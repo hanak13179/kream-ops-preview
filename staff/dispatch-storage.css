@@ -63,3 +63,7 @@
 .sd-tools #factoryAllocationPanel[open]>summary,.sd-tools #externalQueuePanel[open]>summary{width:fit-content;background:#f44e28;border-color:#f44e28;color:#fff}
 .sd-tools #factoryAllocationPanel[open]>summary::before,.sd-tools #externalQueuePanel[open]>summary::before{content:'−'}
 .sd-tools #factoryAllocationPanel>.dispatch-store-detail,.sd-tools #externalQueuePanel>.dispatch-store-detail{margin-top:6px;border:1px solid #ded3c6;border-radius:8px;padding:10px;background:#fffdf9}
+
+/* Quantities are edited directly, without browser increment/decrement arrows. */
+.storage-dispatch input[type="number"]{appearance:textfield;-moz-appearance:textfield}
+.storage-dispatch input[type="number"]::-webkit-inner-spin-button,.storage-dispatch input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
