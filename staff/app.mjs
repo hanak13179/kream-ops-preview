@@ -32,7 +32,7 @@ import {renderCatalogTools,openProduct,signedPhotos,canManageProducts} from './c
 import {renderDailyLog} from './daily-log.mjs?v=20261102-whole-quantity';
 import {recommendation} from './replenishment.mjs?v=20261102-drag';
 import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261125-dubai3';
-import {isEvening,eveningItems,eveningHtml,cashSaved,CASH_STORES as EVENING_CASH_STORES,EVENING_CSS} from './evening-warning.mjs?v=20261123-auto3';
+import {isStoreClosingPage,isEvening,eveningItems,eveningHtml,cashSaved,CASH_STORES as EVENING_CASH_STORES,EVENING_CSS} from './evening-warning.mjs?v=20261126-store-reminders';
 import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261123-minsave3';
 import {renderSupplies} from './supplies-order.mjs?v=20261124-alllist';
 import {renderProductionLog} from './production-log.mjs?v=20261119-memo-items';
@@ -161,11 +161,12 @@ function renderNav(){const host=$('#navigation'),vp=screenProfile(),role=screenR
 function renderEvening(){
  document.querySelector('.evening-warn')?.remove();
  if(!document.getElementById('evening-style')){const st=document.createElement('style');st.id='evening-style';st.textContent=EVENING_CSS;document.head.appendChild(st);}
- if(!profile?.active||isPreview()||!store||store==='midland'||isFactoryRole(screenRole())||!isEvening())return;
- const s0=store,day=countDate(),list=orderCatalog().filter(p=>p.unit_confirmed&&p.category!=='키친 발주'&&!skipCount(p));
+ const allowed=()=>profile?.active&&!isPreview()&&!!store&&store!=='midland'&&!isFactoryRole(screenProfile().role)&&isStoreClosingPage(page)&&isEvening();
+ if(!allowed())return;
+ const s0=store,viewer=user?.id,day=countDate(),list=orderCatalog().filter(p=>p.unit_confirmed&&p.category!=='키친 발주'&&!skipCount(p));
  const remaining=list.filter(p=>!countedToday(p)).length,cashPage=EVENING_CASH_STORES.includes(store)&&!!document.querySelector('#navigation [data-page="cash"]');
  const draw=cashDone=>{
-  document.querySelector('.evening-warn')?.remove();if(store!==s0)return;
+  if(store!==s0||user?.id!==viewer||countDate()!==day||!allowed())return;document.querySelector('.evening-warn')?.remove();
   const sent=!!draft?.submitted_order_id||(orders||[]).some(o=>o.store_id===s0&&o.delivery_date===defaultReceiptDate()&&o.status!=='cancelled');   // 오늘 발주 이미 보냈으면 발주 경고는 안 해요
   const items=eveningItems({remaining:sent?0:remaining,total:sent?0:list.length,submitted:sent,cashDone,cashPage}).filter(i=>i.key!==page);
   const html=eveningHtml(items,t,esc),view=$('#view');if(!html||!view)return;

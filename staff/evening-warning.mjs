@@ -1,6 +1,9 @@
 // 저녁(18시 ~ 새벽 3시)에 그 매장으로 로그인하면, 오늘 아직 안 끝난 일을 맨 위에 알려줘요.
 //  - 발주 게임: 오늘 안 센 재고가 남았거나 발주함을 아직 안 보냈을 때
 //  - 캐시 카운트: 오늘(1·3·4호점) 시트에 아직 저장 안 됐을 때
+// Scope reminders by the screen being viewed, including combined store/factory accounts.
+const STORE_CLOSING_PAGES=new Set(['team','manual','receiving','order','history','reservations','waste','daily','sop','cash','settlement','orderSaved','orderComplete']);
+export function isStoreClosingPage(page,factoryArea=false){return !factoryArea&&STORE_CLOSING_PAGES.has(page);}
 export const EVENING_HOUR = 18;
 export const CASH_STORES = ['downtown', 'richmond-hill', 'finch'];
 
