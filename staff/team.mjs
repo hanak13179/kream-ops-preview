@@ -231,7 +231,8 @@ export async function renderTeam(host, c) {
     // 지각·안 옴·근무 중은 본인과 매니저(운영진)만 봐요
     const col = colorOf(s.store_id), st = manager || s.user_id === me ? shiftStatus(s, D().timecards) : {status: ''}, tg = [];
     if (!s.published) tg.push(`<span class="tm-tag">${t('초안', 'Draft')}</span>`);
-    if (!s.user_id) tg.push(`<span class="tm-tag">${t('빈 근무', 'Open')}</span>`);
+    const pendingSheetName = !s.user_id && String(s.note||'').startsWith('시트 이름 확인:');
+    if (!s.user_id) tg.push(`<span class="tm-tag">${pendingSheetName ? t('담당자 확인 필요','Person needs confirmation') : t('빈 근무', 'Open')}</span>`);
     if (st.late) tg.push(`<span class="tm-tag late">⚠ ${st.late}${t('분 늦음', 'm late')}</span>`);
     if (st.status === 'late_nocard') tg.push(`<span class="tm-tag late">⚠ ${t('아직 출근 안 함', 'Not clocked in yet')}</span>`);
     if (st.status === 'noshow') tg.push(`<span class="tm-tag noshow">✗ ${t('안 옴', 'No-show')}</span>`);
@@ -241,7 +242,7 @@ export async function renderTeam(host, c) {
     const canSwap = !build && s.user_id === me && s.date >= today() && s.published && !pw && st.status !== 'working';
     if (build) shiftIssues(s, {shifts: D().shifts, availabilityRows: D().availability, timeOff: D().timeOff, prefs: D().prefs}).forEach(i => tg.push(`<span class="tm-tag issue">${issueText[i]}</span>`));
     return `<div class="tm-shift ${s.user_id === me ? 'mine' : ''} ${s.published ? '' : 'draft'}" style="background:${col.bg};border-left:5px solid ${col.line}" data-act="${build ? 'editShift' : 'shift'}" data-id="${esc(s.id)}">
-      <div><div><b>${esc(fmtRange(s.start_min, s.end_min, lang))}</b> · <span class="who">${esc(nameOf(s.user_id))}</span></div>
+      <div><div><b>${esc(fmtRange(s.start_min, s.end_min, lang))}</b> · <span class="who">${esc(pendingSheetName ? s.note.slice('시트 이름 확인:'.length).trim() : nameOf(s.user_id))}</span></div>
       <small>${esc(storeLabel(s.store_id, lang))}${s.position ? ' · ' + esc(s.position) : ''} · ${shiftHours(s)}h${s.note ? ' · ' + esc(s.note) : ''}</small><div>${tags(tg)}</div></div>
       ${canSwap ? `<button class="tm-btn small" style="flex:0 0 auto;background:#fff;color:#3b382f;border:1px solid ${col.line}" data-act="shift" data-id="${esc(s.id)}">🔁 ${t('교환하기', 'Swap')}</button>` : ''}</div>`;
   }
@@ -255,7 +256,7 @@ export async function renderTeam(host, c) {
   function swapPanel(s) {
     if (!s) return '';
     const mine = s.user_id === me, sw = pendingSwap(s.id);
-    if (s.date < today()) return '';
+    if (!s.published || s.date < today()) return '';
     if (sw) return `<div class="tm-card tm-edit"><b>🔁 ${t('교대 요청 중이에요', 'Swap already requested')}</b> · ${esc(fmtDate(s.date, lang))} ${esc(fmtRange(s.start_min, s.end_min, lang))}
       ${(sw.from_user === me || (!sw.from_user && sw.to_user === me)) ? `<div style="margin-top:8px"><button class="tm-btn alt small" data-act="swapCancel" data-id="${sw.id}">${t('요청 취소', 'Cancel request')}</button></div>` : ''}</div>`;
     if (mine) {

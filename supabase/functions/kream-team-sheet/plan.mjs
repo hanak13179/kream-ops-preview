@@ -24,7 +24,7 @@ export function matchName(name, people) {
  * → {upserts:[{id?, date, start_min, end_min, user_id, position, note}], deletes:[id], warnings:[text], changed:n}
  */
 export function planSheetSync({existing = [], incoming = [], people = [], newId = () => null}) {
-  const pub = existing.filter(s => s.published !== false), left = new Set(pub.map(s => s.id));
+  const pub = existing.filter(s => s.published !== false || String(s.note||'').startsWith('시트 이름 확인:')), left = new Set(pub.map(s => s.id));
   const upserts = [], warnings = [];
   for (const r of incoming) {
     if (!(r.end_min > r.start_min)) { warnings.push(`${r.date} ${r.name || ''}: 시간을 못 읽었어요`); continue; }

@@ -30,6 +30,7 @@ async function send(sub: any, msg: any) {
     await webpush.sendNotification({endpoint: sub.endpoint, keys: {p256dh: sub.p256dh, auth: sub.auth}}, JSON.stringify(msg), {TTL: 3600});
     return true;
   } catch (e: any) {
+    console.warn('push delivery failed',Number(e?.statusCode)||0,String(e?.name||'Error'));
     if (e?.statusCode === 404 || e?.statusCode === 410) await db(`kream_push_subscriptions?endpoint=eq.${encodeURIComponent(sub.endpoint)}`, {method: 'DELETE'});   // 기기에서 지워짐
     return false;
   }
@@ -97,6 +98,7 @@ Deno.serve(async (req: Request) => {
       if(!approved.length) return json({ok:false,error:'Access denied'},403);
       const subs=await db(`kream_push_subscriptions?select=*&user_id=eq.${me}`);
       let sent=0;for(const sub of subs)if(await send(sub,{title:'Kream 알림이 켜졌어요',body:'이 기기로 근무 및 운영 알림을 받을 수 있어요.',url:'./'}))sent++;
+      console.info('push test delivered',sent);
       return json({ok:true,sent});
     }
     if(!await equalSecret(req.headers.get('x-kream-cron-secret')||'',cfg.cron_secret)) return json({ok:false,error:'Unauthorized'},401);

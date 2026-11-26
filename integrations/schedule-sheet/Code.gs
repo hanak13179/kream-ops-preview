@@ -221,7 +221,7 @@ function pushBlock(sh, key) {
   const grid = sh.getRange(at, 1, len, 9).getValues(), shifts = [], bad = [];
   for (let r = 3; r + 2 < grid.length; r += 3) for (let c = 1; c <= 7; c++) {
     const time = String(grid[r][c]).trim(), nm = String(grid[r + 2][c]).trim();
-    if (!time && !nm) continue;
+    if ((!time && !nm) || nm.toLowerCase()==='t') continue;
     const t = parseRange(time);
     if (!t) { bad.push(`${md(ymdAdd(weekStart, c - 1))} “${time || '(시간 없음)'}”`); continue; }
     shifts.push({date: ymdAdd(weekStart, c - 1), start_min: t.start_min, end_min: t.end_min, position: t.position, name: nm});

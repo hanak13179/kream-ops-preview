@@ -22,3 +22,11 @@ test('sheet edits become a minimal plan',()=>{
  // 아무것도 안 바꾸면 할 일 없음
  assert.equal(planSheetSync({existing:existing.slice(0,1),incoming:[{date:'2026-11-23',start_min:600,end_min:960,name:'Eunyoung'}],people}).changed,0);
 });
+
+test('unmatched sheet drafts keep their identity when edited or resolved',()=>{
+ const draft={id:'pending',date:'2026-11-23',start_min:600,end_min:960,user_id:null,position:'',note:'시트 이름 확인: Clara',published:false};
+ const pending=planSheetSync({existing:[draft],incoming:[{date:draft.date,start_min:600,end_min:960,name:'Clara'}],people:[],newId:()=>{throw Error('duplicate placeholder')}});
+ assert.equal(pending.upserts[0].id,'pending');assert.equal(pending.upserts[0].user_id,null);
+ const resolved=planSheetSync({existing:[draft],incoming:[{date:draft.date,start_min:600,end_min:960,name:'Clara'}],people:[{id:'person',name:'Clara'}]});
+ assert.equal(resolved.upserts[0].id,'pending');assert.equal(resolved.upserts[0].user_id,'person');assert.equal(resolved.upserts[0].note,'');
+});

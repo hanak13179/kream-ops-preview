@@ -29,18 +29,18 @@ Deno.serve(async (req: Request) => {
     if (!STORES.includes(store) || !/^\d{4}-\d{2}-\d{2}$/.test(week) || new Date(week + 'T12:00:00Z').getUTCDay() !== 1) return Response.json({ok: false, error: 'Bad store or week'}, {status: 400});
     const end = addDays(week, 6);
     if (!Array.isArray(body.shifts) || body.shifts.length>300) return Response.json({ok:false,error:'Invalid shifts'}, {status:400});
-    const incoming=body.shifts.map((r:any)=>({date:r.date,start_min:r.start_min,end_min:r.end_min,name:String(r.name||'').slice(0,80),position:String(r.position||'').slice(0,40)}));
+    const incoming=body.shifts.filter((r:any)=>String(r.name||'').trim().toLowerCase()!=='t').map((r:any)=>({date:r.date,start_min:r.start_min,end_min:r.end_min,name:String(r.name||'').slice(0,80),position:String(r.position||'').slice(0,40)}));
     if(incoming.some((r:any)=>typeof r.date!=='string'||r.date<week||r.date>end||!Number.isInteger(r.start_min)||!Number.isInteger(r.end_min)||r.start_min<0||r.end_min>1440||r.end_min<=r.start_min))return Response.json({ok:false,error:'Invalid date or time; nothing changed'}, {status:400});
-    const existing = (await db(`kream_team_shifts?select=id,shift_date,start_min,end_min,user_id,position,published,updated_at&store_id=eq.${store}&shift_date=gte.${week}&shift_date=lte.${end}`))
+    const existing = (await db(`kream_team_shifts?select=id,shift_date,start_min,end_min,user_id,position,note,published,updated_at&store_id=eq.${store}&shift_date=gte.${week}&shift_date=lte.${end}`))
       .map((s: any) => ({...s, date: s.shift_date}));
     // 이름은 1·3·4호점 사람 모두에서 찾아요 (다른 지점 사람이 일할 수도 있어요)
     const members = await db(`kream_memberships?select=user_id,store_id&store_id=in.(${STORES.join(',')})`);
     const ids = [...new Set(members.map((m: any) => m.user_id))];
     const profiles = ids.length ? await db(`kream_profiles?select=user_id,display_name,active,access_blocked&user_id=in.(${ids.join(',')})&active=eq.true&access_blocked=eq.false`) : [];
-    const people = profiles.map((p: any) => ({id: p.user_id, name: p.display_name}));
+    const aliases:Record<string,string[]>={'장은영':['Eunyoung'],'김다솜':['Dasom'],'문예린':['Yerin'],'오세인':['Sein'],'서수연':['Suyeon'],'정현이':['Jeonghyeon','정현'],'Hajun':['하준'],'노경민':['경민'],'민채원':['채원'],'민지연':['지연'],'신민아':['민아']};
+    const people = profiles.flatMap((p:any)=>[p.display_name,...(aliases[p.display_name]||[])].map(name=>({id:p.user_id,name})));
     const plan = planSheetSync({existing, incoming, people, newId: () => crypto.randomUUID()});
-    if(plan.warnings.length)return Response.json({ok:false,error:'Employee name needs confirmation; nothing changed',warnings:plan.warnings.map((w:string)=>w.replace(' → 빈 근무로 넣었어요',''))},{status:409});
     if(plan.changed)await db('rpc/kream_team_sheet_apply',{method:'POST',body:JSON.stringify({target_store:store,week_start:week,expected:existing.map((r:any)=>({id:r.id,updated_at:r.updated_at})),rows:plan.upserts,delete_ids:plan.deletes})});
-    return Response.json({ok: true, changed: plan.changed, warnings: plan.warnings});
+    return Response.json({ok: true, changed: plan.changed, warnings: plan.warnings.map((w:string)=>w.replace('→ 빈 근무로 넣었어요','→ 담당자 확인 필요 (관리자 초안)'))});
   } catch (e) { return Response.json({ok: false, error: 'Schedule sync failed; nothing partially saved'}, {status: 500}); }
 });
