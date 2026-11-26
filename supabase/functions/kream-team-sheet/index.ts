@@ -5,7 +5,7 @@
 import {planSheetSync} from './plan.mjs';
 const base = Deno.env.get('SUPABASE_URL')!;
 const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const secret = Deno.env.get('TEAM_SHEET_SECRET') || '';
+async function runtimeSecret() { const config=await db('rpc/kream_team_sheet_runtime_config',{method:'POST',body:'{}'}); return config?.secret || ''; }
 const STORES = ['downtown', 'richmond-hill', 'finch'];
 
 async function db(path: string, init: RequestInit = {}) {
@@ -23,25 +23,24 @@ const addDays = (ymd: string, n: number) => new Date(Date.parse(ymd + 'T12:00:00
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('Method not allowed', {status: 405});
   try {
-    if (!await equalSecret(req.headers.get('x-kream-sheet-secret') || '', secret)) return new Response('Unauthorized', {status: 401});
+    if (!await equalSecret(req.headers.get('x-kream-sheet-secret') || '', await runtimeSecret())) return new Response('Unauthorized', {status: 401});
     const body = await req.json();
     const store = String(body.store_id || ''), week = String(body.week_start || '');
     if (!STORES.includes(store) || !/^\d{4}-\d{2}-\d{2}$/.test(week) || new Date(week + 'T12:00:00Z').getUTCDay() !== 1) return Response.json({ok: false, error: 'Bad store or week'}, {status: 400});
     const end = addDays(week, 6);
-    const incoming = (Array.isArray(body.shifts) ? body.shifts : []).slice(0, 300).filter((r: any) => typeof r.date === 'string' && r.date >= week && r.date <= end)
-      .map((r: any) => ({date: r.date, start_min: Math.round(Number(r.start_min)), end_min: Math.round(Number(r.end_min)), name: String(r.name || '').slice(0, 80), position: String(r.position || '').slice(0, 40)}))
-      .filter((r: any) => r.start_min >= 0 && r.end_min <= 1440);
-    const existing = (await db(`kream_team_shifts?select=id,shift_date,start_min,end_min,user_id,position,published&store_id=eq.${store}&shift_date=gte.${week}&shift_date=lte.${end}`))
+    if (!Array.isArray(body.shifts) || body.shifts.length>300) return Response.json({ok:false,error:'Invalid shifts'}, {status:400});
+    const incoming=body.shifts.map((r:any)=>({date:r.date,start_min:r.start_min,end_min:r.end_min,name:String(r.name||'').slice(0,80),position:String(r.position||'').slice(0,40)}));
+    if(incoming.some((r:any)=>typeof r.date!=='string'||r.date<week||r.date>end||!Number.isInteger(r.start_min)||!Number.isInteger(r.end_min)||r.start_min<0||r.end_min>1440||r.end_min<=r.start_min))return Response.json({ok:false,error:'Invalid date or time; nothing changed'}, {status:400});
+    const existing = (await db(`kream_team_shifts?select=id,shift_date,start_min,end_min,user_id,position,published,updated_at&store_id=eq.${store}&shift_date=gte.${week}&shift_date=lte.${end}`))
       .map((s: any) => ({...s, date: s.shift_date}));
     // 이름은 1·3·4호점 사람 모두에서 찾아요 (다른 지점 사람이 일할 수도 있어요)
     const members = await db(`kream_memberships?select=user_id,store_id&store_id=in.(${STORES.join(',')})`);
     const ids = [...new Set(members.map((m: any) => m.user_id))];
-    const profiles = ids.length ? await db(`kream_profiles?select=user_id,display_name,active&user_id=in.(${ids.join(',')})&active=eq.true`) : [];
+    const profiles = ids.length ? await db(`kream_profiles?select=user_id,display_name,active,access_blocked&user_id=in.(${ids.join(',')})&active=eq.true&access_blocked=eq.false`) : [];
     const people = profiles.map((p: any) => ({id: p.user_id, name: p.display_name}));
     const plan = planSheetSync({existing, incoming, people, newId: () => crypto.randomUUID()});
-    if (plan.deletes.length) await db(`kream_team_shifts?id=in.(${plan.deletes.join(',')})&store_id=eq.${store}`, {method: 'DELETE'});
-    if (plan.upserts.length) await db('kream_team_shifts?on_conflict=id', {method: 'POST', headers: {Prefer: 'resolution=merge-duplicates,return=minimal'},
-      body: JSON.stringify(plan.upserts.map(u => ({id: u.id, store_id: store, shift_date: u.date, start_min: u.start_min, end_min: u.end_min, user_id: u.user_id, position: u.position, note: u.note, published: true, updated_at: new Date().toISOString()})))});
+    if(plan.warnings.length)return Response.json({ok:false,error:'Employee name needs confirmation; nothing changed',warnings:plan.warnings.map((w:string)=>w.replace(' → 빈 근무로 넣었어요',''))},{status:409});
+    if(plan.changed)await db('rpc/kream_team_sheet_apply',{method:'POST',body:JSON.stringify({target_store:store,week_start:week,expected:existing.map((r:any)=>({id:r.id,updated_at:r.updated_at})),rows:plan.upserts,delete_ids:plan.deletes})});
     return Response.json({ok: true, changed: plan.changed, warnings: plan.warnings});
-  } catch (e) { return Response.json({ok: false, error: String((e as Error).message || e)}, {status: 500}); }
+  } catch (e) { return Response.json({ok: false, error: 'Schedule sync failed; nothing partially saved'}, {status: 500}); }
 });

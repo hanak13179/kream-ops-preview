@@ -17,6 +17,8 @@
 const SUPABASE_URL = 'https://imkhosgnkgwchoyrqczw.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ISqCCHUBASP2sKEqEM04Lg_Jnft4D-y';   // 공개 키 (앱에도 있는 값). 권한은 사람 토큰 + RLS로 정해져요.
 const TZ = 'America/Toronto';
+const SCHEDULE_ID='1GMTKRZKT6a2AoY3PQmQEaGrc_pHIPZkDfh1ufNbq7kw';
+function scheduleSpreadsheet(){return SpreadsheetApp.openById(SCHEDULE_ID);}
 const STORES = ['downtown', 'richmond-hill', 'finch'];
 const STORE = {
   downtown: {label: '1호점 Wellesley', bg: '#fde2e4'},
@@ -31,7 +33,8 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents || '{}');
     if (!body.token) throw new Error('Sign in required');
     const me = sbAuth(body.token);
-    const profile = sb(body.token, `kream_profiles?user_id=eq.${me}&select=role,display_name,active`)[0] || {};
+    const profile = sb(body.token, `kream_profiles?user_id=eq.${me}&select=role,display_name,active,access_blocked`)[0] || {};
+    if(!profile.active || profile.access_blocked) throw new Error('Access denied');
     const manager = profile.active && ['owner', 'manager'].indexOf(profile.role) >= 0;
     let out;
     if (body.action === 'syncWeek') { if (!manager) throw new Error('Manager access required'); out = syncWeek(body.token, body.week_start, body.stores || []); }
@@ -82,7 +85,7 @@ function worked(tc) {
 }
 const r2 = n => Math.round(n * 100) / 100;
 function monthTab(ymd, suffix) { const m = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][Number(ymd.slice(5, 7)) - 1]; return `${m} ${suffix}`; }
-function sheetNamed(name) { const ss = SpreadsheetApp.getActive(); return ss.getSheetByName(name) || ss.insertSheet(name); }
+function sheetNamed(name) { const ss = scheduleSpreadsheet(); return ss.getSheetByName(name) || ss.insertSheet(name); }
 
 /** 블록 다시 쓰기: A열에 key가 있는 줄부터 다음 '#' 줄 전까지를 지우고 같은 자리에 새로 써요. 없으면 맨 아래에 붙여요. */
 function writeBlock(sh, key, rows, styles) {
@@ -167,9 +170,9 @@ function onOpen() {
 }
 function installTriggers() {
   ScriptApp.getProjectTriggers().forEach(t => { if (['onEditInstalled', 'pushDirty'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('onEditInstalled').forSpreadsheet(SpreadsheetApp.getActive()).onEdit().create();
+  ScriptApp.newTrigger('onEditInstalled').forSpreadsheet(scheduleSpreadsheet()).onEdit().create();
   ScriptApp.newTrigger('pushDirty').timeBased().everyMinutes(1).create();
-  SpreadsheetApp.getActive().toast('자동 반영을 켰어요. 스케줄 칸을 고치면 1분 안에 앱에 반영돼요.');
+  scheduleSpreadsheet().toast('자동 반영을 켰어요. 스케줄 칸을 고치면 1분 안에 앱에 반영돼요.');
 }
 function keyAbove(sh, row) {
   const top = Math.max(1, row - 80), vals = sh.getRange(top, 1, row - top + 1, 1).getValues();
@@ -186,8 +189,8 @@ function onEditInstalled(e) {
 }
 function pushCurrent() {
   const sh = SpreadsheetApp.getActiveSheet(), k = keyAbove(sh, sh.getActiveCell().getRow());
-  if (!k) { SpreadsheetApp.getActive().toast('스케줄 블록 안을 눌러 주세요'); return; }
-  SpreadsheetApp.getActive().toast(pushBlock(sh, k.key));
+  if (!k) { scheduleSpreadsheet().toast('스케줄 블록 안을 눌러 주세요'); return; }
+  scheduleSpreadsheet().toast(pushBlock(sh, k.key));
 }
 function pushDirty() {
   const lock = LockService.getDocumentLock(); if (!lock.tryLock(5000)) return;
@@ -195,9 +198,8 @@ function pushDirty() {
     const props = PropertiesService.getDocumentProperties(), dirty = JSON.parse(props.getProperty('dirty') || '{}');
     Object.keys(dirty).forEach(id => {
       if (Date.now() - dirty[id] < 20000) return;   // 아직 고치는 중이면 다음 번에
-      const [tab, key] = [id.slice(0, id.indexOf('|')), id.slice(id.indexOf('|') + 1)], sh = SpreadsheetApp.getActive().getSheetByName(tab);
-      if (sh) pushBlock(sh, key);
-      delete dirty[id];
+      const [tab, key] = [id.slice(0, id.indexOf('|')), id.slice(id.indexOf('|') + 1)], sh = scheduleSpreadsheet().getSheetByName(tab);
+      if (sh && pushBlock(sh, key).indexOf('✅')===0) delete dirty[id];
     });
     props.setProperty('dirty', JSON.stringify(dirty));
   } finally { lock.releaseLock(); }
@@ -225,6 +227,7 @@ function pushBlock(sh, key) {
     shifts.push({date: ymdAdd(weekStart, c - 1), start_min: t.start_min, end_min: t.end_min, position: t.position, name: nm});
   }
   const status = sh.getRange(at, 9);
+  if(bad.length){status.setValue('⚠ 시간을 확인해 주세요. 앱은 변경하지 않았어요: '+bad.join(', '));return '시간 확인 필요';}
   if (!url || !secret) { status.setValue('⚠ 앱 반영 설정 전 (FUNCTION_URL / TEAM_SHEET_SECRET)'); return '설정이 필요해요'; }
   const r = UrlFetchApp.fetch(url, {method: 'post', contentType: 'application/json', headers: {'x-kream-sheet-secret': secret}, payload: JSON.stringify({store_id: store, week_start: weekStart, shifts}), muteHttpExceptions: true});
   const out = JSON.parse(r.getContentText() || '{}');
