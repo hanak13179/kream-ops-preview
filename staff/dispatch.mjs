@@ -6,7 +6,7 @@ import {renderExternalDispatch} from './external-dispatch.mjs?v=20261122-pending
 import {unshippedItem,unshippedTools,bindUnshipped,hasUnshippedEdits,clearUnshippedState} from './unshipped.mjs?v=20261124-storage';
 import {orderReference} from './presentation.mjs?v=20261103-clean-confirmation';
 import {workTime} from './work-records.mjs?v=20261102-drag';
-import {renderStorageDispatch,hasStorageDispatchEdits,clearStorageDispatch} from './dispatch-storage.mjs?v=20261126-shared';
+import {renderStorageDispatch,hasStorageDispatchEdits,clearStorageDispatch} from './dispatch-storage.mjs?v=20261126-shared2';
 import {storageUnit,numberedStore} from './dispatch-storage-model.mjs?v=20261124-storage-jalapeno';
 export function dispatchQuantityLabel(p,value,lang='ko'){const n=Number(value);return halfBoxCount(p)===32&&Number.isFinite(n)&&n%32===0?(lang==='en'?`${n/64} box (${n} pcs)`:`${n/64}박스(${n}개)`):quantityLabel(p,value);}
 export function dispatchInputQuantity(p,value){return inputQuantity(p,value);}
