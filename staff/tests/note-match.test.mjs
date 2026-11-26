@@ -5,6 +5,6 @@ const cat=[P('byc','블루베리 요거트케이크','Blueberry Yogurt Short Cak
 test('직원이 메모에 친 품목을 목록에서 찾아요', () => {
   const text='Blueberry yogurt short cake 3 ea\nCheese mini croissant 1 bag\nApple juice 1 box\nTiramisu cream for drink 1\nOat milk 2 ea\nalmond milk 2';
   const m=matchNoteLines(text,cat).map(h=>[h.product.id,h.qty]);
-  assert.deepEqual(m,[['byc',3],['ccc',1],['tc',1],['oat',2],['alm',2]]);   // Apple juice는 목록에 없어서 메모로 남아요
+  assert.deepEqual(m,[['byc',3],['ccc',1],['tc',1],['oat',2],['alm',2]]);   // 이 테스트 목록에 없는 품목은 메모로 남아요
   assert.equal(removeLine(text,'Oat milk 2 ea').includes('Oat milk'),false);
 });
