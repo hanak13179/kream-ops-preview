@@ -83,3 +83,33 @@
 .storage-dispatch .sd-load-list th:first-child{width:70%}
 .workflow-live{font-size:11px;color:#58634c;margin:5px 0}
 @media(max-width:400px){.storage-dispatch .sd-flavor-col{width:37px}.storage-dispatch .sd-row-action-col{width:90px}.storage-dispatch .sd-flavor-rows tbody th{font-size:11px}.storage-dispatch .sd-flavor-rows .sd-actions button{font-size:10px}.storage-dispatch .sd-flavor-rows thead th{font-size:9px}}
+/* Match the approved flavor-row preview, rather than the old compact table. */
+.storage-dispatch{color:#352e29;font:14px/1.45 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',system-ui,sans-serif}
+.storage-dispatch .sd-pending-title{font-size:14px;margin:14px 0 6px}
+.storage-dispatch .sd-group{border:1px solid #dfd4c7;border-radius:7px;margin-bottom:10px;background:#fffdf9}
+.storage-dispatch .sd-item-head,.storage-dispatch [class*=tone-] .sd-item-head{background:#f5e9df;padding:7px 8px;border-bottom:0;gap:0}
+.storage-dispatch .sd-item-head strong{font-size:14px;font-weight:650}
+.storage-dispatch .sd-flavor-col{width:46px}
+.storage-dispatch .sd-flavor-rows{font-size:12px}
+.storage-dispatch .sd-flavor-rows th,.storage-dispatch .sd-flavor-rows td{padding:5px 1px;border:1px solid #dfd4c7;text-align:center;line-height:1.45}
+.storage-dispatch .sd-flavor-rows thead th{font-size:11px;color:#796b5d;font-weight:500;background:#fffdf9}
+.storage-dispatch .sd-short-store span:first-child{font:650 11px/1.2 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;color:#352e29;letter-spacing:0}
+.storage-dispatch .sd-short-store span:last-child{font:500 11px/1.2 Arial,sans-serif;color:#352e29;letter-spacing:-.5px}
+.storage-dispatch .sd-flavor-rows tbody th{padding:5px 1px;font-size:13px;font-weight:650;color:#352e29;text-align:center}
+.storage-dispatch .sd-flavor-rows .sd-flavor-total{display:block;font-size:11px;line-height:1.45;font-weight:500;color:#796b5d;margin-top:4px;white-space:normal}
+.storage-dispatch .sd-flavor-rows input{display:block;width:100%;height:26px;min-height:26px;border:0;padding:0;margin:0;border-radius:4px;background:transparent;font-size:16px;font-weight:500}
+.storage-dispatch .sd-shaded th,.storage-dispatch .sd-shaded td,.storage-dispatch .sd-shaded input{background:#e9f0f3}
+.storage-dispatch .sd-flavor-rows .sd-actions{display:flex;flex-direction:row;justify-content:center;align-items:center;gap:2px;flex-wrap:nowrap}
+.storage-dispatch .sd-flavor-rows .sd-actions button{background:#fffdf9;border:1px solid #dfd4c7;border-radius:6px;font:400 11px/1.3 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding:4px 3px;min-height:28px;white-space:nowrap;flex:0 0 auto}
+.storage-dispatch .sd-flavor-rows .sd-actions [data-sd-check]{background:#ed522e;border-color:#ed522e;color:#fff;font-weight:600;letter-spacing:-.2px}
+.storage-dispatch .sd-final-quantity{font-size:15px;font-weight:500}
+.storage-dispatch .sd-zero{font-size:16px;color:#796b5d}
+.storage-dispatch .sd-done-label{display:block;font-size:11px;color:#42603a;margin-bottom:4px}
+.storage-dispatch .sd-completed{border:1px solid #dfd4c7;border-radius:7px;overflow:hidden;margin-top:14px;padding:0;background:#fffdf9}
+.storage-dispatch .sd-completed>summary{padding:9px;background:#e9efdf;color:#42603a;font-size:14px;font-weight:600}
+.storage-dispatch .sd-completed-groups{padding:8px}
+.storage-dispatch .sd-completed-groups .sd-group:last-child{margin-bottom:0}
+@media(max-width:400px){.storage-dispatch .sd-flavor-col{width:37px}.storage-dispatch .sd-row-action-col{width:90px}}
+@media(max-width:360px){.storage-dispatch .sd-flavor-rows tbody th{font-size:12px}.storage-dispatch .sd-short-store span:first-child{font-weight:500;letter-spacing:-.45px}}
+@media(pointer:coarse){.storage-dispatch .sd-flavor-rows .sd-actions button,.storage-dispatch .sd-flavor-rows input{min-height:44px}}
+@media(max-width:360px){.storage-dispatch .sd-completed .sd-short-store span:last-child{font-size:10px;letter-spacing:-.6px}}

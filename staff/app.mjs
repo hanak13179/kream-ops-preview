@@ -42,14 +42,14 @@ import {renderClover} from './clover.mjs?v=20261106-all-cheesecake-trays';
 import {renderOverview} from './overview.mjs?v=20261119-garnish-sequence';
 import {stockDisplay,stockDisplayFactor,stockInput} from './stock-units.mjs?v=20261122-cookie-pieces';
 import {stockFields,bindStock,hasStockEdits,stockNumbers} from './store-stock.mjs?v=20261122-cookie-pieces2';
-import {renderDispatch} from './dispatch.mjs?v=20261126-shared2';
+import {renderDispatch} from './dispatch.mjs?v=20261126-approved-layout';
 import {renderProduction} from './production.mjs?v=20261119-memo-items';
 import {renderCashCount} from './cash-count.mjs?v=20261125-live-push';
 import {renderTeam} from './team.mjs?v=20261125-private-sheet';
 import {renderHR,canUseHR} from './hr.mjs?v=20261126-mixed-workplaces';
 import {renderWaste,todayToronto} from './waste.mjs?v=20261102-whole-quantity';
 import {navigationGroups,orderedPages,previewRoles,visiblePages,canPreview,isFactoryRole,scopePreview} from './access.mjs?v=20261126-mixed-workplaces';
-import {renderReceiving,renderGuides,hasModuleEdits as hasOtherModuleEdits,clearModuleState as clearOtherModuleState} from './operations.mjs?v=20261126-shared2';
+import {renderReceiving,renderGuides,hasModuleEdits as hasOtherModuleEdits,clearModuleState as clearOtherModuleState} from './operations.mjs?v=20261126-approved-layout';
 
 import {artwork,deliveryLabel,filterProducts,needsOrder,frequentIds,favoriteIds,orderReference} from './presentation.mjs?v=20261106-below-minimum';
 import {tomorrowToronto,validItems,sameBasketItems,saveSharedBasket as saveDraft,submitSharedBasket as submitDraft,aggregate} from './core.mjs?v=20261123-note-english';
