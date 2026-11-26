@@ -30,3 +30,16 @@ test('unmatched sheet drafts keep their identity when edited or resolved',()=>{
  const resolved=planSheetSync({existing:[draft],incoming:[{date:draft.date,start_min:600,end_min:960,name:'Clara'}],people:[{id:'person',name:'Clara'}]});
  assert.equal(resolved.upserts[0].id,'pending');assert.equal(resolved.upserts[0].user_id,'person');assert.equal(resolved.upserts[0].note,'');
 });
+
+test('editing the time of an unresolved name preserves the draft id',()=>{
+ const existing=[{id:'clara',date:'2026-11-27',start_min:1020,end_min:1410,user_id:null,note:'시트 이름 확인: Clara',published:false}];
+ const p=planSheetSync({existing,incoming:[{date:'2026-11-27',start_min:1035,end_min:1410,name:'Clara'}],people:[],newId:()=>{throw Error('draft id changed')}});
+ assert.equal(p.upserts[0].id,'clara');assert.equal(p.deletes.length,0);
+});
+
+test('sheet snapshots read every API page and fail instead of exporting a truncated schedule',async()=>{
+ const {readScheduleRows}=await import('../../supabase/functions/kream-team-sheet/snapshot.mjs');
+ const urls=[];const rows=await readScheduleRows(async url=>{urls.push(url);return urls.length<3?Array(2).fill({id:urls.length}):[{id:3}];},'shifts?select=id',{pageSize:2,max:10});
+ assert.equal(rows.length,5);assert.match(urls[1],/offset=2/);
+ await assert.rejects(()=>readScheduleRows(async()=>Array(2).fill({}),'shifts?select=id',{pageSize:2,max:4}),/too large/);
+});

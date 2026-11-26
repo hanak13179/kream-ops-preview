@@ -8,7 +8,7 @@ import {TEAM_STORES, STORE_COLORS, storeLabel, today, addDays, weekStart, weekDa
 import {splitTips} from './tip-split.mjs?v=20261123-tips1';
 import {fetchTips} from './cash-count.mjs?v=20261125-pr789';
 import {pushState, enablePush, disablePush, PUSH_TOPICS} from './push.mjs?v=20261125-live-push';
-import {teamBackend, friendlyError, SCHEDULE_SHEET_URL, SCHEDULE_SHEET_LINK, newId} from './team-data.mjs?v=20261125-pr789';
+import {teamBackend, friendlyError, SCHEDULE_SHEET_URL, SCHEDULE_AUTO_SYNC, SCHEDULE_SHEET_LINK, newId} from './team-data.mjs?v=20261125-private-sheet';
 
 const S = {tab: 'week', week: weekStart(today()), filter: 'all', mine: true, build: false, buildStore: null, edit: null, swapFor: null, punchMsg: null,
   msg: '', err: false, busy: false, data: null, api: null, clockStore: null, tsFrom: null, tsTo: null, tsStore: 'all', tcEdit: null, av: null, setStore: null, setDraft: null, fix: null, pay: null, push: null};
@@ -109,7 +109,7 @@ export async function renderTeam(host, c) {
     catch (e) { S.busy = false; try { await reload(); } catch { /* 그대로 */ } say(friendlyError(e, t), true); }
   }
   async function sheet(what, week, extra = {}) {
-    try { const r = await api.syncSheet(what, week, extra); return r?.skipped ? '' : t(' · 📄 시트에도 저장했어요', ' · 📄 Saved to the sheet too'); }
+    try { const r = await api.syncSheet(what, week, extra); return r?.skipped ? '' : r?.queued ? t(' · 📄 시트에 약 1분 내 자동 반영돼요',' · 📄 The sheet updates automatically in about a minute') : t(' · 📄 시트에도 저장했어요', ' · 📄 Saved to the sheet too'); }
     catch { return t(' · ⚠ 시트 저장은 안 됐어요 (다시 시도)', ' · ⚠ Sheet update failed (try again)'); }
   }
 
@@ -521,9 +521,9 @@ export async function renderTeam(host, c) {
         <td><button class="tm-btn alt small" data-act="needDel" data-i="${n.i}">✕</button></td></tr>`).join('') || `<tr><td colspan="6" class="tm-muted">${t('아직 없어요', 'None yet')}</td></tr>`}</tbody></table></div>
       <div class="tm-row" style="margin-top:6px"><button class="tm-btn alt small" data-act="needAdd">＋ ${t('줄 추가', 'Add row')}</button><button class="tm-btn alt small" data-act="needCopy">${t('월요일 → 화~금 복사', 'Copy Mon → Tue–Fri')}</button></div>
       <button class="tm-btn" style="width:100%;margin-top:12px" data-act="saveSettings" ${S.busy ? 'disabled' : ''}>${t('설정 저장', 'Save settings')}</button></div>
-      <div class="tm-card"><h4>📄 ${t('구글 시트', 'Google Sheet')}</h4><p class="tm-muted">${t('게시하면 ‘월 Schedule’ 탭에 주마다 매장별(색)로 쌓이고, 가능 시간을 저장하면 ‘Availability’ 탭이 바뀌어요.', 'Publishing adds each week to the monthly “Schedule” tab, by store (colour). Saving availability updates the “Availability” tab.')}</p>
-      <div class="tm-row"><a class="tm-btn alt small" style="text-decoration:none" href="${SCHEDULE_SHEET_LINK}" target="_blank" rel="noopener">${t('시트 열기', 'Open sheet')}</a><button class="tm-btn alt small" data-act="sheetNow" ${SCHEDULE_SHEET_URL && api.mode === 'live' ? '' : 'disabled'}>${t('이번 주 지금 보내기', 'Send this week now')}</button></div>
-      ${!SCHEDULE_SHEET_URL ? `<p class="tm-muted">${t('시트 연결(Apps Script 배포) 준비 중이에요.', 'Sheet connection (Apps Script deploy) is not set up yet.')}</p>` : ''}</div>`;
+      <div class="tm-card"><h4>📄 ${t('구글 시트', 'Google Sheet')}</h4><p class="tm-muted">${SCHEDULE_AUTO_SYNC ? t('시트와 운영 페이지의 스케줄이 약 1분 간격으로 자동 반영돼요. 담당자 확인이 필요한 이름은 관리자 초안으로 보관돼요.', 'Schedules sync between the sheet and Operations about every minute. Unmatched names stay as manager-only drafts.') : t('게시한 스케줄을 시트에 저장할 수 있어요.','Published schedules can be saved to the sheet.')}</p>
+      <div class="tm-row"><a class="tm-btn alt small" style="text-decoration:none" href="${SCHEDULE_SHEET_LINK}" target="_blank" rel="noopener">${t('시트 열기', 'Open sheet')}</a>${!SCHEDULE_AUTO_SYNC ? `<button class="tm-btn alt small" data-act="sheetNow" ${SCHEDULE_SHEET_URL && api.mode === 'live' ? '' : 'disabled'}>${t('이번 주 지금 보내기', 'Send this week now')}</button>` : ''}</div>
+      ${!SCHEDULE_SHEET_URL && !SCHEDULE_AUTO_SYNC ? `<p class="tm-muted">${t('시트 연결 준비 중이에요.', 'Sheet connection is not set up yet.')}</p>` : ''}</div>`;
   }
 
   // ── 그리기 ──────────────────────────────────────────
@@ -669,10 +669,10 @@ export async function renderTeam(host, c) {
       const e = S.edit; e.position = val('[data-ed="position"]'); e.note = val('[data-ed="note"]');
       if (!(e.end_min > e.start_min)) { say(t('끝나는 시간이 시작보다 늦어야 해요', 'End time must be after start time'), true); return; }
       const row = {id: e.id || newId(), date: e.date, start_min: e.start_min, end_min: e.end_min, user_id: e.user_id || null, position: e.position, note: e.note, published: !!e.published};
-      S.edit = null; run(() => api.saveShifts(S.buildStore, [row]), t('저장했어요', 'Saved'));
+      S.edit = null; run(async () => {await api.saveShifts(S.buildStore,[row]);return row.published ? sheet('syncWeek',S.week,{stores:[S.buildStore]}) : '';}, extra=>t('저장했어요','Saved')+(extra||''));
       return;
     }
-    if (act === 'delShift') { const e = S.edit; if (!confirm(t('이 근무를 지울까요?', 'Delete this shift?'))) return; S.edit = null; run(() => api.saveShifts(S.buildStore, [], [e.id]), t('지웠어요', 'Deleted')); return; }
+    if (act === 'delShift') { const e = S.edit; if (!confirm(t('이 근무를 지울까요?', 'Delete this shift?'))) return; S.edit = null; run(async()=>{await api.saveShifts(S.buildStore,[],[e.id]);return e.published ? sheet('syncWeek',S.week,{stores:[S.buildStore]}) : '';},extra=>t('지웠어요','Deleted')+(extra||'')); return; }
     if (act === 'auto') {
       const st = S.buildStore, needs = settingsOf(st).needs || [];
       if (!needs.length) { S.tab = 'set'; S.setStore = st; S.setDraft = null; say(t('먼저 필요 인원을 정해 주세요', 'Set staffing needs first'), true); return; }

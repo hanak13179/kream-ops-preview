@@ -3,9 +3,10 @@
 // 비밀값: supabase secrets set TEAM_SHEET_SECRET=... (시트 Apps Script의 스크립트 속성에도 같은 값)
 // 배포: supabase functions deploy kream-team-sheet --no-verify-jwt
 import {planSheetSync} from './plan.mjs';
+import {readScheduleRows} from './snapshot.mjs';
 const base = Deno.env.get('SUPABASE_URL')!;
 const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-async function runtimeSecret() { const config=await db('rpc/kream_team_sheet_runtime_config',{method:'POST',body:'{}'}); return config?.secret || ''; }
+async function runtimeConfig() { return await db('rpc/kream_team_sheet_runtime_config',{method:'POST',body:'{}'}); }
 const STORES = ['downtown', 'richmond-hill', 'finch'];
 
 async function db(path: string, init: RequestInit = {}) {
@@ -20,11 +21,35 @@ async function equalSecret(a: string, b: string) {
 }
 const addDays = (ymd: string, n: number) => new Date(Date.parse(ymd + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
 
+const snapshotFields='id,store_id,shift_date,start_min,end_min,user_id,position,note,published,updated_at';
+async function scheduleBlocks(known:any[]=[],onlyStore='',onlyWeek='') {
+ const range=onlyWeek?`&shift_date=gte.${onlyWeek}&shift_date=lte.${addDays(onlyWeek,6)}`:'';
+ const scope=onlyStore?`eq.${onlyStore}`:`in.(${STORES.join(',')})`;
+ const all=(await readScheduleRows(db,`kream_team_shifts?select=${snapshotFields}&store_id=${scope}${range}&order=id`)).filter((r:any)=>r.published||String(r.note||'').startsWith('시트 이름 확인:'));
+ const ids=[...new Set(all.map((r:any)=>r.user_id).filter(Boolean))];
+ const profiles=ids.length?await db(`kream_profiles?select=user_id,display_name&user_id=in.(${ids.join(',')})`):[];
+ const name=(r:any)=>r.user_id?profiles.find((p:any)=>p.user_id===r.user_id)?.display_name||'Unknown':String(r.note||'').startsWith('시트 이름 확인:')?r.note.slice('시트 이름 확인:'.length).trim():'OPEN';
+ const groups=new Map<string,any>();
+ const ensure=(store:string,week:string)=>{const key=store+'|'+week;if(!groups.has(key))groups.set(key,{store,week,shifts:[]});return groups.get(key);};
+ for(const k of known.slice(0,300))if(STORES.includes(k.store)&&/^\d{4}-\d{2}-\d{2}$/.test(k.week)&&new Date(k.week+'T12:00:00Z').getUTCDay()===1)ensure(k.store,k.week);
+ if(onlyStore&&onlyWeek)ensure(onlyStore,onlyWeek);
+ for(const r of all){const day=new Date(r.shift_date+'T12:00:00Z').getUTCDay(),week=addDays(r.shift_date,-((day+6)%7));ensure(r.store_id,week).shifts.push({...r,date:r.shift_date,name:name(r)});}
+ for(const block of groups.values()){
+  block.shifts.sort((a:any,b:any)=>a.id.localeCompare(b.id));
+  const value=JSON.stringify(block.shifts.map((r:any)=>[r.id,r.shift_date,r.start_min,r.end_min,r.user_id,r.position,r.note,r.published,r.updated_at,r.name]));
+  block.fingerprint=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))].map(b=>b.toString(16).padStart(2,'0')).join('');
+ }
+ return [...groups.values()];
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('Method not allowed', {status: 405});
   try {
-    if (!await equalSecret(req.headers.get('x-kream-sheet-secret') || '', await runtimeSecret())) return new Response('Unauthorized', {status: 401});
+    const supplied=req.headers.get('x-kream-sheet-secret')||'',cfg=await runtimeConfig();
+    const fingerprint=supplied ? [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(supplied)))].map(b=>b.toString(16).padStart(2,'0')).join('') : '';
+    if (!(cfg?.fingerprint ? await equalSecret(fingerprint,cfg.fingerprint) : await equalSecret(supplied,cfg?.secret||''))) return new Response('Unauthorized', {status: 401});
     const body = await req.json();
+    if(body.action==='pullSchedules')return Response.json({ok:true,blocks:await scheduleBlocks(Array.isArray(body.known_blocks)?body.known_blocks:[])});
     const store = String(body.store_id || ''), week = String(body.week_start || '');
     if (!STORES.includes(store) || !/^\d{4}-\d{2}-\d{2}$/.test(week) || new Date(week + 'T12:00:00Z').getUTCDay() !== 1) return Response.json({ok: false, error: 'Bad store or week'}, {status: 400});
     const end = addDays(week, 6);
@@ -41,6 +66,7 @@ Deno.serve(async (req: Request) => {
     const people = profiles.flatMap((p:any)=>[p.display_name,...(aliases[p.display_name]||[])].map(name=>({id:p.user_id,name})));
     const plan = planSheetSync({existing, incoming, people, newId: () => crypto.randomUUID()});
     if(plan.changed)await db('rpc/kream_team_sheet_apply',{method:'POST',body:JSON.stringify({target_store:store,week_start:week,expected:existing.map((r:any)=>({id:r.id,updated_at:r.updated_at})),rows:plan.upserts,delete_ids:plan.deletes})});
-    return Response.json({ok: true, changed: plan.changed, warnings: plan.warnings.map((w:string)=>w.replace('→ 빈 근무로 넣었어요','→ 담당자 확인 필요 (관리자 초안)'))});
+    const block=(await scheduleBlocks([],store,week))[0];
+    return Response.json({ok: true, changed: plan.changed, fingerprint:block.fingerprint, warnings: plan.warnings.map((w:string)=>w.replace('→ 빈 근무로 넣었어요','→ 담당자 확인 필요 (관리자 초안)'))});
   } catch (e) { return Response.json({ok: false, error: 'Schedule sync failed; nothing partially saved'}, {status: 500}); }
 });

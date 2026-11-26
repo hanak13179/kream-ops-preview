@@ -31,7 +31,8 @@ export function planSheetSync({existing = [], incoming = [], people = [], newId 
     const m = matchName(r.name, people);
     if (m.unknown) warnings.push(`${r.date} “${m.unknown}”: ${m.many ? '같은 이름이 여러 명이에요' : '앱에 없는 이름이에요'} → 빈 근무로 넣었어요`);
     const free = pub.filter(s => left.has(s.id));
-    const hit = free.find(s => s.date === r.date && s.start_min === r.start_min && s.end_min === r.end_min && (s.user_id || null) === m.user_id)
+    const hit = free.find(s => s.date === r.date && s.start_min === r.start_min && s.end_min === r.end_min && (s.user_id || null) === m.user_id && (!m.unknown || s.note === `시트 이름 확인: ${m.unknown}`))
+      || (m.unknown ? free.find(s => s.date === r.date && s.note === `시트 이름 확인: ${m.unknown}`) : null)
       || free.find(s => s.date === r.date && s.start_min === r.start_min && s.end_min === r.end_min)
       || (m.user_id ? free.find(s => s.date === r.date && s.user_id === m.user_id) : null);
     const row = {date: r.date, start_min: r.start_min, end_min: r.end_min, user_id: m.user_id, position: r.position || '', note: m.unknown ? `시트 이름 확인: ${m.unknown}` : ''};

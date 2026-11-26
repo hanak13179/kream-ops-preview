@@ -1,18 +1,11 @@
 /**
- * Kream Ops Schedule 시트 연결 (📅 스케줄 페이지 → 구글 시트)
- * 시트: https://docs.google.com/spreadsheets/d/1GMTKRZKT6a2AoY3PQmQEaGrc_pHIPZkDfh1ufNbq7kw
- *
- * 앱이 {action, token, ...}을 보내면, 이 스크립트가 그 사람의 로그인 토큰으로 Supabase에서 직접 읽어서 써요.
- * → 앱에서 숫자를 보내지 않으니 시트에 가짜 시간을 넣을 수 없어요 (팁 금액만 매니저 앱에서 같이 와요).
- *
- *  syncWeek         (매니저) 그 주 스케줄을 '<월> Schedule' 탭에 매장마다 블록으로 (날짜 칸 아래 시간 / 시간수 / 이름, 사람마다 색).
- *                   같은 주는 다시 쓰고 새 주는 아래에 계속 쌓여요. 지각·안 옴 표시.
- *  ⟲ 시트에서 고치기  시간·이름 칸을 고치면 1분 안에 앱에 반영돼요 (메뉴 'Kream 스케줄' → 자동 반영 켜기, 처음 한 번).
- *  syncAvailability (누구나) 'Availability' 탭에서 그 사람 줄만 바꿔요 (매니저가 보내면 매장 사람 모두).
- *  syncPayroll      (매니저) 'Payroll' 탭에 2주 급여 요약 (시간·정규·초과 44h/주·카드팁·현금팁·지각). 같은 기간은 다시 써요.
- *
- * 설치: 시트 → 확장 프로그램 → Apps Script → 이 코드 붙여넣기 → 저장
- *       → 배포 → 새 배포 → 웹 앱 (실행: 나, 액세스: 모든 사용자) → URL을 staff/team-data.mjs 의 SCHEDULE_SHEET_URL 에 넣기
+ * Private Kream schedule connection — no public Google web app.
+ * Company-account standalone Apps Script project; source spreadsheet editors cannot read its settings.
+ * Configure FUNCTION_URL in Script Properties. Run preparePrivateConnection once, register only
+ * its SHA256 fingerprint in the server Vault, then run installLiveConnection.
+ * onEditInstalled queues sheet edits; syncCycle imports edits and exports changed server blocks
+ * every minute. Published shifts and unresolved manager drafts sync; T training stays only in Sheet.
+ * Legacy authenticated export helpers are retained for compatibility and are not publicly deployed.
  */
 const SUPABASE_URL = 'https://imkhosgnkgwchoyrqczw.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ISqCCHUBASP2sKEqEM04Lg_Jnft4D-y';   // 공개 키 (앱에도 있는 값). 권한은 사람 토큰 + RLS로 정해져요.
@@ -29,7 +22,9 @@ const LATE_GRACE = 5, WEEK_OT = 44;
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function doPost(e) {
+  const lock=LockService.getScriptLock();let locked=false;
   try {
+    lock.waitLock(30000);locked=true;
     const body = JSON.parse(e.postData.contents || '{}');
     if (!body.token) throw new Error('Sign in required');
     const me = sbAuth(body.token);
@@ -43,6 +38,7 @@ function doPost(e) {
     else throw new Error('Unknown action');
     return json({ok: true, data: out});
   } catch (err) { return json({ok: false, error: String(err.message || err)}); }
+  finally {if(locked)lock.releaseLock();}
 }
 function json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
@@ -89,18 +85,19 @@ function sheetNamed(name) { const ss = scheduleSpreadsheet(); return ss.getSheet
 
 /** 블록 다시 쓰기: A열에 key가 있는 줄부터 다음 '#' 줄 전까지를 지우고 같은 자리에 새로 써요. 없으면 맨 아래에 붙여요. */
 function writeBlock(sh, key, rows, styles) {
-  const last = sh.getLastRow(), colA = last ? sh.getRange(1, 1, last, 1).getValues().map(r => String(r[0])) : [];
-  let at = colA.indexOf(key) + 1, len = 0;
-  if (at) { len = 1; while (at + len <= last && !String(colA[at + len - 1]).startsWith('#')) len++; sh.deleteRows(at, len); }
-  else at = last ? last + 2 : 1;
-  const width = Math.max(...rows.map(r => r.length));
-  const grid = rows.map(r => r.concat(Array(width - r.length).fill('')));
-  if (at > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), at - sh.getMaxRows() + grid.length);
-  sh.insertRowsBefore(at, grid.length);
-  if (width > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), width - sh.getMaxColumns());
-  const rg = sh.getRange(at, 1, grid.length, width);
+  const last=sh.getLastRow(),colA=last?sh.getRange(1,1,last,1).getValues().map(r=>String(r[0])):[];
+  let at=colA.indexOf(key)+1,len=0;
+  if(at){len=1;while(at+len<=last&&!String(colA[at+len-1]).startsWith('#'))len++;}
+  else at=last?last+2:1;
+  const width=Math.max(...rows.map(r=>r.length)),height=Math.max(len,rows.length);
+  if(len&&rows.length>len)sh.insertRowsAfter(at+len-1,rows.length-len);
+  const needed=at+height-1-sh.getMaxRows();if(needed>0)sh.insertRowsAfter(sh.getMaxRows(),needed);
+  if(width>sh.getMaxColumns())sh.insertColumnsAfter(sh.getMaxColumns(),width-sh.getMaxColumns());
+  const grid=Array.from({length:height},(_,i)=>(rows[i]||[]).concat(Array(width-(rows[i]||[]).length).fill('')));
+  // Keep the previous block visible until its replacement values are ready; never delete it first.
+  const rg=sh.getRange(at,1,height,width);
   rg.setValues(grid).setBackground(null).setFontWeight('normal').setFontColor('#2b2a26').setWrap(true).setVerticalAlignment('top');
-  (styles || []).forEach(s => { const r = sh.getRange(at + s.row, 1 + (s.col || 0), 1, s.cols || width); if (s.bg) r.setBackground(s.bg); if (s.bold) r.setFontWeight('bold'); if (s.color) r.setFontColor(s.color); if (s.size) r.setFontSize(s.size); if (s.align) r.setHorizontalAlignment(s.align); if (s.italic) r.setFontStyle('italic'); });
+  (styles||[]).forEach(s=>{const r=sh.getRange(at+s.row,1+(s.col||0),1,s.cols||width);if(s.bg)r.setBackground(s.bg);if(s.bold)r.setFontWeight('bold');if(s.color)r.setFontColor(s.color);if(s.size)r.setFontSize(s.size);if(s.align)r.setHorizontalAlignment(s.align);if(s.italic)r.setFontStyle('italic');});
   return at;
 }
 
@@ -115,15 +112,21 @@ const hmSpace = (a, b) => `${hm(a)} ~ ${hm(b)}`;
 /** stores: 앱에서 매니저가 관리하는 매장들. 그 매장 사람(멤버)인 경우만 써요 */
 function syncWeek(token, weekStart, stores) {
   weekStart = weekStartOf(weekStart);
+  const pending=JSON.parse(PropertiesService.getScriptProperties().getProperty('dirty')||'{}');
+  if(Object.keys(pending).some(k=>k.indexOf('|# '+weekStart+' ')>=0))throw new Error('Sheet edits are still syncing; try again shortly');
   const end = ymdAdd(weekStart, 6), dates = [0, 1, 2, 3, 4, 5, 6].map(i => ymdAdd(weekStart, i));
   const ppl = people(token);
-  const shifts = sb(token, `kream_team_shifts?select=*&published=eq.true&shift_date=gte.${weekStart}&shift_date=lte.${end}&order=start_min`);
+  const shifts = sb(token, `kream_team_shifts?select=*&shift_date=gte.${weekStart}&shift_date=lte.${end}&order=start_min`).filter(s=>s.published || String(s.note||'').indexOf('시트 이름 확인:')===0);
   const cards = sb(token, `kream_team_timecards?select=*&clock_in=gte.${isoBound(ymdAdd(weekStart, -1))}&clock_in=lt.${isoBound(ymdAdd(end, 2))}`);
   const mine = (stores && stores.length ? stores : STORES).filter(st => STORES.indexOf(st) >= 0 && rpc(token, 'kream_team_people', {target_store: st}).length);
+  return writeWeekSnapshot(weekStart,mine,ppl,shifts,cards);
+}
+function writeWeekSnapshot(weekStart,mine,ppl,shifts,cards) {
+  const end=ymdAdd(weekStart,6),dates=[0,1,2,3,4,5,6].map(i=>ymdAdd(weekStart,i));
   const sh = sheetNamed(monthTab(weekStart, 'Schedule'));
   const now = new Date(), today = local(now.toISOString()), nowMin = localMin(now.toISOString());
   mine.forEach(st => {
-    const name = id => id ? ((ppl[id] && ppl[id].name) || '?') : 'OPEN';
+    const name = s => s.note==='training:T' ? 'T' : s.user_id ? ((ppl[s.user_id] && ppl[s.user_id].name) || '?') : String(s.note||'').indexOf('시트 이름 확인:')===0 ? s.note.slice('시트 이름 확인:'.length).trim() : 'OPEN';
     const byDay = dates.map(d => shifts.filter(s => s.store_id === st && s.shift_date === d).sort((a, b) => a.start_min - b.start_min || a.end_min - b.end_min));
     const slots = Math.max(1, ...byDay.map(l => l.length)) + 1;   // 맨 아래 빈 칸 한 줄: 시트에서 근무 추가용
     const rows = [], styles = [];
@@ -140,8 +143,8 @@ function syncWeek(token, weekStart, stores) {
         if (!s) { tr.push(''); hr.push(''); nr.push(''); return; }
         tr.push(hmSpace(s.start_min, s.end_min) + (s.position ? ` ${s.position}` : ''));
         hr.push(r2((s.end_min - s.start_min) / 60));
-        let nm = name(s.user_id), mark = '';
-        if (s.user_id) {
+        let nm = name(s), mark = '';
+        if (s.user_id && cards) {
           const tc = cards.filter(c => c.user_id === s.user_id && c.store_id === st && local(c.clock_in) === dates[i])[0];
           if (tc) { const late = localMin(tc.clock_in) - s.start_min; if (late > LATE_GRACE) mark = ` ⚠ ${late}m late`; }
           else if (dates[i] < today || (dates[i] === today && nowMin > s.start_min + 15)) mark = ' ✗ no-show';
@@ -162,17 +165,38 @@ function syncWeek(token, weekStart, stores) {
 
 // ── 시트에서 고치면 앱에 반영 ──
 // 스크립트 속성: TEAM_SHEET_SECRET (Supabase 비밀값과 같게), FUNCTION_URL (…/functions/v1/kream-team-sheet)
-function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Kream 스케줄')
-    .addItem('바뀐 스케줄 지금 앱에 반영', 'pushDirty')
-    .addItem('이 블록 앱에 반영 (커서가 있는 곳)', 'pushCurrent')
-    .addSeparator().addItem('자동 반영 켜기 (처음 한 번만)', 'installTriggers').addToUi();
+// Standalone private project: spreadsheet editors cannot access connection secrets.
+// Generate the credential inside Google; only its one-way fingerprint leaves this project.
+function preparePrivateConnection() {
+  const props=PropertiesService.getScriptProperties();
+  if(!props.getProperty('TEAM_SHEET_SECRET'))props.setProperty('TEAM_SHEET_SECRET',Utilities.getUuid().replace(/-/g,'')+Utilities.getUuid().replace(/-/g,''));
+  const fingerprint=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,props.getProperty('TEAM_SHEET_SECRET'),Utilities.Charset.UTF_8).map(b=>('0'+((b+256)%256).toString(16)).slice(-2)).join('');
+  console.log('TEAM_SHEET_FINGERPRINT='+fingerprint);
+}
+function installLiveConnection() {
+  const props=PropertiesService.getScriptProperties();
+  if(!props.getProperty('FUNCTION_URL') || !props.getProperty('TEAM_SHEET_SECRET')) throw new Error('Connection properties required');
+  installTriggers();
+  syncAllScheduleBlocks();
+}
+function syncAllScheduleBlocks() {
+  const lock=LockService.getScriptLock();if(!lock.tryLock(5000))throw new Error('Sync already running');
+  try {
+    const results=[];
+    scheduleSpreadsheet().getSheets().filter(sh=>/Schedule$/.test(sh.getName())).forEach(sh=>{
+      if(!sh.getLastRow())return;
+      const keys=sh.getRange(1,1,sh.getLastRow(),1).getDisplayValues().map(r=>r[0]).filter(k=>/^# \d{4}-\d{2}-\d{2} (downtown|richmond-hill|finch)$/.test(k));
+      keys.forEach(key=>results.push(sh.getName()+' '+key+' '+pushBlock(sh,key)));
+    });
+    PropertiesService.getScriptProperties().setProperty('LAST_FULL_SYNC',JSON.stringify({at:new Date().toISOString(),results}));
+    console.log(JSON.stringify(results));
+  } finally {lock.releaseLock();}
 }
 function installTriggers() {
-  ScriptApp.getProjectTriggers().forEach(t => { if (['onEditInstalled', 'pushDirty'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
+  ScriptApp.getProjectTriggers().forEach(t => { if (['onEditInstalled', 'pushDirty', 'syncCycle'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('onEditInstalled').forSpreadsheet(scheduleSpreadsheet()).onEdit().create();
-  ScriptApp.newTrigger('pushDirty').timeBased().everyMinutes(1).create();
-  scheduleSpreadsheet().toast('자동 반영을 켰어요. 스케줄 칸을 고치면 1분 안에 앱에 반영돼요.');
+  ScriptApp.newTrigger('syncCycle').timeBased().everyMinutes(1).create();
+  console.log('Automatic schedule sync enabled: every minute');
 }
 function keyAbove(sh, row) {
   const top = Math.max(1, row - 80), vals = sh.getRange(top, 1, row - top + 1, 1).getValues();
@@ -180,22 +204,25 @@ function keyAbove(sh, row) {
   return null;
 }
 function onEditInstalled(e) {
-  const sh = e.range.getSheet();
-  if (!/Schedule$/.test(sh.getName()) || e.range.getColumn() > 8) return;
-  const k = keyAbove(sh, e.range.getRow());
-  if (!k || e.range.getRow() < k.row + 3) return;
-  const props = PropertiesService.getDocumentProperties(), dirty = JSON.parse(props.getProperty('dirty') || '{}');
-  dirty[sh.getName() + '|' + k.key] = Date.now(); props.setProperty('dirty', JSON.stringify(dirty));
-}
-function pushCurrent() {
-  const sh = SpreadsheetApp.getActiveSheet(), k = keyAbove(sh, sh.getActiveCell().getRow());
-  if (!k) { scheduleSpreadsheet().toast('스케줄 블록 안을 눌러 주세요'); return; }
-  scheduleSpreadsheet().toast(pushBlock(sh, k.key));
+  const sh=e.range.getSheet();
+  if(!/Schedule$/.test(sh.getName()) || e.range.getColumn()>8)return;
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    const props=PropertiesService.getScriptProperties(),dirty=JSON.parse(props.getProperty('dirty')||'{}');
+    const first=e.range.getRow(),last=first+e.range.getNumRows()-1;
+    const all=sh.getRange(1,1,sh.getLastRow(),1).getDisplayValues().map(r=>r[0]);
+    all.forEach((key,i)=>{
+      if(!/^# \d{4}-\d{2}-\d{2} (downtown|richmond-hill|finch)$/.test(key))return;
+      let end=i+1;while(end<all.length && String(all[end]).indexOf('#')!==0)end++;
+      if(first<=end && last>=i+4)dirty[sh.getName()+'|'+key]=Date.now();
+    });
+    props.setProperty('dirty',JSON.stringify(dirty));
+  } finally {lock.releaseLock();}
 }
 function pushDirty() {
-  const lock = LockService.getDocumentLock(); if (!lock.tryLock(5000)) return;
+  const lock = LockService.getScriptLock(); if (!lock.tryLock(5000)) return;
   try {
-    const props = PropertiesService.getDocumentProperties(), dirty = JSON.parse(props.getProperty('dirty') || '{}');
+    const props = PropertiesService.getScriptProperties(), dirty = JSON.parse(props.getProperty('dirty') || '{}');
     Object.keys(dirty).forEach(id => {
       if (Date.now() - dirty[id] < 20000) return;   // 아직 고치는 중이면 다음 번에
       const [tab, key] = [id.slice(0, id.indexOf('|')), id.slice(id.indexOf('|') + 1)], sh = scheduleSpreadsheet().getSheetByName(tab);
@@ -231,12 +258,51 @@ function pushBlock(sh, key) {
   if (!url || !secret) { status.setValue('⚠ 앱 반영 설정 전 (FUNCTION_URL / TEAM_SHEET_SECRET)'); return '설정이 필요해요'; }
   const r = UrlFetchApp.fetch(url, {method: 'post', contentType: 'application/json', headers: {'x-kream-sheet-secret': secret}, payload: JSON.stringify({store_id: store, week_start: weekStart, shifts}), muteHttpExceptions: true});
   const out = JSON.parse(r.getContentText() || '{}');
+  if(out.ok && out.fingerprint)props.setProperty('server:'+store+':'+weekStart,out.fingerprint);
   // 시간수 줄은 시트에서도 바로 다시 계산
   for (let rr = 3; rr + 2 < grid.length; rr += 3) for (let c = 1; c <= 7; c++) { const t = parseRange(grid[rr][c]); sh.getRange(at + rr + 1, 1 + c).setValue(t ? r2((t.end_min - t.start_min) / 60) : ''); }
   const warn = (out.warnings || []).concat(bad.map(b => `${b}: 시간을 못 읽었어요 (예: 10:00 ~ 16:00)`));
-  const msg = out.ok ? `✅ 앱에 반영 ${Utilities.formatDate(new Date(), TZ, 'MMM d HH:mm')} (${out.changed}개 바뀜)${warn.length ? '\n⚠ ' + warn.join('\n⚠ ') : ''}` : `⚠ 반영 실패: ${out.error || r.getResponseCode()}`;
-  status.setValue(msg).setFontColor(warn.length || !out.ok ? '#b00020' : '#2e7d32').setWrap(true);
+  const msg = out.ok ? `✅ 앱에 반영 ${Utilities.formatDate(new Date(), TZ, 'MMM d HH:mm')} (${out.changed}개 바뀜)${warn.length ? ' · 담당자 확인 '+warn.length+'건' : ''}` : `⚠ 반영 실패: ${out.error || r.getResponseCode()}`;
+  status.setNote(warn.join('\n')).setValue(msg).setFontColor(warn.length || !out.ok ? '#b00020' : '#2e7d32').setWrap(true);
   return msg.split('\n')[0];
+}
+
+
+// No public Google web app is required: the private minute trigger pulls server changes.
+function syncCycle(){pushDirty();pullServerUpdates();}
+function pullServerUpdates(){
+ const lock=LockService.getScriptLock();if(!lock.tryLock(5000))return;
+ try {
+  const props=PropertiesService.getScriptProperties(),dirty=JSON.parse(props.getProperty('dirty')||'{}');
+  const known=[];
+  scheduleSpreadsheet().getSheets().filter(sh=>/Schedule$/.test(sh.getName())).forEach(sh=>{
+   if(!sh.getLastRow())return;
+   sh.getRange(1,1,sh.getLastRow(),1).getDisplayValues().forEach(r=>{const m=String(r[0]).match(/^# (\d{4}-\d{2}-\d{2}) (downtown|richmond-hill|finch)$/);if(m)known.push({week:m[1],store:m[2]});});
+  });
+  const response=UrlFetchApp.fetch(props.getProperty('FUNCTION_URL'),{method:'post',contentType:'application/json',headers:{'x-kream-sheet-secret':props.getProperty('TEAM_SHEET_SECRET')},payload:JSON.stringify({action:'pullSchedules',known_blocks:known}),muteHttpExceptions:true});
+  const out=JSON.parse(response.getContentText()||'{}');if(response.getResponseCode()!==200||!out.ok)throw new Error('Server schedule read failed');
+  let changed=0;
+  (out.blocks||[]).forEach(block=>{
+   const id='server:'+block.store+':'+block.week,key=monthTab(block.week,'Schedule')+'|'+blockKey(block.week,block.store);
+   if(dirty[key]||props.getProperty(id)===block.fingerprint)return;
+   const sh=sheetNamed(monthTab(block.week,'Schedule')),training=readTrainingRows(sh,block.week,block.store),ppl={};
+   block.shifts.forEach(r=>{if(r.user_id)ppl[r.user_id]={name:r.name};});
+   writeWeekSnapshot(block.week,[block.store],ppl,block.shifts.concat(training),null);
+   props.setProperty(id,block.fingerprint);changed++;
+  });
+  props.setProperty('LAST_SERVER_PULL',JSON.stringify({at:new Date().toISOString(),changed}));
+  console.log('Server to sheet: '+changed+' blocks updated');
+ } finally {lock.releaseLock();}
+}
+function readTrainingRows(sh,week,store){
+ if(!sh.getLastRow())return [];
+ const a=sh.getRange(1,1,sh.getLastRow(),1).getDisplayValues().map(r=>r[0]),start=a.indexOf(blockKey(week,store));if(start<0)return [];
+ let end=start+1;while(end<a.length&&String(a[end]).indexOf('#')!==0)end++;
+ const grid=sh.getRange(start+1,1,end-start,9).getDisplayValues(),rows=[];
+ for(let r=3;r+2<grid.length;r+=3)for(let c=1;c<=7;c++)if(String(grid[r+2][c]).trim().toLowerCase()==='t'){
+  const time=parseRange(grid[r][c]);if(time)rows.push({store_id:store,shift_date:ymdAdd(week,c-1),...time,user_id:null,note:'training:T'});
+ }
+ return rows;
 }
 
 // ── 가능 시간 ──

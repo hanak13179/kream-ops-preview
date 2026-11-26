@@ -5,6 +5,8 @@ import {TEAM_STORES, today, addDays, weekStart, weekDates, autoSchedule, geoChec
 // 구글 시트 'Kream Ops Schedule' 연결 (apps-script/schedule-sync.gs 를 시트에 붙여 웹앱으로 배포한 주소)
 // 비어 있으면 시트 연결은 건너뛰어요. 시트는 로그인한 사람의 토큰으로 Supabase에서 직접 읽어서 써요 (가짜 자료를 못 넣어요).
 export const SCHEDULE_SHEET_URL = '';
+// A private Google minute trigger synchronizes schedules; no public Google web app.
+export const SCHEDULE_AUTO_SYNC = true;
 export const SCHEDULE_SHEET_LINK = 'https://docs.google.com/spreadsheets/d/1GMTKRZKT6a2AoY3PQmQEaGrc_pHIPZkDfh1ufNbq7kw/edit';
 
 const uuid = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16)));
@@ -239,12 +241,12 @@ function supaBackend(c, stores) {
     decideFix: (id, yes) => call('kream_team_decide_timecard_fix', {target_id: id, approve: yes}),
     /** 시트에 이번 주 스케줄 / 가능 시간 다시 쓰기. 시트(Apps Script)가 이 사람 토큰으로 Supabase에서 직접 읽어요. */
     async syncSheet(what, weekStartYmd, extra = {}) {
-      if (!SCHEDULE_SHEET_URL) return {skipped: 'no_url'};
+      if (!SCHEDULE_SHEET_URL) return SCHEDULE_AUTO_SYNC && what==='syncWeek' ? {queued:true,interval_seconds:60} : {skipped:'not_configured'};
       const {data} = await db.auth.getSession(), token = data?.session?.access_token;
       if (!token) return {skipped: 'no_session'};
       const r = await fetch(SCHEDULE_SHEET_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({action: what, week_start: weekStartYmd, token, ...extra})});
       const out = await r.json().catch(() => ({}));
-      if (!r.ok || out.ok === false) throw Error(out.error || 'SHEET_FAILED');
+      if (!r.ok || out.ok !== true) throw Error(out.error || 'SHEET_FAILED');
       return out;
     }
   };

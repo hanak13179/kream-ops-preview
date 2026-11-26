@@ -45,7 +45,7 @@ import {stockFields,bindStock,hasStockEdits,stockNumbers} from './store-stock.mj
 import {renderDispatch} from './dispatch.mjs?v=20261124-storage-jalapeno';
 import {renderProduction} from './production.mjs?v=20261119-memo-items';
 import {renderCashCount} from './cash-count.mjs?v=20261125-live-push';
-import {renderTeam} from './team.mjs?v=20261125-confirm-names';
+import {renderTeam} from './team.mjs?v=20261125-private-sheet';
 import {renderHR,canUseHR} from './hr.mjs?v=20261125-live-push';
 import {renderWaste,todayToronto} from './waste.mjs?v=20261102-whole-quantity';
 import {navigationGroups,orderedPages,previewRoles,visiblePages,canPreview,isFactoryRole,scopePreview} from './access.mjs?v=20261125-live-push';
