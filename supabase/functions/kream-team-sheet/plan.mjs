@@ -7,9 +7,18 @@
 const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 export const OPEN_WORDS = ['', 'open', 'open shift', '빈 근무', '빈근무', 'open (빈 근무)', '-', '—'];
 
+// Owner-confirmed sheet aliases (2026-11-25); only eligible active people can match.
+const confirmedNames = new Map([
+  ['clara', '895e3963-c5dc-4f63-8ee4-9403026de6ca'],
+  ['태민', 'b4db16a3-8b6c-4271-bbac-414bff9a6332'],
+  ['수희', 'ecfbfaee-377b-4434-af64-040ded02d2a0'],
+]);
+
 export function matchName(name, people) {
   const n = norm(name).replace(/\s*[⚠✗].*$/, '').trim();
   if (OPEN_WORDS.includes(n)) return {user_id: null};
+  const confirmed = confirmedNames.get(n);
+  if (confirmed) return people.some(p => p.id === confirmed) ? {user_id: confirmed} : {user_id: null, unknown: String(name).trim(), many: false};
   const exact = people.filter(p => norm(p.name) === n);
   if (exact.length === 1) return {user_id: exact[0].id};
   const starts = people.filter(p => norm(p.name).startsWith(n) || n.startsWith(norm(p.name).split(' ')[0]) && norm(p.name).split(' ')[0].length >= 2);
