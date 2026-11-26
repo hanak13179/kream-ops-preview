@@ -21,9 +21,9 @@ test('storage mapping splits chilled desserts and ingredients; rice stays visibl
  assert.equal(storageZone({name_ko:'커피빈'},'finch'),'supplies');assert.equal(storageZone({name_ko:'쌀'},'finch'),'unassigned');
  assert.equal(storageZone({subgroup:'크림밤'},'midland'),'midland');assert.equal(storageZone({subgroup:'크림밤'},'finch'),'unassigned');
 });
-test('flavor tables have at most four columns, preserve units and never mix Dubai cookies into ordinary cookies',()=>{
+test('flavor tables use vertical rows, preserve units and never mix Dubai cookies into ordinary cookies',()=>{
  const a={...catalog[0],key:'a',zone:'chilled-desserts',family:familyInfo(catalog[0])};
- assert.equal(storageGroups(Array.from({length:5},(_,i)=>({...a,key:String(i)}))).length,2);
+ assert.equal(storageGroups(Array.from({length:5},(_,i)=>({...a,key:String(i)}))).length,1);
  assert.equal(storageGroups([{...a,order_unit:'EA'},{...a,key:'b',order_unit:'Tray'}]).length,2);
  assert.equal(familyInfo({name_ko:'말차 두바이 쫀득 쿠키',subgroup:'쿠키'}),null);
  assert.equal(familyInfo({name_ko:'바나나 푸딩',subgroup:'푸딩'}),null);

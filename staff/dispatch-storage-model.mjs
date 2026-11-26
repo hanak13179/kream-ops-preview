@@ -69,7 +69,7 @@ export function buildStorageRows(orders,catalog,dispatches,date){
 export function storageGroups(rows){
  const groups=[],byKey=new Map();
  for(const row of rows){const family=row.family,k=family?JSON.stringify([row.zone,family.key,row.order_unit]):row.key;let g=byKey.get(k);if(!g){g={key:k,zone:row.zone,family,rows:[]};byKey.set(k,g);groups.push(g);}g.rows.push(row);}
- return groups.flatMap(g=>Array.from({length:Math.ceil(g.rows.length/4)},(_,n)=>({...g,key:g.key+':'+n,rows:g.rows.slice(n*4,n*4+4)})));
+ return groups;
 }
 export const rowEntryKey=(row,store)=>JSON.stringify([row.key,store]);
 export function checkedEntry(row,store,entries){const n=entries[rowEntryKey(row,store)];return n!==''&&n!=null&&Number.isInteger(Number(n))&&n>=0&&n<=row.stores[store]&&(halfBoxCount(row)!==32||n%32===0);}

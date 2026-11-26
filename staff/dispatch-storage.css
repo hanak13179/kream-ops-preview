@@ -67,3 +67,19 @@
 /* Quantities are edited directly, without browser increment/decrement arrows. */
 .storage-dispatch input[type="number"]{appearance:textfield;-moz-appearance:textfield}
 .storage-dispatch input[type="number"]::-webkit-inner-spin-button,.storage-dispatch input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+/* Flavor rows / compact store columns, including 320px phones. */
+.storage-dispatch .sd-flavor-col{width:58px}
+.storage-dispatch .sd-row-action-col{width:104px}
+.storage-dispatch .sd-flavor-rows tbody th{padding:3px 2px}
+.storage-dispatch .sd-flavor-total{display:block;font-size:19px;line-height:1.15}
+.storage-dispatch .sd-short-store span{display:block;white-space:nowrap;font:700 11px/1.15 Arial,sans-serif;letter-spacing:-.5px}
+.storage-dispatch .sd-flavor-rows input{font-size:16px}
+.storage-dispatch .sd-flavor-rows .sd-actions{justify-content:center;flex-direction:row}
+.storage-dispatch .sd-flavor-rows .sd-actions button{font-size:10px;padding:2px 1px}
+.storage-dispatch .sd-completed{margin:8px 0;border:1px solid #cbd4bd;border-radius:6px;padding:4px}
+.storage-dispatch .sd-completed>summary{font-size:13px;font-weight:600;padding:4px}
+.storage-dispatch .sd-load-list{flex-basis:100%;width:100%}
+.storage-dispatch .sd-load-list>summary{font-size:12px;margin-bottom:4px}
+.storage-dispatch .sd-load-list th:first-child{width:70%}
+.workflow-live{font-size:11px;color:#58634c;margin:5px 0}
+@media(max-width:400px){.storage-dispatch .sd-flavor-col{width:37px}.storage-dispatch .sd-row-action-col{width:90px}.storage-dispatch .sd-flavor-rows tbody th{font-size:11px}.storage-dispatch .sd-flavor-rows .sd-actions button{font-size:10px}.storage-dispatch .sd-flavor-rows thead th{font-size:9px}}

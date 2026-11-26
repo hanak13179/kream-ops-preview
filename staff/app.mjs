@@ -42,14 +42,14 @@ import {renderClover} from './clover.mjs?v=20261106-all-cheesecake-trays';
 import {renderOverview} from './overview.mjs?v=20261119-garnish-sequence';
 import {stockDisplay,stockDisplayFactor,stockInput} from './stock-units.mjs?v=20261122-cookie-pieces';
 import {stockFields,bindStock,hasStockEdits,stockNumbers} from './store-stock.mjs?v=20261122-cookie-pieces2';
-import {renderDispatch} from './dispatch.mjs?v=20261124-storage-jalapeno';
+import {renderDispatch} from './dispatch.mjs?v=20261126-shared';
 import {renderProduction} from './production.mjs?v=20261119-memo-items';
 import {renderCashCount} from './cash-count.mjs?v=20261125-live-push';
 import {renderTeam} from './team.mjs?v=20261125-private-sheet';
 import {renderHR,canUseHR} from './hr.mjs?v=20261126-mixed-workplaces';
 import {renderWaste,todayToronto} from './waste.mjs?v=20261102-whole-quantity';
 import {navigationGroups,orderedPages,previewRoles,visiblePages,canPreview,isFactoryRole,scopePreview} from './access.mjs?v=20261126-mixed-workplaces';
-import {renderReceiving,renderGuides,hasModuleEdits as hasOtherModuleEdits,clearModuleState as clearOtherModuleState} from './operations.mjs?v=20261125-checked';
+import {renderReceiving,renderGuides,hasModuleEdits as hasOtherModuleEdits,clearModuleState as clearOtherModuleState} from './operations.mjs?v=20261126-shared';
 
 import {artwork,deliveryLabel,filterProducts,needsOrder,frequentIds,favoriteIds,orderReference} from './presentation.mjs?v=20261106-below-minimum';
 import {tomorrowToronto,validItems,sameBasketItems,saveSharedBasket as saveDraft,submitSharedBasket as submitDraft,aggregate} from './core.mjs?v=20261123-note-english';
@@ -96,6 +96,8 @@ function renderAuth(){
  });};
 }
 $('#myName').onclick=()=>{if(busy||isPreview())return;openMyAccount({db,profile,lang,t,esc,onSaved:({displayName,language})=>{profile={...profile,display_name:displayName};lang=language;user={...user,user_metadata:{...user.user_metadata,preferred_language:lang}};localStorage.setItem('kream-staff-language',lang);render();say(t('내 정보를 저장했어요.','Your account settings are saved.'));}});};
+let workflowSourceTimer=null;
+function refreshWorkflowSources(){clearTimeout(workflowSourceTimer);const sourcePage=page;workflowSourceTimer=setTimeout(async()=>{if(page!==sourcePage||!['dispatch','receiving'].includes(page))return;if(busy){refreshWorkflowSources();return;}try{await loadOrders();await loadModules();if(page===sourcePage)render();}catch(e){failure(e);}},250);}
 async function run(fn){if(busy)return;if(isPreview()){say(t('권한 미리보기에서는 저장·발주·입고 확인을 실행하지 않아요. 실제 화면으로 돌아가 주세요.','Preview mode cannot save, submit or receive. Return to the live workspace.'),true);return;}setBusy(true);try{await fn();}catch(e){failure(e);}finally{setBusy(false);}}
 function isPreview(){return canPreview(profile,previewRole);}
 function screenRole(){return isPreview()?previewRole:profile?.role==='manager'&&profile.general_manager?'general_manager':profile?.role==='factory'?accountKind(profile):profile?.role;}
@@ -183,7 +185,7 @@ function renderPortal(){
  bindPreview();document.querySelectorAll('[data-area]').forEach(b=>b.onclick=()=>{if(hasModuleEdits()&&!confirm(t('작성 중인 내용을 두고 전환할까요?','Leave unsaved entries?')))return;clearModuleState();combinedArea=b.dataset.area;render();});const view=$('#view');
  if(['orderSaved','orderComplete'].includes(page)){renderOrderConfirmation(view);return;}
  if(!['hr','team','cash','factoryreservations','reservations','clover','galleria','galleriaHistory','galleriaSop','factorymanual','order','history','production','receiving','sop','manual','waste','dispatch','overview','productionlog','finishedstock','costs','externaldispatch','daily','inventory','purchases','materialreceiving','settlement','accounts','workplaces','catalogreview'].includes(page)){view.innerHTML=`<div class="panel pending"><h2>${t('실제 자료 연결 준비 중','Shared data connection pending')}</h2><p>${t('기존 초안에서 구성한 메뉴입니다. 이 기능은 아직 로그인 계정의 공유 자료와 연결되지 않았습니다. 지금은 매장 발주·초안 저장·발주 내역·생산 합계를 사용할 수 있어요.','This module is part of the original design. It is not connected to shared account data yet. Store ordering, cloud drafts, order history and production totals are available.')}</p><a href="../" target="_blank" rel="noopener">${t('기존 디자인 미리보기 열기 ↗','Open original design preview ↗')}</a></div>`;return;}
- const moduleContext={photoURLs,orders,receipts,guides,waste,dispatches,profile:vp,stores:shownStores,store,lang,t,esc,name,preview:isPreview(),act:run,db,say,reload:async()=>{await loadOrders();await loadModules();}};
+ const moduleContext={refreshWorkflowSources,photoURLs,orders,receipts,guides,waste,dispatches,profile:vp,stores:shownStores,store,lang,t,esc,name,preview:isPreview(),act:run,db,say,reload:async()=>{await loadOrders();await loadModules();}};
 
  if(page==='reservations'||page==='factoryreservations'){renderReservations(view,{...moduleContext,factory:page==='factoryreservations'});return;}
  if(page==='clover'){renderClover(view,{...moduleContext,catalogAll});return;}
@@ -445,7 +447,7 @@ function renderCart(){
  if($('#basketSave'))$('#basketSave').onclick=()=>$('#save')?.click();if($('#basketSubmit'))$('#basketSubmit').onclick=submitCurrentBasket;
 }
 async function persistDraft(){cancelBasketSave();if(isPreview())throw new Error('PREVIEW_READ_ONLY');assertRequestNote(note);if(!validDeliveryDate(date))throw new Error('DATE_REQUIRED');const items=orderItems();draft=await saveDraft(db,draft,{user_id:user.id,store_id:store,delivery_date:date,items,note});quantities=Object.fromEntries(draft.items.map(i=>[i.product_id,i.quantity]));date=draft.delivery_date;note=draft.note;rememberBasketRecommendations(draft);dirty=false;}
-function renderHistory(){if(page==='overview'){renderOverview($('#history'),{t,esc,db,date:overviewDate,stores,lang,preview:isPreview(),selectDate:v=>{overviewDate=v;render();},profile:screenProfile()});return;}if(page==='dispatch'){renderDispatch($('#history'),{storageDispatch:true,t,esc,db,date:productionDate,catalog,stores,orders:receiptOrders,dispatches,receipts,lang,name,profile:screenProfile(),preview:isPreview(),act:run,say,reload:async()=>{await loadOrders();await loadModules();}});return;}if(page==='production'){renderProduction($('#history'),{t,esc,db,date:productionDate,catalog,stores,orders:receiptOrders,lang,name});return;}renderGroupedOrderHistory($('#history'),{t,esc,name,orders,catalog:catalogAll,stores,profile:screenProfile(),preview:isPreview(),lang,focusOrder:historyFocusOrder,orderReference,dispatches,receipts,act:run,db,say,reload:async()=>{await loadOrders();await loadModules();}});}
+function renderHistory(){if(page==='overview'){renderOverview($('#history'),{t,esc,db,date:overviewDate,stores,lang,preview:isPreview(),selectDate:v=>{overviewDate=v;render();},profile:screenProfile()});return;}if(page==='dispatch'){renderDispatch($('#history'),{refreshWorkflowSources,storageDispatch:true,t,esc,db,date:productionDate,catalog,stores,orders:receiptOrders,dispatches,receipts,lang,name,profile:screenProfile(),preview:isPreview(),act:run,say,reload:async()=>{await loadOrders();await loadModules();}});return;}if(page==='production'){renderProduction($('#history'),{t,esc,db,date:productionDate,catalog,stores,orders:receiptOrders,lang,name});return;}renderGroupedOrderHistory($('#history'),{t,esc,name,orders,catalog:catalogAll,stores,profile:screenProfile(),preview:isPreview(),lang,focusOrder:historyFocusOrder,orderReference,dispatches,receipts,act:run,db,say,reload:async()=>{await loadOrders();await loadModules();}});}
 $('#language').onclick=()=>{lang=lang==='ko'?'en':'ko';localStorage.setItem('kream-staff-language',lang);render();};
 $('#logout').onclick=()=>{if(((ownerView?.dirty||dirty)||hasModuleEdits())&&!confirm(t('저장하지 않은 변경을 두고 로그아웃할까요?','Sign out with unsaved changes?')))return;restoreOwner();run(async()=>{await result(db.auth.signOut({scope:'local'}));clearWorkplaceChoice(user.id);entryFactory=false;++generation;previewRole='';ownerView=null;clearModuleState();receipts=[];guides=[];receiptOrders=[],waste=[],dispatches=[],layoutRows=[],stockRules=[];user=null;profile=null;catalog=[];orders=[];draft=null;quantities={};note='';dirty=false;uncertain=false;recovery=false;say(t('로그아웃했어요.','Signed out.'));});};
 window.addEventListener('beforeunload',e=>{if(ownerView?.dirty||ownerView?.uncertain||(!isPreview()&&(dirty||uncertain||hasModuleEdits()))){e.preventDefault();e.returnValue='';}});
