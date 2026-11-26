@@ -12,7 +12,7 @@ const CSS = `
 .so-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
 .so-chips button{border:1px solid #ddd5c4;border-radius:999px;padding:7px 12px;background:#fff;font-size:13px;font-weight:700}
 .so-chips button[aria-pressed="true"]{background:#3e4b33;border-color:#3e4b33;color:#fff}
-.so-find{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:6px;margin:0 0 6px}
+.so-find{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:minmax(0,1fr);gap:6px;margin:0 0 8px;padding:8px;border-radius:16px;background:#fff8e8;border:2px solid #e9c46a;box-shadow:0 2px 8px rgba(0,0,0,.06)}.so-find .so-q{position:relative}.so-find .so-q::before{content:'🔍';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none}.so-find .so-q input{padding-left:40px;height:48px;font-size:17px;font-weight:600;border:2px solid #d4a72c}
 .so-find input,.so-find select{width:100%;min-width:0;height:42px;border:1px solid #ddd5c4;border-radius:12px;padding:0 10px;font-size:16px;background:#fff}
 .so-sec{margin:8px 0}
 .so-group{display:flex;justify-content:space-between;align-items:center;gap:8px;list-style:none;cursor:pointer;margin:0;padding:12px 14px;border-radius:14px;background:#efe9dc;font-weight:800;font-size:15px}
@@ -78,14 +78,14 @@ export function renderSupplies(host, c) {
   host.innerHTML = kitchen ? `<div class="so">
     <h3>🍳 ${t('키친 발주', 'Kitchen order')}</h3>
     <p class="so-help">${t('필요한 것만 "더 필요해요!"를 누르고, 숫자 칸에 수량을 바로 적어도 돼요.', 'Tap "Need more!" for what you need, or type the quantity.')}</p>
-    <div class="so-find" style="grid-template-columns:minmax(0,1fr)"><input type="search" id="soSearch" placeholder="${t('품목 검색', 'Search')}" value="${esc(view.q)}"></div>
+    <div class="so-find"><div class="so-q"><input type="search" id="soSearch" placeholder="${t('품목 이름으로 찾기 (예: 우유, 컵)', 'Find an item (e.g. milk, cup)')}" value="${esc(view.q)}"></div></div>
     <div id="soRows">${rows()}</div>
     <button class="so-basket" data-so="basket">${basketLabel()}</button></div>` : `<div class="so">
     ${embedded ? '' : `<div class="so-tabs"><button data-so="back">✅ ${t('필수 확인', 'Must check')}</button><button aria-pressed="true">📦 ${t('추가 주문', 'Extra order')}</button><button data-so="basket">🛒 ${t('발주함', 'Basket')}</button></div>`}
     <h3>📦 ${t('추가 주문', 'Extra order')}</h3>
     <p class="so-help">${embedded ? t('세지 않는 품목이에요. 필요한 것만 "더 필요해요!"', 'No counting. Tap "Need more!" for what you need.') + '<span hidden>' : ''}${t('필수 확인에 없는 품목이에요. 세지 않아도 돼요. 필요한 것만 "더 필요해요!"를 누르면 발주 단위로 하나씩 담겨요.', 'Items not in Must check. No counting. Tap "Need more!" to add one order unit at a time.')}${embedded ? '</span>' : ''}</p>
     <div class="so-chips">${[['all', t('전체', 'All')], ['food', t('식재료·메뉴', 'Food & menu')], ['supplies', t('소모품·포장', 'Supplies')]].map(([k, l]) => `<button data-kind="${k}" aria-pressed="${view.kind === k}">${l}</button>`).join('')}</div>
-    <div class="so-find"><input type="search" id="soSearch" placeholder="${t('품목 검색', 'Search')}" value="${esc(view.q)}"><select id="soCat"><option value="">${t('전체 카테고리', 'All categories')}</option>${cats.map(k => `<option ${view.cat === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
+    <div class="so-find"><div class="so-q"><input type="search" id="soSearch" placeholder="${t('품목 이름으로 찾기 (예: 우유, 컵)', 'Find an item (e.g. milk, cup)')}" value="${esc(view.q)}"></div><select id="soCat"><option value="">${t('전체 카테고리', 'All categories')}</option>${cats.map(k => `<option ${view.cat === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
     <div id="soRows">${rows()}</div>
     <button class="so-basket" data-so="basket">${basketLabel()}</button></div>`;
   const redraw = () => { host.querySelector('#soRows').innerHTML = rows(); host.querySelectorAll('.so-basket').forEach(b => { b.textContent = basketLabel(); }); };
