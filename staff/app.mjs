@@ -34,7 +34,7 @@ import {recommendation} from './replenishment.mjs?v=20261102-drag';
 import {createStepState,renderOrderSteps} from './order-steps.mjs?v=20261125-dubai3';
 import {isStoreClosingPage,isEvening,eveningItems,eveningHtml,cashSaved,CASH_STORES as EVENING_CASH_STORES,EVENING_CSS} from './evening-warning.mjs?v=20261126-store-reminders';
 import {createMinimumState,renderMinimumEditor} from './minimum-editor.mjs?v=20261123-minsave3';
-import {renderSupplies} from './supplies-order.mjs?v=20261124-alllist';
+import {renderSupplies} from './supplies-order.mjs?v=20261126-groups';
 import {renderProductionLog} from './production-log.mjs?v=20261119-memo-items';
 import {renderChecklist} from './checklist.mjs?v=20261104-manual-compact';
 import {sortCatalog,sortProductRows,ordered,groupKey} from './order-layout.mjs?v=20261119-garnish-sequence';
@@ -327,7 +327,7 @@ const REQUIRED_NAMES=new Set(['스패너크림','아몬드밀크','오트밀크'
 const REQUIRED_SUBGROUPS=new Set(['레어치즈케이크','요거트쇼트케이크','티라미수','미니크루아상','미니크로와상','홀케이크']);
 function requiredItem(p){const n=String(p.name_ko||'').replace(/[\s·]/g,''),g=String(p.subgroup||'').replace(/\s/g,''),c=String(p.category||'');
  if(/포장|소모품/.test(c)||n.includes('예약케이크'))return false;
- return /^우유/.test(n)||REQUIRED_NAMES.has(n)||n.includes('치아시드')||n.includes('치아씨드')||(c==='디저트'&&REQUIRED_SUBGROUPS.has(g))||(c==='디저트'&&n==='바나나푸딩')||/^티라미수크림\(?음료제조용/.test(n)||(c==='빵류'&&g==='사워도우')||/^(초코|초콜릿)?두바이쫀득쿠키$/.test(n)||/^초코두쫀쿠$/.test(n);}
+ return /^우유/.test(n)||REQUIRED_NAMES.has(n)||n.includes('치아시드')||n.includes('치아씨드')||(c==='디저트'&&REQUIRED_SUBGROUPS.has(g))||(c==='디저트'&&n==='바나나푸딩')||/^티라미수크림(\(?음료(제조)?용.*)?$/.test(n)||(c==='빵류'&&g==='사워도우')||/^(초코|초콜릿)?두바이쫀득쿠키$/.test(n)||/^초코두쫀쿠$/.test(n);}
 function skipCount(p){return store==='midland'?supplyItem(p):!requiredItem(p);}
 // 다이제스티브: 1박스 이상 있다/없다. 없으면 1박스, 3호점(빙수·티라미수·바나나푸딩에 많이 씀)은 2박스
 function digestive(p){return String(p.name_ko||'').trim()==='다이제스티브';}
